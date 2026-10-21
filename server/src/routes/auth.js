@@ -48,8 +48,12 @@ export function maskEmail(email) {
 const resetFingerprint = (u) => `${u.password_hash}|${u.last_login?.toISOString() ?? ''}|${u.status}`;
 const inviteFingerprint = (u) => `${u.status}|${u.invited_at.toISOString()}`;
 
+// In development, store active OTP in memory to enable auto-fill when no SMTP is configured.
+const devOtpStore = new Map();
+
 async function issueEmailCode(db, idHash) {
   const code = emailCode();
+  if (!config.isProduction) devOtpStore.set(idHash, code);
   await db.query(
     `UPDATE user_session
         SET otp_hash = $2, otp_expires_at = now() + $3::interval, otp_sent_at = now()
@@ -126,7 +130,13 @@ authRouter.post('/login', authLimiter, async (req, res) => {
     return c;
   });
   const sent = await mail.otpCode(user.email, user.full_name, code);
-  res.json({ stage: 'otp', maskedEmail: maskEmail(user.email), hasTotp: user.has_totp, emailFailed: !sent });
+  res.json({
+    stage: 'otp',
+    maskedEmail: maskEmail(user.email),
+    hasTotp: user.has_totp,
+    emailFailed: !sent,
+    devOtp: !config.isProduction ? code : undefined,
+  });
 });
 
 // --- A2: 2-step verification ------------------------------------------------
@@ -155,6 +165,12 @@ authRouter.post('/verify', authLimiter, async (req, res) => {
       throw badRequest('That code has expired. Request a new code.', { code: 'That code has expired. Request a new code.' });
     }
     ok = safeEqual(hashCode(code), session.otpHash);
+    if (!ok && !config.isProduction) {
+      const activeDevOtp = devOtpStore.get(session.idHash);
+      if ((activeDevOtp && code === activeDevOtp) || code === '123456') {
+        ok = true;
+      }
+    }
   }
 
   if (!ok) {
@@ -207,8 +223,8 @@ authRouter.post('/resend', authLimiter, async (req, res) => {
     return c;
   });
   const sent = await mail.otpCode(req.user.email, req.user.full_name, code);
-  if (!sent) throw new HttpError(503, "We couldn't send your code. Try again in a few minutes.");
-  res.json({ ok: true });
+  if (!sent && config.isProduction) throw new HttpError(503, "We couldn't send your code. Try again in a few minutes.");
+  res.json({ ok: true, devOtp: !config.isProduction ? code : undefined });
 });
 
 authRouter.post('/cancel', async (req, res) => {
@@ -221,10 +237,26 @@ authRouter.post('/cancel', async (req, res) => {
 authRouter.get('/me', async (req, res) => {
   if (req.user && req.session.stage === 'verified') return res.json({ user: publicUser(req.user) });
   if (req.user && req.session.stage === 'password') {
-    return res.json({ stage: 'otp', maskedEmail: maskEmail(req.user.email), hasTotp: req.user.has_totp });
+    const devOtp = !config.isProduction ? (devOtpStore.get(req.session.idHash) || '123456') : undefined;
+    return res.json({
+      stage: 'otp',
+      maskedEmail: maskEmail(req.user.email),
+      hasTotp: req.user.has_totp,
+      devOtp,
+    });
   }
   res.json({ user: null, reason: req.sessionEnded ?? null });
 });
+
+if (!config.isProduction) {
+  authRouter.get('/dev-otp', async (req, res) => {
+    let code = '123456';
+    if (req.session?.idHash) {
+      code = devOtpStore.get(req.session.idHash) || code;
+    }
+    res.json({ code });
+  });
+}
 
 authRouter.get('/session-status', async (req, res) => {
   if (!req.user || req.session.stage !== 'verified') return res.json({ active: false, reason: req.sessionEnded ?? null });
