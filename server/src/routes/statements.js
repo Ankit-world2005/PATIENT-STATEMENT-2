@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import ExcelJS from 'exceljs';
 import { pool, query, withTransaction } from '../db/pool.js';
 import { audit } from '../lib/audit.js';
 import { HttpError, badRequest, conflict, parseOrThrow } from '../lib/errors.js';
@@ -157,6 +158,186 @@ statementsRouter.get('/', async (req, res) => {
     total,
     totalPages,
   });
+});
+
+// --- P1.5: export 17-column Excel workbook -----------------------------------
+statementsRouter.get('/export', async (req, res) => {
+  const f = parseOrThrow(listSchema.omit({ page: true }), req.query);
+  if (f.from && f.to && f.from > f.to) {
+    throw badRequest("The 'from' date must be before the 'to' date.", { from: "The 'from' date must be before the 'to' date." });
+  }
+
+  const clinicId = req.user.role === 'clinic_user' ? req.user.clinic_id : f.clinicId;
+  const clinic = await getVisibleClinic(pool, req, clinicId);
+
+  const params = [clinic.id];
+  const where = ['s.clinic_id = $1', statementScope(req.user, 's', params)];
+  if (req.user.role !== 'clinic_user' && f.status !== 'all') {
+    params.push(f.status);
+    where.push(`s.status = $${params.length}`);
+  }
+  if (f.q) {
+    params.push(`%${f.q.toLowerCase().replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
+    where.push(`(lower(s.patient_name) LIKE $${params.length} OR lower(s.account_number) LIKE $${params.length})`);
+  }
+  if (f.from) {
+    params.push(f.from);
+    where.push(`s.statement_date >= $${params.length}`);
+  }
+  if (f.to) {
+    params.push(f.to);
+    where.push(`s.statement_date <= $${params.length}`);
+  }
+  const whereSql = where.join(' AND ');
+
+  const { rows } = await query(
+    `SELECT s.id, s.clinic_id, COALESCE(s.location_name, c.name) AS location_name,
+            s.patient_name, s.account_number, s.statement_date, s.balance_due,
+            s.cycle1_date, s.cycle1_balance, s.cycle1_payment,
+            s.cycle2_date, s.cycle2_balance, s.cycle2_payment,
+            s.cycle3_date, s.cycle3_balance, s.cycle3_payment,
+            s.current_balance, s.pr_type, s.status,
+            COALESCE(s.us24_notes, (
+              SELECT r.body FROM remark r JOIN statement st ON st.id = r.statement_id
+               WHERE (st.id = s.id OR (st.patient_name = s.patient_name AND st.clinic_id = s.clinic_id)) AND r.type = 'specialist'
+               ORDER BY r.created_at DESC, r.id DESC LIMIT 1
+            )) AS us24_notes,
+            COALESCE(s.client_response, (
+              SELECT r.body FROM remark r JOIN statement st ON st.id = r.statement_id
+               WHERE (st.id = s.id OR (st.patient_name = s.patient_name AND st.clinic_id = s.clinic_id)) AND r.type = 'clinic'
+               ORDER BY r.created_at DESC, r.id DESC LIMIT 1
+            )) AS client_response,
+            COALESCE(s.vob_notes, (
+              SELECT r.body FROM remark r JOIN statement st ON st.id = r.statement_id
+               WHERE (st.id = s.id OR (st.patient_name = s.patient_name AND st.clinic_id = s.clinic_id)) AND r.type = 'insurance'
+               ORDER BY r.created_at DESC, r.id DESC LIMIT 1
+            )) AS vob_notes
+       FROM statement s
+       JOIN clinic c ON c.id = s.clinic_id
+      WHERE ${whereSql}
+      ORDER BY ${SORTS[f.sort]}
+      LIMIT 10000`,
+    params,
+  );
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'US24 Solutions';
+  workbook.created = new Date();
+
+  const sheet = workbook.addWorksheet('Patient Statements');
+
+  sheet.columns = [
+    { header: 'LOCATION', key: 'location', width: 22 },
+    { header: 'PATIENT NAME', key: 'patientName', width: 26 },
+    { header: '1ST ELECTRONIC STATEMENT', key: 'cycle1Date', width: 22 },
+    { header: 'BALANCE DUE AMOUNT', key: 'cycle1Balance', width: 18 },
+    { header: 'PAYMENT RECEIVED', key: 'cycle1Payment', width: 18 },
+    { header: '2ND ELECTRONIC STATEMENT', key: 'cycle2Date', width: 22 },
+    { header: 'BALANCE DUE AMOUNT', key: 'cycle2Balance', width: 18 },
+    { header: 'PAYMENT RECEIVED', key: 'cycle2Payment', width: 18 },
+    { header: '3RD ELECTRONIC STATEMENT', key: 'cycle3Date', width: 22 },
+    { header: 'BALANCE DUE AMOUNT', key: 'cycle3Balance', width: 18 },
+    { header: 'PAYMENT RECEIVED', key: 'cycle3Payment', width: 18 },
+    { header: 'CURRENT OUTSTANDING BALANCE', key: 'currentBalance', width: 26 },
+    { header: 'PR TYPE', key: 'prType', width: 14 },
+    { header: 'US24 NOTES', key: 'us24Notes', width: 36 },
+    { header: 'CLIENT RESPONSE', key: 'clientResponse', width: 36 },
+    { header: 'AS PER VOB- NOTES', key: 'vobNotes', width: 36 },
+    { header: 'STATUS', key: 'status', width: 14 },
+  ];
+
+  const headerRow = sheet.getRow(1);
+  headerRow.height = 30;
+  headerRow.eachCell((cell) => {
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1D4ED8' },
+    };
+    cell.font = {
+      name: 'Calibri',
+      size: 10,
+      bold: true,
+      color: { argb: 'FFFFFFFF' },
+    };
+    cell.alignment = {
+      vertical: 'middle',
+      horizontal: 'center',
+      wrapText: true,
+    };
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FF1E40AF' } },
+      left: { style: 'thin', color: { argb: 'FF1E40AF' } },
+      bottom: { style: 'medium', color: { argb: 'FF1E3A8A' } },
+      right: { style: 'thin', color: { argb: 'FF1E40AF' } },
+    };
+  });
+
+  const moneyCols = [4, 5, 7, 8, 10, 11, 12];
+  const dateCols = [3, 6, 9];
+
+  rows.forEach((r) => {
+    const row = sheet.addRow({
+      location: r.location_name,
+      patientName: r.patient_name,
+      cycle1Date: r.cycle1_date || r.statement_date,
+      cycle1Balance: r.cycle1_balance !== null && r.cycle1_balance !== undefined ? Number(r.cycle1_balance) : Number(r.balance_due),
+      cycle1Payment: r.cycle1_payment !== null && r.cycle1_payment !== undefined ? Number(r.cycle1_payment) : 0,
+      cycle2Date: r.cycle2_date || '',
+      cycle2Balance: r.cycle2_balance !== null && r.cycle2_balance !== undefined ? Number(r.cycle2_balance) : '',
+      cycle2Payment: r.cycle2_payment !== null && r.cycle2_payment !== undefined ? Number(r.cycle2_payment) : '',
+      cycle3Date: r.cycle3_date || '',
+      cycle3Balance: r.cycle3_balance !== null && r.cycle3_balance !== undefined ? Number(r.cycle3_balance) : '',
+      cycle3Payment: r.cycle3_payment !== null && r.cycle3_payment !== undefined ? Number(r.cycle3_payment) : '',
+      currentBalance: r.current_balance !== null && r.current_balance !== undefined ? Number(r.current_balance) : Number(r.balance_due),
+      prType: r.pr_type || 'Copay',
+      us24Notes: r.us24_notes || '',
+      clientResponse: r.client_response || '',
+      vobNotes: r.vob_notes || '',
+      status: r.status === 'withdrawn' ? 'Withdrawn' : 'Active',
+    });
+
+    row.height = 24;
+    row.eachCell((cell, colNumber) => {
+      cell.font = { name: 'Calibri', size: 10 };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+      };
+      if (moneyCols.includes(colNumber)) {
+        if (typeof cell.value === 'number') {
+          cell.numFmt = '$#,##0.00;($#,##0.00);"$0.00"';
+          cell.alignment = { vertical: 'middle', horizontal: 'right' };
+        } else {
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        }
+      } else if (dateCols.includes(colNumber)) {
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      } else if (colNumber === 13 || colNumber === 17) {
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      } else {
+        cell.alignment = { vertical: 'middle', horizontal: 'left' };
+      }
+    });
+  });
+
+  await audit(pool, req, {
+    action: 'statement.download',
+    targetType: 'clinic',
+    targetId: clinic.id,
+    clinicId: clinic.id,
+    details: { format: 'excel', rows_count: rows.length, clinic_code: clinic.clinic_code },
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const safeClinicName = (clinic.name || 'clinic').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const filename = `${safeClinicName}-patient-statements-${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(Buffer.from(buffer));
 });
 
 // --- P2: detail with remarks (F10, F11) --------------------------------------

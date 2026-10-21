@@ -73,6 +73,118 @@ function readCsv(buffer) {
   return records.map((values, i) => ({ rowNumber: i + 1, values }));
 }
 
+export function mapHeaderColumns(headerValues) {
+  let currentCycle = 0;
+  const mapped = [];
+
+  for (const raw of headerValues) {
+    if (isBlank(raw)) {
+      mapped.push(null);
+      continue;
+    }
+    const clean = String(raw).trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+
+    // Check for cycle statement date indicators
+    if (
+      (clean.includes('1st') || clean.includes('first') || clean.startsWith('cycle_1') || clean === 'cycle1') &&
+      (clean.includes('statement') || clean.includes('electronic') || clean.includes('date'))
+    ) {
+      currentCycle = 1;
+      mapped.push('cycle1_date');
+      continue;
+    }
+    if (
+      (clean.includes('2nd') || clean.includes('second') || clean.startsWith('cycle_2') || clean === 'cycle2') &&
+      (clean.includes('statement') || clean.includes('electronic') || clean.includes('date'))
+    ) {
+      currentCycle = 2;
+      mapped.push('cycle2_date');
+      continue;
+    }
+    if (
+      (clean.includes('3rd') || clean.includes('third') || clean.startsWith('cycle_3') || clean === 'cycle3') &&
+      (clean.includes('statement') || clean.includes('electronic') || clean.includes('date'))
+    ) {
+      currentCycle = 3;
+      mapped.push('cycle3_date');
+      continue;
+    }
+
+    // Check for current / outstanding balance
+    if (
+      (clean.includes('current') && (clean.includes('balance') || clean.includes('outstanding'))) ||
+      clean === 'current_outstanding_balance' ||
+      clean === 'outstanding_balance'
+    ) {
+      mapped.push('current_balance');
+      continue;
+    }
+
+    // Check for balance due amount
+    if (
+      clean === 'balance_due_amount' ||
+      clean === 'balance_due' ||
+      clean === 'balance' ||
+      clean === 'patient_balance' ||
+      clean === 'amount_due' ||
+      (clean.includes('balance') && (clean.includes('due') || clean.includes('amt') || clean.includes('amount')))
+    ) {
+      if (currentCycle === 1) mapped.push('cycle1_balance');
+      else if (currentCycle === 2) mapped.push('cycle2_balance');
+      else if (currentCycle === 3) mapped.push('cycle3_balance');
+      else mapped.push('balance_due');
+      continue;
+    }
+
+    // Check for payment received
+    if (
+      clean === 'payment_received' ||
+      clean === 'payment' ||
+      clean === 'payments' ||
+      clean === 'pmt_received' ||
+      clean === 'pmt_rcvd' ||
+      (clean.includes('payment') && clean.includes('received'))
+    ) {
+      if (currentCycle === 1) mapped.push('cycle1_payment');
+      else if (currentCycle === 2) mapped.push('cycle2_payment');
+      else if (currentCycle === 3) mapped.push('cycle3_payment');
+      else mapped.push(null);
+      continue;
+    }
+
+    // Ledger specific fields
+    if (clean === 'location' || clean === 'clinic_location' || clean.includes('location_name')) {
+      mapped.push('location_name');
+      continue;
+    }
+    if (clean === 'pr_type' || clean === 'pr' || clean.includes('patient_resp') || clean === 'patient_responsibility') {
+      mapped.push('pr_type');
+      continue;
+    }
+    if (clean === 'us24_notes' || clean === 'us24' || clean.includes('specialist_note') || clean.includes('us24_note')) {
+      mapped.push('us24_notes');
+      continue;
+    }
+    if (clean === 'client_response' || clean === 'clinic_response' || clean.includes('client_note') || clean.includes('clinic_note')) {
+      mapped.push('client_response');
+      continue;
+    }
+    if (clean.includes('vob')) {
+      mapped.push('vob_notes');
+      continue;
+    }
+    if (clean === 'status') {
+      mapped.push(null);
+      continue;
+    }
+
+    // Fallback to standard normalizeHeader
+    mapped.push(normalizeHeader(raw));
+  }
+
+  return mapped;
+}
+
 /**
  * Parses an import file into rows keyed by statement field.
  * Returns { format, rows: [{ rowNumber, raw }], ignoredColumns }.
@@ -86,16 +198,24 @@ export async function parseImportFile(buffer, filename) {
   if (!nonEmpty.length) throw new ImportFileError('The file is empty.');
 
   const [header, ...dataRows] = nonEmpty;
-  const columns = header.values.map((h) => (isBlank(h) ? null : normalizeHeader(h)));
+  const columns = mapHeaderColumns(header.values);
 
-  const missing = REQUIRED_KEYS.filter((k) => !columns.includes(k));
+  const isMultiCycle = columns.includes('cycle1_date') || columns.includes('current_balance') || columns.includes('cycle1_balance');
+
+  const missing = [];
+  if (!columns.includes('patient_name')) missing.push('patient_name');
+  if (!columns.includes('statement_date') && !columns.includes('cycle1_date')) missing.push('statement_date');
+  if (!columns.includes('balance_due') && !columns.includes('current_balance') && !columns.includes('cycle1_balance')) missing.push('balance_due');
+  if (!isMultiCycle && !columns.includes('account_number')) missing.push('account_number');
+
   if (missing.length) {
     throw new ImportFileError(`Missing columns: ${missing.map((k) => FIELD_BY_KEY[k].label).join(', ')}.`);
   }
+
   const seen = new Set();
   for (const key of columns) {
     if (!key) continue;
-    if (seen.has(key)) throw new ImportFileError(`The column "${FIELD_BY_KEY[key].label}" appears more than once.`);
+    if (seen.has(key)) throw new ImportFileError(`The column "${FIELD_BY_KEY[key]?.label || key}" appears more than once.`);
     seen.add(key);
   }
 
@@ -110,7 +230,7 @@ export async function parseImportFile(buffer, filename) {
     .filter(Boolean);
 
   const rows = dataRows.map(({ rowNumber, values }) => {
-    const raw = {};
+    const raw = { _rowNumber: rowNumber };
     columns.forEach((key, i) => {
       if (key) raw[key] = values[i] ?? null;
     });

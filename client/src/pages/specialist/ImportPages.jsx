@@ -178,7 +178,7 @@ export function ImportNewPage() {
         <div className="form-actions">
           <Link to="/dashboard" className="btn btn-secondary">Cancel</Link>
           <button type="submit" className="btn btn-primary" disabled={busy || clinics?.length === 0}>
-            {busy ? 'Checking…' : 'Check file'}
+            {busy ? 'Checking file…' : (clinicName ? `Check file & preview for ${clinicName} →` : 'Check file & preview →')}
           </button>
         </div>
       </form>
@@ -421,7 +421,7 @@ export function ImportPreviewPage() {
           ) : undecided > 0 ? (
             <strong>Choose Skip or New version for {undecided} possible duplicate{undecided === 1 ? '' : 's'} to continue.</strong>
           ) : (
-            <span><strong>{toPublish.toLocaleString('en-US')}</strong> statement{toPublish === 1 ? '' : 's'} will be published to <strong>{batch.clinic.name}</strong>.</span>
+            <span><strong>{toPublish.toLocaleString('en-US')}</strong> patient statement{toPublish === 1 ? '' : 's'} will be uploaded and published to <strong>{batch.clinic.name}</strong>.</span>
           )}
           <div className="form-hint">Preview expires {dateTime(batch.previewExpiresAt)}.</div>
         </div>
@@ -431,16 +431,16 @@ export function ImportPreviewPage() {
           ) : null}
           <button type="button" className="btn btn-secondary" onClick={() => setCancelling(true)} disabled={busy}>Cancel import</button>
           <button type="button" className="btn btn-primary" onClick={() => setConfirming(true)} disabled={busy || toPublish === 0 || undecided > 0}>
-            Publish valid rows
+            Upload Excel to {batch.clinic.name}
           </button>
         </div>
       </div>
 
       {confirming && (
         <ConfirmDialog
-          title={`Publish to ${batch.clinic.name}?`}
-          message={`${toPublish.toLocaleString('en-US')} statement${toPublish === 1 ? '' : 's'} will become visible to ${batch.clinic.name}'s users immediately and marked New.`}
-          confirmLabel="Publish"
+          title={`Upload Excel to ${batch.clinic.name}?`}
+          message={`${toPublish.toLocaleString('en-US')} patient statement${toPublish === 1 ? '' : 's'} will be published to ${batch.clinic.name}. Clinic users will immediately see the updated 17-column patient records.`}
+          confirmLabel="Upload Excel to clinic"
           busy={busy}
           onConfirm={publish}
           onCancel={() => setConfirming(false)}
@@ -486,23 +486,23 @@ export function ImportResultPage() {
   return (
     <div className="container page-narrow">
       <BackBar to="/dashboard" label="Back to dashboard" trail={['Import statements', 'Result']} />
-      {done && <ol className="steps steps-page" aria-label="Import steps"><li className="done">Choose clinic and file</li><li className="done">Review preview</li><li className="done current">Publish</li></ol>}
+      {done && <ol className="steps steps-page" aria-label="Import steps"><li className="done">Choose clinic and file</li><li className="done">Review preview</li><li className="done current">Upload complete</li></ol>}
       {location.state?.justPublished && done && (
-        <Alert tone="success" title={`${created.toLocaleString('en-US')} statement${created === 1 ? '' : 's'} published to ${b.clinic.name}.`}>
-          Clinic users can see them now, marked New.
+        <Alert tone="success" title={`Excel report successfully uploaded to ${b.clinic.name}.`}>
+          {created.toLocaleString('en-US')} patient record{created === 1 ? '' : 's'} published. Clinic users can view them now in their portal ledger.
         </Alert>
       )}
 
-      <PageHeader title="Import result" subtitle={b.originalFilename}>
+      <PageHeader title="Upload result" subtitle={`${b.originalFilename} uploaded to ${b.clinic.name}`}>
         <StatusBadge status={b.status} />
       </PageHeader>
 
       <div className="panel">
         <dl className="summary-list">
-          <div><dt>Clinic</dt><dd>{b.clinic.name} <span className="user-clinic-badge">{b.clinic.code}</span></dd></div>
-          <div><dt>File</dt><dd>{b.originalFilename} <span className="form-hint">({b.fileFormat.toUpperCase()})</span></dd></div>
-          <div><dt>Checked</dt><dd>{dateTime(b.createdAt)} by {b.specialistName}</dd></div>
-          {b.publishedAt && <div><dt>Published</dt><dd>{dateTime(b.publishedAt)}</dd></div>}
+          <div><dt>Destination clinic</dt><dd><strong>{b.clinic.name}</strong> <span className="user-clinic-badge">{b.clinic.code}</span></dd></div>
+          <div><dt>Excel file</dt><dd>{b.originalFilename} <span className="form-hint">({b.fileFormat.toUpperCase()})</span></dd></div>
+          <div><dt>Uploaded by</dt><dd>{b.specialistName}</dd></div>
+          {b.publishedAt && <div><dt>Uploaded at</dt><dd>{dateTime(b.publishedAt)}</dd></div>}
           {b.cancelledAt && <div><dt>Cancelled</dt><dd>{dateTime(b.cancelledAt)}</dd></div>}
         </dl>
       </div>
@@ -515,8 +515,8 @@ export function ImportResultPage() {
       {done && (
         <>
           <div className="stat-tiles">
-            <StatTile label="Published" value={t.published} tone="success" />
-            <StatTile label="Published as new versions" value={t.newVersions} />
+            <StatTile label="Uploaded to clinic" value={t.published} tone="success" />
+            <StatTile label="New versions" value={t.newVersions} />
             <StatTile label="Skipped duplicates" value={t.skipped} tone={t.skipped ? 'warning' : undefined} />
             <StatTile label="Failed rows" value={t.invalid} tone={t.invalid ? 'danger' : undefined} />
           </div>
@@ -528,15 +528,26 @@ export function ImportResultPage() {
               </button>
             </div>
           ) : (
-            <Alert tone="success">All rows published.</Alert>
+            <Alert tone="success">All rows successfully uploaded to {b.clinic.name}.</Alert>
           )}
         </>
       )}
 
-      <div className="form-actions">
+      <div className="form-actions" style={{ flexWrap: 'wrap', gap: '8px' }}>
+        <Link to={`/clinics/${b.clinic.id}/statements`} className="btn btn-primary">
+          View clinic patient records
+        </Link>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => download(`/statements/export?clinicId=${b.clinic.id}`, `${b.clinic.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-patient-statements.xlsx`)}
+        >
+          <IconDownload size={14} /> Export Excel (.xlsx)
+        </button>
+        <Link to={`/imports/new?clinicId=${b.clinic.id}`} className="btn btn-secondary">
+          Upload another Excel file
+        </Link>
         <Link to="/dashboard" className="btn btn-secondary">Back to dashboard</Link>
-        <Link to="/imports/new" className="btn btn-secondary">Import another file</Link>
-        <Link to={`/clinics/${b.clinic.id}/statements`} className="btn btn-primary">View clinic statements</Link>
       </div>
     </div>
   );

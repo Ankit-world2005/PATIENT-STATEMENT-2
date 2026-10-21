@@ -193,8 +193,9 @@ export function validateStatement(raw) {
     }
   }
   if (!normalizedRaw.account_number && normalizedRaw.patient_name) {
-    const clean = String(normalizedRaw.patient_name).toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
-    normalizedRaw.account_number = `ACC-${clean || 'PT'}-${Math.floor(10000 + Math.random() * 90000)}`;
+    const clean = String(normalizedRaw.patient_name).toUpperCase().replace(/[^A-Z]/g, '').slice(0, 6);
+    const suffix = normalizedRaw._rowNumber ? String(normalizedRaw._rowNumber).padStart(4, '0') : Math.floor(10000 + Math.random() * 90000);
+    normalizedRaw.account_number = `ACC-${clean || 'PT'}-${suffix}`;
   }
 
   const data = {};

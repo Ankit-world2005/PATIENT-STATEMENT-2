@@ -74,3 +74,30 @@ test('error report neutralises spreadsheet formulas', () => {
   assert.ok(out.includes("'-5"));
   assert.ok(out.includes('Failed,Statement date is required.'));
 });
+
+test('parses a 17-column multi-cycle medical billing ledger with repeating balance and payment headers', async () => {
+  const header = 'LOCATION,PATIENT NAME,1ST ELECTRONIC STATEMENT,BALANCE DUE AMOUNT,PAYMENT RECEIVED,2ND ELECTRONIC STATEMENT,BALANCE DUE AMOUNT,PAYMENT RECEIVED,3RD ELECTRONIC STATEMENT,BALANCE DUE AMOUNT,PAYMENT RECEIVED,CURRENT OUTSTANDING BALANCE,PR TYPE,US24 NOTES,CLIENT RESPONSE,AS PER VOB- NOTES,STATUS';
+  const row1 = 'Downtown Clinic,Smith John,10/01/2026,$250.00,$50.00,10/15/2026,$200.00,$0.00,11/01/2026,$200.00,$0.00,$200.00,Copay,Called patient,Patient promised payment,VOB verified active,Active';
+  const file = csv(`${header}\n${row1}\n`);
+  const { format, rows } = await parseImportFile(file, 'billing.csv');
+  assert.equal(format, 'csv');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].raw.patient_name, 'Smith John');
+  assert.equal(rows[0].raw.cycle1_date, '10/01/2026');
+  assert.equal(rows[0].raw.cycle1_balance, '$250.00');
+  assert.equal(rows[0].raw.cycle1_payment, '$50.00');
+  assert.equal(rows[0].raw.cycle2_date, '10/15/2026');
+  assert.equal(rows[0].raw.cycle2_balance, '$200.00');
+  assert.equal(rows[0].raw.cycle3_date, '11/01/2026');
+  assert.equal(rows[0].raw.cycle3_balance, '$200.00');
+  assert.equal(rows[0].raw.current_balance, '$200.00');
+  assert.equal(rows[0].raw.pr_type, 'Copay');
+  assert.equal(rows[0].raw.us24_notes, 'Called patient');
+
+  const validated = validateRows(rows);
+  assert.equal(validated[0].outcome, 'valid');
+  assert.equal(validated[0].data.patient_name, 'Smith John');
+  assert.equal(validated[0].data.statement_date, '2026-10-01');
+  assert.equal(validated[0].data.balance_due, '200.00');
+  assert.match(validated[0].data.account_number, /^ACC-SMITHJ-\d{4}$/);
+});

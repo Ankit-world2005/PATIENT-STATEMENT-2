@@ -247,7 +247,7 @@ export function ImportTabContent({ clinics: initialClinics, recentImports = [] }
                 className="btn btn-primary"
                 disabled={busy || !clinics || clinics.length === 0}
               >
-                {busy ? 'Validating file…' : 'Check file & review preview →'}
+                {busy ? 'Validating file…' : (clinicName ? `Check file & preview for ${clinicName} →` : 'Check file & review preview →')}
               </button>
             </div>
           </form>

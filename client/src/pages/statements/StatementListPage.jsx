@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
-import { IconSearch, IconTable, IconUpload } from '../../components/Icons.jsx';
+import { IconDownload, IconSearch, IconTable, IconUpload } from '../../components/Icons.jsx';
 import { Alert, BackBar, EmptyState, PageHeader, Pagination, Spinner, StatusBadge } from '../../components/ui.jsx';
-import { api } from '../../lib/api.js';
+import { api, downloadFile } from '../../lib/api.js';
 import { useAuth } from '../../lib/auth.jsx';
 import { date, money, shortDate } from '../../lib/format.js';
+import { useToast } from '../../lib/toast.jsx';
 import { NotFoundPage } from '../NotFoundPage.jsx';
 
 function Highlight({ text, query }) {
@@ -81,10 +82,27 @@ export function StatementListPage() {
   const status = params.get('status') ?? 'active';
   const page = Number(params.get('page') ?? 1);
 
+  const toast = useToast();
   const [search, setSearch] = useState(q);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      const qParams = new URLSearchParams({ q, from, to, sort });
+      if (isStaff && clinicId) qParams.set('clinicId', clinicId);
+      if (isStaff && status) qParams.set('status', status);
+      const filename = `${(data?.clinic?.name || 'patient').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-statements-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      await downloadFile(`/statements/export?${qParams.toString()}`, filename);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const update = (changes) => {
     const next = new URLSearchParams(params);
@@ -171,16 +189,29 @@ export function StatementListPage() {
             : ' '
         }
       >
-        {user.role === 'specialist' && data?.clinic.isActive && (
-          <>
-            <Link to={`/statements/upload?clinicId=${clinicId}`} className="btn btn-secondary btn-sm">
-              <IconUpload size={14} /> Upload
-            </Link>
-            <Link to={`/imports/new?clinicId=${clinicId}`} className="btn btn-primary btn-sm">
-              <IconTable size={14} /> Import
-            </Link>
-          </>
-        )}
+        <div className="btn-group">
+          {data && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={handleExportExcel}
+              disabled={exporting}
+              title="Download 17-column medical billing ledger in Excel (.xlsx) format"
+            >
+              <IconDownload size={14} /> {exporting ? 'Exporting…' : 'Export Excel'}
+            </button>
+          )}
+          {user.role === 'specialist' && data?.clinic.isActive && (
+            <>
+              <Link to={`/imports/new?clinicId=${clinicId}`} className="btn btn-primary btn-sm">
+                <IconTable size={14} /> Upload Excel
+              </Link>
+              <Link to={`/statements/upload?clinicId=${clinicId}`} className="btn btn-secondary btn-sm">
+                <IconUpload size={14} /> Upload PDF
+              </Link>
+            </>
+          )}
+        </div>
       </PageHeader>
       {isStaff && data && !data.clinic.isActive && (
         <Alert tone="warning">
