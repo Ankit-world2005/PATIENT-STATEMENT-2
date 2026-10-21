@@ -1,0 +1,20 @@
+{
+  "name": "my-patient",
+  "private": true,
+  "description": "My Patient - US24 Solutions patient statement portal (React + Node.js + PostgreSQL)",
+  "scripts": {
+    "install:all": "npm install && npm --prefix server install && npm --prefix client install",
+    "services:up": "docker compose up -d",
+    "services:down": "docker compose down",
+    "db:migrate": "npm --prefix server run db:migrate",
+    "db:seed": "npm --prefix server run db:seed",
+    "db:reset": "npm --prefix server run db:reset",
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "build": "npm --prefix client run build",
+    "start": "npm --prefix server start",
+    "test": "npm --prefix server test"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

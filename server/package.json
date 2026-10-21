@@ -1,0 +1,31 @@
+{
+  "name": "my-patient-server",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "db:migrate": "node src/db/migrate.js",
+    "db:seed": "node src/db/seed.js",
+    "db:reset": "node src/db/migrate.js --reset && node src/db/seed.js",
+    "test": "node --test \"test/**/*.test.js\"",
+    "smoke": "node scripts/smoke-test.js"
+  },
+  "dependencies": {
+    "cookie-parser": "1.4.7",
+    "csv-parse": "7.0.3",
+    "exceljs": "4.4.0",
+    "express": "5.3.0",
+    "express-rate-limit": "8.7.1",
+    "helmet": "8.1.0",
+    "multer": "2.4.0",
+    "nodemailer": "10.2.0",
+    "pdf-lib": "1.17.1",
+    "pg": "8.16.3",
+    "qrcode": "1.5.4",
+    "zod": "4.1.12"
+  }
+}

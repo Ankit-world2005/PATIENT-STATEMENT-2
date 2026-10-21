@@ -1,0 +1,235 @@
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useLocation, useParams } from 'react-router';
+import { IconDownload, IconPrint } from '../../components/Icons.jsx';
+import { RemarksLedger } from '../../components/RemarksLedger.jsx';
+import { StatementDocument } from '../../components/StatementDocument.jsx';
+import { Alert, BackBar, Field, Modal, Spinner, StatusBadge } from '../../components/ui.jsx';
+import { api, downloadFile } from '../../lib/api.js';
+import { useAuth } from '../../lib/auth.jsx';
+import { date, dateTime, money } from '../../lib/format.js';
+import { useToast } from '../../lib/toast.jsx';
+import { NotFoundPage } from '../NotFoundPage.jsx';
+
+function WithdrawDialog({ clinicName, statementId, onDone, onCancel }) {
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    if (!reason.trim()) {
+      setError('Enter a reason.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await api(`/statements/${statementId}/withdraw`, { method: 'POST', body: { reason } });
+      onDone('Statement withdrawn.');
+    } catch (err) {
+      if (err.status === 409) onDone(err.message);
+      else setError(err.fieldErrors.reason || err.message);
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal
+      title="Withdraw this statement?"
+      tone="warning"
+      onClose={busy ? undefined : onCancel}
+      footer={
+        <>
+          <button type="button" className="btn btn-secondary" onClick={onCancel} disabled={busy}>Cancel</button>
+          <button type="button" className="btn btn-danger" onClick={submit} disabled={busy}>{busy ? 'Withdrawing…' : 'Withdraw'}</button>
+        </>
+      }
+    >
+      <p>{clinicName}'s users will no longer see this statement. This is recorded in the audit log and can't be undone.</p>
+      <Field label="Reason" error={error} required>
+        {(p) => <textarea {...p} className="form-textarea" maxLength={1000} value={reason} onChange={(e) => setReason(e.target.value)} />}
+      </Field>
+    </Modal>
+  );
+}
+
+function PrintDialog({ statementId, onCancel }) {
+  const navigate = useNavigate();
+  const [includeRemarks, setIncludeRemarks] = useState(false);
+  return (
+    <Modal
+      title="Print statement"
+      onClose={onCancel}
+      footer={
+        <>
+          <button type="button" className="btn btn-secondary" onClick={onCancel}>Cancel</button>
+          <button type="button" className="btn btn-primary" onClick={() => navigate(`/statements/${statementId}/print${includeRemarks ? '?remarks=1' : ''}`)}>
+            Continue to print
+          </button>
+        </>
+      }
+    >
+      <label className="checkbox-row">
+        <input type="checkbox" checked={includeRemarks} onChange={(e) => setIncludeRemarks(e.target.checked)} />
+        Include the remarks log in the printout
+      </label>
+    </Modal>
+  );
+}
+
+// P2 – Statement detail with remarks (F10, F11, F12)
+export function StatementDetailPage() {
+  const { id } = useParams();
+  const { user } = useAuth();
+  const location = useLocation();
+  const toast = useToast();
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+  const [dialog, setDialog] = useState(null);
+  const [downloading, setDownloading] = useState(false);
+  const [published, setPublished] = useState(location.state?.published ?? null);
+
+  const load = useCallback(() => {
+    setError(null);
+    return api(`/statements/${id}`).then(setData).catch(setError);
+  }, [id]);
+
+  useEffect(() => {
+    setData(null);
+    load();
+  }, [load]);
+
+  if (error?.status === 404) return <NotFoundPage />;
+  if (error) return <div className="container"><Alert tone="error">{error.message}</Alert></div>;
+  if (!data) return <div className="container"><Spinner label="Loading statement…" /></div>;
+
+  const { statement: s, clinic, remarks, otherStatements } = data;
+  const isStaff = user.role !== 'clinic_user';
+  const backTo = location.state?.from || (isStaff ? `/clinics/${clinic.id}/statements` : '/statements');
+
+  const download = async () => {
+    setDownloading(true);
+    try {
+      await downloadFile(`/statements/${s.id}/download`, `statement-${s.statementDate}.pdf`);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <div className="container">
+      <BackBar to={backTo} label="Back to statements" trail={[isStaff ? clinic.name : 'Statements', s.patientName]} />
+
+      {published && <Alert tone="success" onDismiss={() => setPublished(null)}>Statement published to {published}.</Alert>}
+      {s.status === 'withdrawn' && (
+        <Alert tone="error" title={`Withdrawn on ${dateTime(s.withdrawnAt)} by ${s.withdrawnByName}.`}>
+          Reason: {s.withdrawalReason}
+        </Alert>
+      )}
+      {s.newerVersionId && (
+        <Alert tone="info">
+          This is an earlier version. <Link to={`/statements/${s.newerVersionId}`}>View the current version</Link>.
+        </Alert>
+      )}
+
+      <div className="detail-hero-band">
+        <div className="detail-patient-meta">
+          <h1 className="detail-patient-name">
+            {s.patientName}
+            {s.wasNew && <span className="badge badge-new">New</span>}
+            {s.status === 'withdrawn' && <StatusBadge status="withdrawn" />}
+          </h1>
+          <div className="detail-sub-meta">
+            <span>Account <strong className="col-mono">{s.accountNumber}</strong></span>
+            <span aria-hidden="true">·</span>
+            <span>Statement date <strong>{date(s.statementDate)}</strong></span>
+            {isStaff && <><span aria-hidden="true">·</span><span>{clinic.name}</span></>}
+            {s.version > 1 && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>Version {s.version}{s.earlierVersionId && <> (<Link to={`/statements/${s.earlierVersionId}`}>earlier version</Link>)</>}</span>
+              </>
+            )}
+          </div>
+          <div className="detail-published">Published {dateTime(s.uploadedAt)} by {s.uploadedByName}, US24 Solutions</div>
+        </div>
+        <div className="detail-actions-bar">
+          <div className="detail-balance-hero">
+            <div className="balance-hero-label">Patient balance due</div>
+            <div className="balance-hero-amount">{money(s.balanceDue)}</div>
+          </div>
+          <div className="detail-buttons">
+            <button type="button" className="btn btn-secondary" onClick={() => setDialog('print')}><IconPrint /> Print</button>
+            <button type="button" className="btn btn-primary" onClick={download} disabled={downloading}>
+              <IconDownload /> {downloading ? 'Preparing…' : 'Download PDF'}
+            </button>
+            {user.role === 'specialist' && s.status === 'active' && (
+              <button type="button" className="btn btn-danger-outline" onClick={() => setDialog('withdraw')}>Withdraw</button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="detail-columns-grid">
+        <div className="statement-document-card">
+          {s.source === 'pdf_upload' && s.file ? (
+            <div className="pdf-panel">
+              <iframe className="pdf-frame" src={`/api/statements/${s.id}/file`} title={`Statement PDF for ${s.patientName}`} />
+              <div className="pdf-mobile">
+                <p>The statement is a PDF document.</p>
+                <a className="btn btn-secondary" href={`/api/statements/${s.id}/file`} target="_blank" rel="noopener">View PDF</a>
+              </div>
+              <p className="form-hint">Can't see the PDF? Use Download PDF.</p>
+              <details className="pdf-fields">
+                <summary>Statement details</summary>
+                <StatementDocument statement={s} clinic={clinic} />
+              </details>
+            </div>
+          ) : (
+            <StatementDocument statement={s} clinic={clinic} />
+          )}
+
+          {otherStatements.length > 0 && (
+            <div className="other-statements-box">
+              <h2 className="other-statements-title">Other statements for this patient</h2>
+              <ul className="other-statements-list">
+                {otherStatements.map((o) => (
+                  <li key={o.id}>
+                    <Link to={`/statements/${o.id}`} className="other-statement-item" state={{ from: backTo }}>
+                      <span>
+                        {date(o.statementDate)}
+                        {o.version > 1 && <span className="badge badge-info">v{o.version}</span>}
+                        {o.status === 'withdrawn' && <StatusBadge status="withdrawn" />}
+                      </span>
+                      <span className="col-mono">{money(o.balanceDue)}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <RemarksLedger
+          statementId={s.id}
+          remarks={remarks}
+          role={user.role}
+          canAdd={s.status === 'active' && user.role !== 'admin'}
+          onAdded={(r) => setData((d) => ({ ...d, remarks: [...d.remarks, r] }))}
+        />
+      </div>
+
+      {dialog === 'print' && <PrintDialog statementId={s.id} onCancel={() => setDialog(null)} />}
+      {dialog === 'withdraw' && (
+        <WithdrawDialog
+          clinicName={clinic.name}
+          statementId={s.id}
+          onCancel={() => setDialog(null)}
+          onDone={(msg) => {
+            setDialog(null);
+            toast(msg);
+            load();
+          }}
+        />
+      )}
+    </div>
+  );
+}
