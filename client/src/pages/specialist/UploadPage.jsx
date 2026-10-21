@@ -294,7 +294,7 @@ export function UploadPage() {
             <h3>Clinic & Patient</h3>
             <p className="form-hint">Select destination clinic and patient information.</p>
           </div>
-          <div className="form-row-2">
+          <div className="form-row-3">
             <Field label="Clinic" error={errors.clinicId} required hint="Select which clinic this record belongs to">
               {(p) => (
                 <select {...p} className="form-select" value={clinicId} onChange={handleClinicChange}>
@@ -318,10 +318,8 @@ export function UploadPage() {
                 />
               )}
             </Field>
-          </div>
 
-          <div className="form-row-1" style={{ marginTop: '12px' }}>
-            <Field label="patient" error={errors.patient_name} required hint="Patient full name (e.g. Smith, John or Jane Doe)">
+            <Field label="patient" error={errors.patient_name} required hint="Patient full name (e.g. Smith, John)">
               {(p) => (
                 <input
                   {...p}

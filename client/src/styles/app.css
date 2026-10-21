@@ -128,38 +128,173 @@ a {
   max-width: 280px;
   margin: 0 auto;
 }
+/* --- Multi-Column Form Alignment & Grid System --- */
 .form-row-1 {
   display: block;
+  margin-bottom: 18px;
 }
-.form-row-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0 18px;
-}
+.form-row-2,
 .form-row-3 {
   display: grid;
+  column-gap: 16px;
+  row-gap: 0;
+  margin-bottom: 18px;
+  width: 100%;
+}
+.form-row-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+.form-row-3 {
   grid-template-columns: repeat(3, 1fr);
-  gap: 0 16px;
 }
-@media (max-width: 860px) {
-  .form-row-2, .form-row-3 {
-    grid-template-columns: 1fr;
-  }
+
+/* Ensure all form controls have the exact same standard height */
+.form-input,
+.form-select,
+.input-with-prefix {
+  height: 44px;
+  min-height: 44px;
+  box-sizing: border-box;
 }
+
+.form-select {
+  line-height: 1.4;
+}
+
+input[type="date"].form-input {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  min-height: 44px;
+}
+
 .input-with-prefix {
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
 }
-.input-prefix {
+
+.input-with-prefix .input-prefix {
   position: absolute;
-  left: 12px;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
   color: var(--color-text-muted);
   font-weight: 600;
+  font-size: 0.95rem;
   pointer-events: none;
+  z-index: 2;
 }
+
 .input-with-prefix .form-input {
-  padding-left: 26px;
+  height: 100%;
+  padding-left: 30px;
+  width: 100%;
+}
+
+/* Universal Flexbox Alignment (Universal Browser Support) */
+.form-row-2 .form-group,
+.form-row-3 .form-group {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  margin-bottom: 0;
+  width: 100%;
+}
+
+.form-row-2 .form-label,
+.form-row-3 .form-label {
+  min-height: 2.85rem;
+  display: flex;
+  align-items: flex-end;
+  margin-bottom: 8px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-text);
+  letter-spacing: 0.01em;
+}
+
+.form-row-2 .form-label > span,
+.form-row-3 .form-label > span {
+  display: block;
+  width: 100%;
+}
+
+.form-row-2 .form-hint,
+.form-row-2 .form-error,
+.form-row-3 .form-hint,
+.form-row-3 .form-error {
+  min-height: 1.25rem;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  color: var(--color-text-subtle);
+  display: block;
+}
+
+/* CSS Subgrid for Pixel-Perfect Multi-Row Alignments */
+@supports (grid-template-rows: subgrid) {
+  .form-row-2 {
+    grid-template-rows: auto 44px auto;
+  }
+  .form-row-3 {
+    grid-template-rows: auto 44px auto;
+  }
+  .form-row-2 .form-group,
+  .form-row-3 .form-group {
+    display: grid;
+    grid-template-rows: subgrid;
+    grid-row: span 3;
+    row-gap: 0;
+    margin-bottom: 0;
+  }
+  .form-row-2 .form-label,
+  .form-row-3 .form-label {
+    min-height: unset;
+    align-self: end;
+    margin-bottom: 8px;
+  }
+  .form-row-2 .form-input,
+  .form-row-2 .form-select,
+  .form-row-2 .input-with-prefix,
+  .form-row-3 .form-input,
+  .form-row-3 .form-select,
+  .form-row-3 .input-with-prefix {
+    align-self: center;
+    height: 44px;
+    margin-bottom: 0;
+  }
+  .form-row-2 .form-hint,
+  .form-row-2 .form-error,
+  .form-row-3 .form-hint,
+  .form-row-3 .form-error {
+    min-height: unset;
+    align-self: start;
+    margin-top: 6px;
+    margin-bottom: 16px;
+  }
+}
+
+@media (max-width: 860px) {
+  .form-row-2,
+  .form-row-3 {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+  .form-row-2 .form-group,
+  .form-row-3 .form-group {
+    display: flex;
+    flex-direction: column;
+    grid-template-rows: none;
+    grid-row: auto;
+    margin-bottom: 16px;
+  }
+  .form-row-2 .form-label,
+  .form-row-3 .form-label {
+    min-height: unset;
+  }
 }
 .cycle-card {
   position: relative;
