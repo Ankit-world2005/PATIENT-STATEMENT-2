@@ -9,7 +9,7 @@ import { FIELDS, validateStatement } from '../lib/statement-fields.js';
 import { sha256Hex, statementFileKey, storage } from '../lib/storage.js';
 import { getOwnDraft, getPublishableClinic } from '../services/access.js';
 import { runCleanup } from '../services/cleanup.js';
-import { checkUploadedPdf } from '../services/pdf.js';
+import { checkUploadedPdf, renderStatementPdf } from '../services/pdf.js';
 import { findDuplicate, insertStatements, lockChainHead } from '../services/statements.js';
 
 export const uploadsRouter = Router();
@@ -36,26 +36,50 @@ function draftView(d, duplicate) {
 // --- S2: details and PDF -> draft ---------------------------------------------
 uploadsRouter.post('/', upload.single('pdf'), async (req, res) => {
   await runCleanup();
-  const clinic = await getPublishableClinic(pool, req, req.body?.clinicId);
+  const clinicId = req.body?.clinicId ?? req.body?.clinic_id;
+  const clinic = await getPublishableClinic(pool, req, clinicId);
 
   const raw = Object.fromEntries(FIELDS.map((f) => [f.key, req.body?.[f.key] ?? null]));
+  if (req.body?.remarks && !raw.us24_notes) {
+    raw.us24_notes = req.body.remarks;
+  }
+  if (req.body?.location && !raw.location_name) {
+    raw.location_name = req.body.location;
+  }
+  if (req.body?.patient && !raw.patient_name) {
+    raw.patient_name = req.body.patient;
+  }
+  if (req.body?.status && !raw.status) {
+    raw.status = req.body.status;
+  }
+
   const { data, errors } = validateStatement(raw);
   const fieldErrors = Object.fromEntries(errors.map((e) => [e.field, e.message]));
-  if (!req.file) fieldErrors.pdf = 'Attach the statement PDF.';
-  else {
+
+  let fileBuffer;
+  let filename;
+  let fileSize;
+  if (req.file) {
     const pdfProblem = await checkUploadedPdf(req.file.buffer);
     if (pdfProblem) fieldErrors.pdf = pdfProblem;
+    fileBuffer = req.file.buffer;
+    filename = req.file.originalname.slice(0, 255);
+    fileSize = req.file.size;
+  } else if (!Object.keys(fieldErrors).length) {
+    fileBuffer = await renderStatementPdf(data, clinic);
+    filename = `${(data.patient_name || 'statement').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`;
+    fileSize = fileBuffer.length;
   }
+
   if (Object.keys(fieldErrors).length) throw badRequest('Please correct the highlighted fields.', fieldErrors);
 
   const id = crypto.randomUUID();
   const key = `drafts/${id}.pdf`;
-  await storage.put(key, req.file.buffer);
+  await storage.put(key, fileBuffer);
   await pool.query(
     `INSERT INTO upload_draft (id, specialist_id, clinic_id, payload, storage_key, original_filename, size_bytes, sha256)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-    [id, req.user.id, clinic.id, JSON.stringify(data), key, req.file.originalname.slice(0, 255), req.file.size,
-      sha256Hex(req.file.buffer)],
+    [id, req.user.id, clinic.id, JSON.stringify(data), key, filename, fileSize, sha256Hex(fileBuffer)],
   );
   res.status(201).json({ id });
 });
@@ -98,6 +122,13 @@ uploadsRouter.post('/:id/publish', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5)`,
       [created.id, fileKey, draft.original_filename, draft.size_bytes, draft.sha256],
     );
+    if (p.us24_notes) {
+      await db.query(
+        `INSERT INTO remark (statement_id, author_id, author_role, type, body)
+         VALUES ($1, $2, 'specialist', 'specialist', $3)`,
+        [created.id, req.user.id, p.us24_notes],
+      );
+    }
     await db.query('DELETE FROM upload_draft WHERE id = $1', [draft.id]);
     await audit(db, req, { action: 'statement.upload', targetType: 'statement', targetId: created.id, clinicId: draft.clinic_id });
     draftKey = draft.storage_key;

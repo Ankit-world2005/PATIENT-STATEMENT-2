@@ -28,6 +28,7 @@ export const FIELDS = [
   { key: 'cycle3_payment', label: 'Payment received (3rd)', type: 'money', allowNegative: true },
   { key: 'current_balance', label: 'Current outstanding balance', type: 'money', allowNegative: true },
   { key: 'pr_type', label: 'PR type', type: 'text', max: 50 },
+  { key: 'status', label: 'Status', type: 'text', max: 50 },
   { key: 'us24_notes', label: 'US24 notes', type: 'text', max: 2000 },
   { key: 'client_response', label: 'Client response', type: 'text', max: 2000 },
   { key: 'vob_notes', label: 'AS PER VOB- Notes', type: 'text', max: 2000 },
@@ -58,7 +59,8 @@ const HEADER_ALIASES = {
   '3rd_electronic_statement': 'cycle3_date', third_electronic_statement: 'cycle3_date',
   current_outstanding_balance: 'current_balance', outstanding_balance: 'current_balance',
   pr_type: 'pr_type', patient_responsibility: 'pr_type', patient_resp: 'pr_type',
-  us24_notes: 'us24_notes', specialist_notes: 'us24_notes',
+  status: 'status',
+  us24_notes: 'us24_notes', specialist_notes: 'us24_notes', remarks: 'us24_notes', notes: 'us24_notes',
   client_response: 'client_response', clinic_response: 'client_response', client_notes: 'client_response',
   as_per_vob_notes: 'vob_notes', as_per_vob: 'vob_notes', vob_notes: 'vob_notes', vob: 'vob_notes',
 };

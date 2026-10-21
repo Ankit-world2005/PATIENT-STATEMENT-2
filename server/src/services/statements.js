@@ -7,7 +7,7 @@ const COLUMNS = [
   'location_name', 'cycle1_date', 'cycle1_balance', 'cycle1_payment',
   'cycle2_date', 'cycle2_balance', 'cycle2_payment',
   'cycle3_date', 'cycle3_balance', 'cycle3_payment',
-  'current_balance', 'pr_type', 'us24_notes', 'client_response', 'vob_notes',
+  'current_balance', 'pr_type', 'status', 'ledger_status', 'us24_notes', 'client_response', 'vob_notes',
 ];
 const CASTS = {
   cpt_codes: '::varchar(10)[]',
@@ -28,7 +28,13 @@ export async function insertStatements(db, items) {
     const params = [];
     const tuples = chunk.map((item) => {
       const placeholders = COLUMNS.map((col) => {
-        const v = item[col];
+        let v = item[col];
+        if (col === 'status') {
+          // Keep PostgreSQL database constraint valid ('active' vs 'withdrawn')
+          v = 'active';
+        } else if (col === 'ledger_status') {
+          v = item.status || item.ledger_status || 'Active';
+        }
         params.push(col === 'cpt_codes' && Array.isArray(v) && v.length === 0 ? null : v ?? null);
         return `$${params.length}${CASTS[col] ?? ''}`;
       });

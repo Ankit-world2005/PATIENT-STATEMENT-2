@@ -14,6 +14,7 @@ ALTER TABLE statement
   ADD COLUMN IF NOT EXISTS cycle3_payment numeric(12, 2) DEFAULT 0.00,
   ADD COLUMN IF NOT EXISTS current_balance numeric(12, 2),
   ADD COLUMN IF NOT EXISTS pr_type varchar(50) DEFAULT 'Copay',
+  ADD COLUMN IF NOT EXISTS ledger_status varchar(50) DEFAULT 'Active',
   ADD COLUMN IF NOT EXISTS us24_notes text,
   ADD COLUMN IF NOT EXISTS client_response text,
   ADD COLUMN IF NOT EXISTS vob_notes text;
