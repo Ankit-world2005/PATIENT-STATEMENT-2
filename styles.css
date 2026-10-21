@@ -1,0 +1,1560 @@
+/* ==========================================================================
+   MY PATIENT - CLINICAL LEDGER DESIGN SYSTEM
+   Tailored for US24 Solutions Clinic Patient Statement Portal
+   WCAG 2.1 AA Compliant - Clinical Ledger Visual Direction
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,600;0,8..60,700;1,8..60,600&display=swap');
+
+:root {
+  /* Surfaces & Lines (UI Brief 3.1) */
+  --color-bg: #F7F6F2;              /* Warm paper background */
+  --color-surface: #FFFFFF;         /* Crisp white sheet surface */
+  --color-surface-sunken: #EFEDE6;  /* Sunken table headers, filter bars */
+  --color-surface-hover: #F2EFE8;   /* Interactive hover row */
+  --color-border: #DDD9CF;          /* Fine ruled sheet borders */
+  --color-border-control: #7C776B;  /* Input & select borders (≥3:1 contrast) */
+  --color-border-focus: #1F5BD6;    /* Accessible keyboard focus ring */
+
+  /* Text & Typography */
+  --color-text: #1C2430;            /* Dark ink text */
+  --color-text-muted: #465163;      /* Secondary descriptive text */
+  --color-text-subtle: #5E6878;     /* Timestamps, hints, coming soon tags */
+  --color-text-on-primary: #FFFFFF; /* High contrast text on dark buttons */
+
+  /* Actions & Brand */
+  --color-primary: #0D5C63;         /* Clinical deep teal */
+  --color-primary-hover: #09474D;   /* Dark teal for active/hover */
+  --color-primary-subtle: #E1EFEF;  /* Subtle teal tint for highlights */
+  --color-primary-light: #EBF5F5;
+
+  /* Status Colors */
+  --color-success: #1D6B3B;
+  --color-success-bg: #E5F1E8;
+  --color-warning: #7E4D00;
+  --color-warning-bg: #FAEFD9;
+  --color-danger: #A3201C;
+  --color-danger-bg: #FBE8E6;
+  --color-highlight: #1C2430;       /* Highlighter text */
+  --color-highlight-bg: #FFE27A;    /* Highlighter yellow for "New" tags */
+
+  /* Remark Ledger Roles (UI Brief 3.1) */
+  --color-remark-clinic: #7A3B69;      /* Plum rule & tag for Clinic User */
+  --color-remark-clinic-bg: #F6EDF3;
+  --color-remark-spec: #0D5C63;        /* Teal rule & tag for US24 Specialist */
+  --color-remark-spec-bg: #EAF4F5;
+  --color-remark-ins: #2E4C8C;         /* Royal blue for Insurance remarks */
+  --color-remark-ins-bg: #EBF0F8;
+
+  /* Font Families */
+  --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, "SF Mono", Consolas, monospace;
+  --font-serif: 'Source Serif 4', Georgia, "Times New Roman", serif;
+
+  /* Elevation & Shadows */
+  --shadow-sm: 0 1px 3px rgba(28, 36, 48, 0.05);
+  --shadow-md: 0 4px 12px rgba(28, 36, 48, 0.08);
+  --shadow-lg: 0 10px 25px rgba(28, 36, 48, 0.12);
+  --shadow-overlay: 0 12px 32px rgba(28, 36, 48, 0.22);
+
+  /* Layout Constants */
+  --header-height: 68px;
+  --container-max: 1240px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-pill: 9999px;
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Base Styles & Reset */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.5;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Accessibility: Visible Focus Ring */
+:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* Skip link */
+.skip-link {
+  position: absolute;
+  top: -60px;
+  left: 16px;
+  background: var(--color-primary);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  z-index: 1000;
+  font-weight: 600;
+  text-decoration: none;
+  transition: top var(--transition-fast);
+}
+.skip-link:focus {
+  top: 16px;
+}
+
+/* Container */
+.container {
+  width: 100%;
+  max-width: var(--container-max);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+/* ==========================================================================
+   HEADER COMPONENT (N2, N3, FR-3.1)
+   Left: User Full Name | Right: US24 Solutions Logo + Sign Out
+   ========================================================================== */
+.site-header {
+  height: var(--header-height);
+  background-color: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  box-shadow: 0 1px 2px rgba(28, 36, 48, 0.03);
+}
+
+.site-header .container {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header-user-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-avatar-circle {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--color-primary-subtle);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border: 1px solid rgba(13, 92, 99, 0.2);
+}
+
+.user-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-full-name {
+  font-weight: 600;
+  font-size: 0.98rem;
+  color: var(--color-text);
+  line-height: 1.2;
+}
+
+.user-clinic-affiliation {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.user-clinic-badge {
+  background-color: var(--color-surface-sunken);
+  color: var(--color-text-muted);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.header-brand-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.company-brand-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.brand-logo-img {
+  height: 36px;
+  width: auto;
+  max-width: 170px;
+  object-fit: contain;
+}
+
+.brand-fallback-lockup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+  color: #1a365d;
+}
+
+.brand-badge {
+  background: #0077b6;
+  color: #fff;
+  font-size: 0.75rem;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+}
+
+.btn-signout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-signout:hover {
+  background: var(--color-surface-sunken);
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+/* ==========================================================================
+   BUTTONS & CONTROLS (UI Brief 7.2)
+   ========================================================================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-sans);
+  font-size: 0.94rem;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all var(--transition-fast);
+  border: 1px solid transparent;
+  min-height: 42px;
+}
+
+.btn-primary {
+  background-color: var(--color-primary);
+  color: var(--color-text-on-primary);
+  border-color: var(--color-primary);
+  box-shadow: 0 1px 2px rgba(13, 92, 99, 0.2);
+}
+.btn-primary:hover {
+  background-color: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.btn-secondary {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-border-control);
+}
+.btn-secondary:hover {
+  background-color: var(--color-surface-sunken);
+}
+
+.btn-tertiary {
+  background: transparent;
+  color: var(--color-primary);
+  border-color: transparent;
+  padding: 6px 10px;
+}
+.btn-tertiary:hover {
+  text-decoration: underline;
+  background: rgba(13, 92, 99, 0.05);
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  min-height: 32px;
+}
+
+.btn-icon {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+}
+
+/* Form Inputs */
+.form-group {
+  margin-bottom: 18px;
+  display: flex;
+  flex-direction: column;
+}
+
+.form-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.form-hint {
+  font-size: 0.8rem;
+  color: var(--color-text-subtle);
+  margin-top: 4px;
+}
+
+.form-input, .form-select, .form-textarea {
+  width: 100%;
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  border-color: var(--color-primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(13, 92, 99, 0.15);
+}
+
+.form-textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.input-with-icon {
+  position: relative;
+}
+.input-with-icon .input-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-subtle);
+  pointer-events: none;
+}
+.input-with-icon .form-input {
+  padding-left: 38px;
+}
+
+/* Badges & Tags */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.badge-new {
+  background-color: var(--color-highlight-bg);
+  color: var(--color-highlight);
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(255, 226, 122, 0.4);
+}
+
+.badge-success {
+  background-color: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.badge-warning {
+  background-color: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.badge-coming-soon {
+  background-color: var(--color-surface-sunken);
+  color: var(--color-text-subtle);
+  font-size: 0.72rem;
+}
+
+/* ==========================================================================
+   VIEWS & LAYOUT
+   ========================================================================== */
+.view-section {
+  display: none;
+  animation: fadeIn 0.2s ease-in-out;
+}
+.view-section.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Breadcrumb & Navigation */
+.view-breadcrumb-bar {
+  padding: 16px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 24px;
+}
+
+.btn-back-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: 0.92rem;
+  cursor: pointer;
+  padding: 4px 0;
+}
+.btn-back-nav:hover {
+  text-decoration: underline;
+}
+
+.breadcrumb-trail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+.breadcrumb-separator {
+  color: var(--color-border);
+}
+.breadcrumb-current {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   AUTH SCREENS (A1 Login, A2 Two-Step)
+   ========================================================================== */
+.auth-wrapper {
+  min-height: calc(100vh - var(--header-height) - 60px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 16px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 36px 32px;
+  box-shadow: var(--shadow-md);
+}
+
+.auth-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.auth-title {
+  font-family: var(--font-serif);
+  font-size: 1.85rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 6px;
+}
+
+.auth-subtitle {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.auth-clinic-notice {
+  background: var(--color-primary-subtle);
+  border-left: 3px solid var(--color-primary);
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  color: var(--color-primary);
+  margin-bottom: 20px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.auth-otp-display {
+  background: var(--color-surface-sunken);
+  border: 1px dashed var(--color-border-control);
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.otp-inputs-wrapper {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.otp-digit-input {
+  width: 46px;
+  height: 52px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: 600;
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+.otp-digit-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(13, 92, 99, 0.2);
+  outline: none;
+}
+
+.auth-actions-footer {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+}
+
+.demo-credentials-pill {
+  margin-top: 20px;
+  padding: 12px;
+  background: #FAF9F5;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  text-align: left;
+}
+
+/* ==========================================================================
+   C1: CLINIC HOME - THREE CARDS HUB (N1, FR-3.2)
+   Centered 3 Cards in middle of page: Patient Statement, AR Report, Clinic Collection
+   ========================================================================== */
+.hub-wrapper {
+  min-height: calc(100vh - var(--header-height) - 120px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 16px;
+}
+
+.hub-welcome-banner {
+  text-align: center;
+  max-width: 640px;
+  margin-bottom: 36px;
+}
+
+.hub-clinic-headline {
+  font-family: var(--font-serif);
+  font-size: 2.1rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.hub-subheadline {
+  color: var(--color-text-muted);
+  font-size: 1.05rem;
+}
+
+.three-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  width: 100%;
+  max-width: 960px;
+}
+
+@media (max-width: 860px) {
+  .three-cards-grid {
+    grid-template-columns: 1fr;
+    max-width: 440px;
+  }
+}
+
+.hub-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  position: relative;
+  transition: all var(--transition-normal);
+  min-height: 230px;
+}
+
+/* Working Card: Patient Statement */
+.hub-card-active {
+  cursor: pointer;
+  border-top: 4px solid var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.hub-card-active:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-primary);
+}
+
+.hub-card-icon-wrap {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--color-primary-subtle);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  transition: transform var(--transition-fast);
+}
+.hub-card-active:hover .hub-card-icon-wrap {
+  transform: scale(1.08);
+}
+
+.hub-card-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.hub-card-desc {
+  font-size: 0.88rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+  margin-bottom: 16px;
+  flex-grow: 1;
+}
+
+.hub-card-tag {
+  margin-top: auto;
+}
+
+/* Non-working Cards: AR Report, Clinic Collection */
+.hub-card-disabled {
+  background: var(--color-surface-sunken);
+  border: 1px dashed var(--color-border-control);
+  opacity: 0.85;
+  cursor: not-allowed;
+  user-select: none;
+}
+
+.hub-card-disabled .hub-card-icon-wrap {
+  background: #E2DFD8;
+  color: var(--color-text-subtle);
+}
+
+.hub-card-disabled .hub-card-title {
+  color: var(--color-text-subtle);
+}
+
+.hub-card-disabled .hub-card-desc {
+  color: var(--color-text-subtle);
+}
+
+/* ==========================================================================
+   P1: STATEMENT LIST & SEARCH (F9, FR-9.1-9.5)
+   ========================================================================== */
+.statements-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.page-title-group h1 {
+  font-family: var(--font-serif);
+  font-size: 1.95rem;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.2;
+}
+
+.clinic-subtitle {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin-top: 4px;
+}
+
+/* Filter Bar Component */
+.filter-bar-sheet {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: 2.5fr 1.2fr 1.2fr 1.5fr auto;
+  gap: 14px;
+  align-items: flex-end;
+}
+
+@media (max-width: 992px) {
+  .filter-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .filter-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.filter-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.filter-item label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-bottom: 5px;
+}
+
+.search-highlight {
+  background-color: var(--color-highlight-bg);
+  color: var(--color-text);
+  padding: 0 2px;
+  border-radius: 2px;
+  font-weight: 600;
+}
+
+/* Results Meta Bar */
+.results-meta-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 0.88rem;
+  color: var(--color-text-muted);
+}
+
+.results-count-bold {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Statements Data Table (Desktop) */
+.table-sheet-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.statements-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.92rem;
+}
+
+.statements-table thead th {
+  background-color: var(--color-surface-sunken);
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.statements-table tbody tr {
+  border-bottom: 1px solid var(--color-border);
+  transition: background-color var(--transition-fast);
+  cursor: pointer;
+}
+
+.statements-table tbody tr:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.statements-table tbody td {
+  padding: 14px 18px;
+  vertical-align: middle;
+}
+
+.col-patient {
+  font-weight: 600;
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.col-mono {
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  color: var(--color-text-muted);
+}
+
+.col-amount {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--color-text);
+}
+
+.col-date {
+  white-space: nowrap;
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+}
+
+/* Mobile Stacked Card View */
+.mobile-statements-list {
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .table-responsive {
+    display: none;
+  }
+  .mobile-statements-list {
+    display: flex;
+  }
+}
+
+.mobile-statement-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.mobile-statement-card:hover {
+  border-color: var(--color-primary);
+}
+
+.mobile-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mobile-patient-name {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.mobile-card-mid {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.84rem;
+  color: var(--color-text-muted);
+}
+
+.mobile-balance-due {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Empty State */
+.empty-state-card {
+  padding: 60px 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-state-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--color-surface-sunken);
+  color: var(--color-text-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.empty-state-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.empty-state-desc {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  max-width: 380px;
+  margin-bottom: 18px;
+}
+
+/* Pagination Bar */
+.pagination-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  background-color: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  font-size: 0.86rem;
+  color: var(--color-text-muted);
+}
+
+.pagination-controls {
+  display: flex;
+  gap: 6px;
+}
+
+/* ==========================================================================
+   P2: STATEMENT DETAIL & REMARKS LEDGER (F10, F11, F12)
+   Two-Column Layout: Left = Clinical Statement | Right = Chronological Remarks
+   ========================================================================== */
+.detail-hero-band {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 24px 28px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.detail-patient-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-patient-name {
+  font-family: var(--font-serif);
+  font-size: 1.85rem;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.detail-sub-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 6px;
+  font-size: 0.88rem;
+  color: var(--color-text-muted);
+  flex-wrap: wrap;
+}
+
+.detail-balance-hero {
+  text-align: right;
+}
+
+.balance-hero-label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.balance-hero-amount {
+  font-size: 2.15rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  margin-top: 2px;
+}
+
+.detail-actions-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Two Columns Grid */
+.detail-columns-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .detail-columns-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Statement Sheet Document (Left Column) */
+.statement-document-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: 32px;
+}
+
+.doc-letterhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding-bottom: 24px;
+  border-bottom: 2px solid var(--color-text);
+  margin-bottom: 24px;
+}
+
+.doc-clinic-info h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+.doc-clinic-info p {
+  font-size: 0.84rem;
+  color: var(--color-text-muted);
+}
+
+.doc-statement-badge {
+  text-align: right;
+}
+.doc-badge-title {
+  font-family: var(--font-serif);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.doc-badge-date {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.doc-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  background: var(--color-surface-sunken);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 16px 20px;
+  margin-bottom: 24px;
+}
+
+.doc-meta-item label {
+  display: block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-bottom: 2px;
+}
+.doc-meta-item value {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.doc-meta-item value.mono {
+  font-family: var(--font-mono);
+}
+
+/* Services Line Items Table */
+.doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 24px;
+  font-size: 0.88rem;
+}
+
+.doc-table th {
+  background: var(--color-surface-sunken);
+  border-bottom: 1px solid var(--color-border);
+  padding: 10px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.doc-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.doc-table .text-right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.doc-totals-section {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 24px;
+}
+
+.doc-totals-box {
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.totals-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.88rem;
+  color: var(--color-text-muted);
+}
+.totals-row.final {
+  border-top: 2px solid var(--color-text);
+  padding-top: 8px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.doc-patient-notes {
+  border-top: 1px dashed var(--color-border);
+  padding-top: 18px;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+/* Other Statements for this patient */
+.other-statements-box {
+  margin-top: 24px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 20px;
+}
+
+.other-statements-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: var(--color-text);
+}
+
+.other-statements-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.other-statement-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--color-surface-sunken);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  text-decoration: none;
+  color: var(--color-text);
+  transition: background var(--transition-fast);
+}
+
+.other-statement-item:hover {
+  background: var(--color-primary-subtle);
+  color: var(--color-primary);
+}
+
+/* ==========================================================================
+   REMARKS LEDGER (Right Column) (F11)
+   Chronological Log (Oldest to Newest)
+   Color Coded: Clinic (#7A3B69), Specialist (#0D5C63), Insurance (#2E4C8C)
+   ========================================================================== */
+.remarks-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.remarks-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 18px;
+}
+
+.remarks-header h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.remarks-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 480px;
+  overflow-y: auto;
+  padding-right: 6px;
+  margin-bottom: 24px;
+}
+
+/* Remark Item: Ruled left border */
+.remark-entry {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: background var(--transition-fast);
+}
+
+.remark-entry.clinic-remark {
+  border-left-color: var(--color-remark-clinic);
+}
+.remark-entry.specialist-remark {
+  border-left-color: var(--color-remark-spec);
+}
+.remark-entry.insurance-remark {
+  border-left-color: var(--color-remark-ins);
+}
+
+.remark-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.78rem;
+}
+
+.remark-author-role {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.remark-role-tag {
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.tag-clinic {
+  background: var(--color-remark-clinic-bg);
+  color: var(--color-remark-clinic);
+}
+.tag-specialist {
+  background: var(--color-remark-spec-bg);
+  color: var(--color-remark-spec);
+}
+.tag-insurance {
+  background: var(--color-remark-ins-bg);
+  color: var(--color-remark-ins);
+}
+
+.remark-timestamp {
+  color: var(--color-text-subtle);
+  font-size: 0.75rem;
+}
+
+.remark-insurance-extra {
+  font-size: 0.78rem;
+  color: var(--color-remark-ins);
+  background: var(--color-remark-ins-bg);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  margin-top: 2px;
+}
+
+.remark-body {
+  font-size: 0.88rem;
+  color: var(--color-text);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Add Remark Form */
+.add-remark-section {
+  border-top: 1px solid var(--color-border);
+  padding-top: 18px;
+}
+
+.add-remark-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.add-remark-rule-hint {
+  font-size: 0.75rem;
+  color: var(--color-text-subtle);
+  margin-bottom: 12px;
+}
+
+.char-counter-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: var(--color-text-subtle);
+}
+
+.char-counter.warning {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+.char-counter.danger {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   MODALS & OVERLAYS (G1 Session Inactivity, Print Options)
+   ========================================================================== */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(28, 36, 48, 0.55);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 20px;
+  backdrop-filter: blur(2px);
+}
+
+.modal-backdrop.active {
+  display: flex;
+}
+
+.modal-sheet {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  width: 100%;
+  max-width: 480px;
+  box-shadow: var(--shadow-overlay);
+  overflow: hidden;
+  animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalPop {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-header h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-body {
+  padding: 24px;
+  font-size: 0.92rem;
+  color: var(--color-text);
+}
+
+.modal-timer-badge {
+  text-align: center;
+  margin: 16px 0;
+  font-size: 2.2rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--color-warning);
+}
+
+.modal-footer {
+  padding: 16px 24px;
+  background: var(--color-surface-sunken);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* Notification Toast */
+.toast-banner {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--color-surface);
+  border-left: 4px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  padding: 14px 20px;
+  box-shadow: var(--shadow-lg);
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 90;
+  transform: translateY(100px);
+  opacity: 0;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.toast-banner.show {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* Footer */
+.site-footer {
+  margin-top: auto;
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  padding: 20px 0;
+  font-size: 0.8rem;
+  color: var(--color-text-subtle);
+  text-align: center;
+}
+
+/* ==========================================================================
+   PRINT MEDIA STYLES (FR-12.2, P3 Print View)
+   Produces a clean clinical statement letterhead
+   ========================================================================== */
+@media print {
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .site-header,
+  .view-breadcrumb-bar,
+  .detail-actions-bar,
+  .add-remark-section,
+  .site-footer,
+  .modal-backdrop,
+  .toast-banner,
+  .other-statements-box,
+  .skip-link {
+    display: none !important;
+  }
+
+  .detail-columns-grid {
+    display: block !important;
+  }
+
+  .statement-document-card {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin-bottom: 30px !important;
+  }
+
+  .remarks-card {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    page-break-before: auto;
+  }
+
+  .print-page-footer {
+    display: block !important;
+    font-size: 0.75rem;
+    color: #666;
+    border-top: 1px solid #ccc;
+    padding-top: 8px;
+    margin-top: 30px;
+  }
+}
