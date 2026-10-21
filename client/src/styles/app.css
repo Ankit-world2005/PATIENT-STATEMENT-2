@@ -843,3 +843,396 @@ a.hub-card { text-decoration: none; color: inherit; }
   .remarks-feed { max-height: none !important; overflow: visible !important; }
   .remark-entry { break-inside: avoid; }
 }
+
+/* ==========================================================================
+   Patient Records Ledger Table (17-Column Medical Billing System)
+   Matches official medical billing spreadsheet format & styling
+   ========================================================================== */
+.table-sheet-card {
+  position: relative;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.patient-ledger-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.patient-ledger-table {
+  width: 100%;
+  min-width: 1950px;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: left;
+  font-size: 0.84rem;
+}
+
+/* Vivid Electric Blue Table Headers matching user's reference */
+.patient-ledger-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.patient-ledger-table thead tr th {
+  background: #2563EB; /* Vibrant Royal/Electric Blue */
+  color: #FFFFFF;
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 11px 14px;
+  border-bottom: 2px solid #1D4ED8;
+  border-right: 1px solid rgba(255, 255, 255, 0.28);
+  white-space: nowrap;
+  vertical-align: middle;
+  text-align: center;
+  user-select: none;
+}
+
+.patient-ledger-table thead tr th:last-child {
+  border-right: none;
+}
+
+.patient-ledger-table thead tr th.th-left {
+  text-align: left;
+}
+
+.patient-ledger-table thead tr th.th-right {
+  text-align: right;
+}
+
+/* Sticky first two columns (Location and Patient Name) */
+.patient-ledger-table .sticky-col-location {
+  position: sticky;
+  left: 0;
+  width: 140px;
+  min-width: 140px;
+  max-width: 160px;
+}
+
+.patient-ledger-table .sticky-col-patient {
+  position: sticky;
+  left: 140px;
+  width: 180px;
+  min-width: 180px;
+  max-width: 210px;
+  box-shadow: 3px 0 6px -2px rgba(0, 0, 0, 0.09);
+}
+
+.patient-ledger-table thead tr th.sticky-col-location,
+.patient-ledger-table thead tr th.sticky-col-patient {
+  background: #1D4ED8; /* Slightly deeper blue for pinned headers */
+  z-index: 12;
+}
+
+/* Table body rows */
+.patient-ledger-table tbody tr {
+  transition: background-color 0.15s ease;
+  cursor: pointer;
+}
+
+.patient-ledger-table tbody tr:nth-child(even) td {
+  background-color: #F8FAFC;
+}
+
+.patient-ledger-table tbody tr:nth-child(odd) td {
+  background-color: #FFFFFF;
+}
+
+.patient-ledger-table tbody tr:hover td {
+  background-color: #EFF6FF !important;
+}
+
+.patient-ledger-table tbody tr.row-withdrawn td {
+  opacity: 0.65;
+  background-color: #F1F5F9;
+}
+
+/* Cell borders and padding */
+.patient-ledger-table tbody td {
+  padding: 10px 14px;
+  vertical-align: middle;
+  border-bottom: 1px solid #E2E8F0;
+  border-right: 1px solid #EDF2F7;
+  white-space: nowrap;
+  font-size: 0.84rem;
+}
+
+.patient-ledger-table tbody td:last-child {
+  border-right: none;
+}
+
+/* Pinned column cell backgrounds */
+.patient-ledger-table tbody td.sticky-col-location,
+.patient-ledger-table tbody td.sticky-col-patient {
+  background-color: #FFFFFF;
+  z-index: 4;
+}
+
+.patient-ledger-table tbody tr:nth-child(even) td.sticky-col-location,
+.patient-ledger-table tbody tr:nth-child(even) td.sticky-col-patient {
+  background-color: #F8FAFC;
+}
+
+.patient-ledger-table tbody tr:hover td.sticky-col-location,
+.patient-ledger-table tbody tr:hover td.sticky-col-patient {
+  background-color: #EFF6FF !important;
+}
+
+/* Cell typography & alignment */
+.cell-location {
+  font-weight: 500;
+  color: #334155;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cell-patient {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #0F172A;
+}
+
+.cell-date {
+  text-align: center;
+  color: #475569;
+  font-variant-numeric: tabular-nums;
+  min-width: 115px;
+}
+
+.cell-amount {
+  text-align: right;
+  font-family: var(--font-mono, monospace);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.88rem;
+  color: #1E293B;
+  min-width: 120px;
+}
+
+.cell-payment {
+  text-align: right;
+  font-family: var(--font-mono, monospace);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.88rem;
+  color: #15803D; /* Forest green */
+  font-weight: 600;
+  min-width: 120px;
+}
+
+.cell-outstanding {
+  text-align: right;
+  font-family: var(--font-mono, monospace);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #0F172A;
+  background-color: #F1F5F9;
+  min-width: 135px;
+}
+
+.patient-ledger-table tbody tr:hover td.cell-outstanding {
+  background-color: #DBEAFE !important;
+}
+
+/* Badges for PR Type */
+.badge-pr {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.badge-pr.pr-copay {
+  background: #ECFDF5;
+  color: #047857;
+  border: 1px solid #A7F3D0;
+}
+
+.badge-pr.pr-deductible {
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border: 1px solid #BFDBFE;
+}
+
+.badge-pr.pr-co-insurance,
+.badge-pr.pr-coinsurance {
+  background: #FFFBEB;
+  color: #B45309;
+  border: 1px solid #FDE68A;
+}
+
+.badge-pr.pr-self-pay,
+.badge-pr.pr-selfpay {
+  background: #FAF5FF;
+  color: #6B21A8;
+  border: 1px solid #E9D5FF;
+}
+
+/* Badges for Status */
+.badge-ledger-status {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  display: inline-block;
+  text-transform: capitalize;
+}
+
+.badge-ledger-status.status-active {
+  background: #ECFDF5;
+  color: #065F46;
+  border: 1px solid #A7F3D0;
+}
+
+.badge-ledger-status.status-paid {
+  background: #F0F9FF;
+  color: #0284C7;
+  border: 1px solid #BAE6FD;
+}
+
+.badge-ledger-status.status-withdrawn {
+  background: #F1F5F9;
+  color: #64748B;
+  border: 1px solid #CBD5E1;
+}
+
+/* Note preview cells */
+.cell-note {
+  max-width: 220px;
+  min-width: 180px;
+  color: #334155;
+  font-size: 0.82rem;
+}
+
+.note-bubble {
+  display: block;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: help;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  color: #334155;
+  transition: all 0.15s ease;
+}
+
+.note-bubble:hover {
+  background: #FFFFFF;
+  border-color: #2563EB;
+  color: #0F172A;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.12);
+}
+
+.note-empty {
+  color: #94A3B8;
+  font-style: italic;
+  padding-left: 4px;
+}
+
+.cell-action {
+  text-align: right;
+  min-width: 80px;
+}
+
+/* Mobile responsive ledger card */
+.mobile-ledger-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: 12px;
+  text-decoration: none;
+  color: inherit;
+  transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
+}
+
+.mobile-ledger-card:hover {
+  border-color: #2563EB;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
+}
+
+.mobile-ledger-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.mobile-ledger-patient {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.mobile-ledger-location {
+  font-size: 0.8rem;
+  color: #64748B;
+}
+
+.mobile-cycles-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  background: #F8FAFC;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid #E2E8F0;
+}
+
+.mobile-cycle-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.76rem;
+}
+
+.mobile-cycle-title {
+  font-weight: 700;
+  color: #2563EB;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.mobile-cycle-val {
+  font-family: var(--font-mono, monospace);
+  color: #1E293B;
+  font-weight: 600;
+}
+
+.mobile-cycle-paid {
+  font-family: var(--font-mono, monospace);
+  color: #15803D;
+  font-size: 0.72rem;
+}
+
+.mobile-ledger-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 1px dashed #E2E8F0;
+}
+
+.mobile-ledger-balance {
+  font-family: var(--font-mono, monospace);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0F172A;
+}
+

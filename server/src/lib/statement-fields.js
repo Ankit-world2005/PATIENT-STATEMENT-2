@@ -15,6 +15,22 @@ export const FIELDS = [
   { key: 'insurance_paid', label: 'Insurance paid', type: 'money' },
   { key: 'adjustments', label: 'Adjustments', type: 'money', allowNegative: true },
   { key: 'insurance_name', label: 'Insurance name', type: 'text', max: 200 },
+  // Ledger multi-cycle & tracking fields
+  { key: 'location_name', label: 'Location', type: 'text', max: 200 },
+  { key: 'cycle1_date', label: '1st electronic statement', type: 'date' },
+  { key: 'cycle1_balance', label: 'Balance due amount (1st)', type: 'money', allowNegative: true },
+  { key: 'cycle1_payment', label: 'Payment received (1st)', type: 'money', allowNegative: true },
+  { key: 'cycle2_date', label: '2nd electronic statement', type: 'date' },
+  { key: 'cycle2_balance', label: 'Balance due amount (2nd)', type: 'money', allowNegative: true },
+  { key: 'cycle2_payment', label: 'Payment received (2nd)', type: 'money', allowNegative: true },
+  { key: 'cycle3_date', label: '3rd electronic statement', type: 'date' },
+  { key: 'cycle3_balance', label: 'Balance due amount (3rd)', type: 'money', allowNegative: true },
+  { key: 'cycle3_payment', label: 'Payment received (3rd)', type: 'money', allowNegative: true },
+  { key: 'current_balance', label: 'Current outstanding balance', type: 'money', allowNegative: true },
+  { key: 'pr_type', label: 'PR type', type: 'text', max: 50 },
+  { key: 'us24_notes', label: 'US24 notes', type: 'text', max: 2000 },
+  { key: 'client_response', label: 'Client response', type: 'text', max: 2000 },
+  { key: 'vob_notes', label: 'AS PER VOB- Notes', type: 'text', max: 2000 },
 ];
 
 export const FIELD_BY_KEY = Object.fromEntries(FIELDS.map((f) => [f.key, f]));
@@ -35,6 +51,16 @@ const HEADER_ALIASES = {
   ins_paid: 'insurance_paid', insurance_payment: 'insurance_paid', insurance_payments: 'insurance_paid',
   adjustment: 'adjustments', contractual_adjustments: 'adjustments',
   insurance: 'insurance_name', payer: 'insurance_name', insurance_company: 'insurance_name', primary_insurance: 'insurance_name',
+  // Medical billing ledger aliases
+  location: 'location_name', clinic_location: 'location_name',
+  '1st_electronic_statement': 'cycle1_date', first_electronic_statement: 'cycle1_date',
+  '2nd_electronic_statement': 'cycle2_date', second_electronic_statement: 'cycle2_date',
+  '3rd_electronic_statement': 'cycle3_date', third_electronic_statement: 'cycle3_date',
+  current_outstanding_balance: 'current_balance', outstanding_balance: 'current_balance',
+  pr_type: 'pr_type', patient_responsibility: 'pr_type', patient_resp: 'pr_type',
+  us24_notes: 'us24_notes', specialist_notes: 'us24_notes',
+  client_response: 'client_response', clinic_response: 'client_response', client_notes: 'client_response',
+  as_per_vob_notes: 'vob_notes', as_per_vob: 'vob_notes', vob_notes: 'vob_notes', vob: 'vob_notes',
 };
 
 export function normalizeHeader(header) {
@@ -155,10 +181,26 @@ function todayPlusOne() {
  * Returns { data, errors } where errors is [{ field, message }].
  */
 export function validateStatement(raw) {
+  const normalizedRaw = { ...raw };
+  if (!normalizedRaw.statement_date && normalizedRaw.cycle1_date) {
+    normalizedRaw.statement_date = normalizedRaw.cycle1_date;
+  }
+  if (normalizedRaw.balance_due === undefined || normalizedRaw.balance_due === null || normalizedRaw.balance_due === '') {
+    if (normalizedRaw.current_balance !== undefined && normalizedRaw.current_balance !== null && normalizedRaw.current_balance !== '') {
+      normalizedRaw.balance_due = normalizedRaw.current_balance;
+    } else if (normalizedRaw.cycle1_balance !== undefined && normalizedRaw.cycle1_balance !== null && normalizedRaw.cycle1_balance !== '') {
+      normalizedRaw.balance_due = normalizedRaw.cycle1_balance;
+    }
+  }
+  if (!normalizedRaw.account_number && normalizedRaw.patient_name) {
+    const clean = String(normalizedRaw.patient_name).toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
+    normalizedRaw.account_number = `ACC-${clean || 'PT'}-${Math.floor(10000 + Math.random() * 90000)}`;
+  }
+
   const data = {};
   const errors = [];
   for (const field of FIELDS) {
-    const result = parseField(field, raw[field.key]);
+    const result = parseField(field, normalizedRaw[field.key]);
     if (result.error) errors.push({ field: field.key, message: result.error });
     else data[field.key] = result.value;
   }

@@ -4,9 +4,21 @@ const COLUMNS = [
   'clinic_id', 'patient_name', 'account_number', 'statement_date', 'balance_due', 'patient_dob',
   'service_date_from', 'service_date_to', 'cpt_codes', 'billed_amount', 'insurance_paid', 'adjustments',
   'insurance_name', 'source', 'import_batch_id', 'import_row_number', 'version', 'supersedes_id', 'uploaded_by_id',
+  'location_name', 'cycle1_date', 'cycle1_balance', 'cycle1_payment',
+  'cycle2_date', 'cycle2_balance', 'cycle2_payment',
+  'cycle3_date', 'cycle3_balance', 'cycle3_payment',
+  'current_balance', 'pr_type', 'us24_notes', 'client_response', 'vob_notes',
 ];
-const CASTS = { cpt_codes: '::varchar(10)[]', statement_date: '::date', patient_dob: '::date',
-  service_date_from: '::date', service_date_to: '::date' };
+const CASTS = {
+  cpt_codes: '::varchar(10)[]',
+  statement_date: '::date',
+  patient_dob: '::date',
+  service_date_from: '::date',
+  service_date_to: '::date',
+  cycle1_date: '::date',
+  cycle2_date: '::date',
+  cycle3_date: '::date',
+};
 
 /** Bulk-inserts statements. Each item has the COLUMNS keys. Returns [{ id, import_row_number }] in insert order. */
 export async function insertStatements(db, items) {
@@ -72,9 +84,12 @@ export async function insertRemark(db, { statementId, author, type, body, insura
         SET last_remark_at = $2::timestamptz,
             awaiting_reply_since = CASE
               WHEN $3::text = 'clinic' THEN COALESCE(awaiting_reply_since, $2::timestamptz)
-              ELSE NULL END
+              ELSE NULL END,
+            us24_notes = CASE WHEN $3::text = 'specialist' THEN $4::text ELSE us24_notes END,
+            client_response = CASE WHEN $3::text = 'clinic' THEN $4::text ELSE client_response END,
+            vob_notes = CASE WHEN $3::text = 'insurance' THEN $4::text ELSE vob_notes END
       WHERE id = $1`,
-    [statementId, remark.created_at, type],
+    [statementId, remark.created_at, type, body],
   );
   return remark;
 }

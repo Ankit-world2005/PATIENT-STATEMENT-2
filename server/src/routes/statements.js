@@ -14,11 +14,12 @@ export const statementsRouter = Router();
 const PAGE_SIZE = 25; // FR-9.5
 
 const SORTS = {
+  name_asc: 'lower(s.patient_name) ASC, s.statement_date DESC',
+  name_desc: 'lower(s.patient_name) DESC, s.statement_date DESC',
   date_desc: 's.statement_date DESC, s.version DESC, s.id',
   date_asc: 's.statement_date ASC, s.version DESC, s.id',
-  name_asc: 'lower(s.patient_name) ASC, s.statement_date DESC',
-  balance_desc: 's.balance_due DESC, s.statement_date DESC',
-  balance_asc: 's.balance_due ASC, s.statement_date DESC',
+  balance_desc: 'COALESCE(s.current_balance, s.balance_due) DESC, s.statement_date DESC',
+  balance_asc: 'COALESCE(s.current_balance, s.balance_due) ASC, s.statement_date DESC',
 };
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a valid date.');
@@ -27,7 +28,7 @@ const listSchema = z.object({
   q: z.string().trim().max(100).optional().default(''),
   from: isoDate.optional().or(z.literal('')).default(''),
   to: isoDate.optional().or(z.literal('')).default(''),
-  sort: z.enum(Object.keys(SORTS)).optional().default('date_desc'),
+  sort: z.enum(Object.keys(SORTS)).optional().default('name_asc'),
   page: z.coerce.number().int().min(1).max(100000).optional().default(1),
   status: z.enum(['active', 'withdrawn', 'all']).optional().default('active'),
 });
@@ -82,10 +83,33 @@ statementsRouter.get('/', async (req, res) => {
   const page = Math.min(f.page, totalPages); // past the end shows the last page
 
   const { rows } = await query(
-    `SELECT s.id, s.patient_name, s.account_number, s.statement_date, s.balance_due, s.last_remark_at, s.status,
-            s.version, s.first_opened_by_clinic_at IS NULL AS is_new, s.awaiting_reply_since IS NOT NULL AS awaiting_reply,
+    `SELECT s.id, s.clinic_id, COALESCE(s.location_name, c.name) AS location_name,
+            s.patient_name, s.account_number, s.statement_date, s.balance_due,
+            s.cycle1_date, s.cycle1_balance, s.cycle1_payment,
+            s.cycle2_date, s.cycle2_balance, s.cycle2_payment,
+            s.cycle3_date, s.cycle3_balance, s.cycle3_payment,
+            s.current_balance, s.pr_type, s.status,
+            COALESCE(s.us24_notes, (
+              SELECT r.body FROM remark r JOIN statement st ON st.id = r.statement_id
+               WHERE (st.id = s.id OR (st.patient_name = s.patient_name AND st.clinic_id = s.clinic_id)) AND r.type = 'specialist'
+               ORDER BY r.created_at DESC, r.id DESC LIMIT 1
+            )) AS us24_notes,
+            COALESCE(s.client_response, (
+              SELECT r.body FROM remark r JOIN statement st ON st.id = r.statement_id
+               WHERE (st.id = s.id OR (st.patient_name = s.patient_name AND st.clinic_id = s.clinic_id)) AND r.type = 'clinic'
+               ORDER BY r.created_at DESC, r.id DESC LIMIT 1
+            )) AS client_response,
+            COALESCE(s.vob_notes, (
+              SELECT r.body FROM remark r JOIN statement st ON st.id = r.statement_id
+               WHERE (st.id = s.id OR (st.patient_name = s.patient_name AND st.clinic_id = s.clinic_id)) AND r.type = 'insurance'
+               ORDER BY r.created_at DESC, r.id DESC LIMIT 1
+            )) AS vob_notes,
+            s.last_remark_at, s.version,
+            s.first_opened_by_clinic_at IS NULL AS is_new,
+            s.awaiting_reply_since IS NOT NULL AS awaiting_reply,
             EXISTS (SELECT 1 FROM statement n WHERE n.supersedes_id = s.id) AS has_newer_version
        FROM statement s
+       JOIN clinic c ON c.id = s.clinic_id
       WHERE ${whereSql}
       ORDER BY ${SORTS[f.sort]}
       LIMIT ${PAGE_SIZE} OFFSET ${(page - 1) * PAGE_SIZE}`,
@@ -96,12 +120,33 @@ statementsRouter.get('/', async (req, res) => {
     clinic: { id: clinic.id, name: clinic.name, code: clinic.clinic_code, isActive: clinic.is_active },
     items: rows.map((r) => ({
       id: r.id,
+      location: r.location_name,
       patientName: r.patient_name,
       accountNumber: r.account_number,
       statementDate: r.statement_date,
       balanceDue: r.balance_due,
-      lastRemarkAt: r.last_remark_at,
+      // 1st Electronic Statement
+      cycle1Date: r.cycle1_date || r.statement_date,
+      cycle1Balance: r.cycle1_balance !== null && r.cycle1_balance !== undefined ? r.cycle1_balance : r.balance_due,
+      cycle1Payment: r.cycle1_payment || '0.00',
+      // 2nd Electronic Statement
+      cycle2Date: r.cycle2_date || null,
+      cycle2Balance: r.cycle2_balance !== null && r.cycle2_balance !== undefined ? r.cycle2_balance : null,
+      cycle2Payment: r.cycle2_payment !== null && r.cycle2_payment !== undefined ? r.cycle2_payment : null,
+      // 3rd Electronic Statement
+      cycle3Date: r.cycle3_date || null,
+      cycle3Balance: r.cycle3_balance !== null && r.cycle3_balance !== undefined ? r.cycle3_balance : null,
+      cycle3Payment: r.cycle3_payment !== null && r.cycle3_payment !== undefined ? r.cycle3_payment : null,
+      // Current Outstanding Balance & Responsibility
+      currentBalance: r.current_balance !== null && r.current_balance !== undefined ? r.current_balance : r.balance_due,
+      prType: r.pr_type || 'Copay',
       status: r.status,
+      // Ledger Notes
+      us24Notes: r.us24_notes || '',
+      clientResponse: r.client_response || '',
+      vobNotes: r.vob_notes || '',
+      // Metadata
+      lastRemarkAt: r.last_remark_at,
       version: r.version,
       isNew: r.is_new && r.status === 'active',
       awaitingReply: req.user.role === 'clinic_user' ? undefined : r.awaiting_reply,
