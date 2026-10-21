@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>My Patient - US24 Solutions Statement Portal</title>
-  <meta name="description" content="Secure, HIPAA-compliant patient statement portal for client clinics, specialists, and administrators by US24 Solutions.">
+  <title>My Patient - US24 Solutions Clinic Portal</title>
+  <meta name="description" content="Secure, HIPAA-compliant patient statement portal for client clinics by US24 Solutions.">
   <link rel="icon" type="image/png" sizes="32x32" href="https://us24solutions.com/wp-content/uploads/2022/02/cropped-242-e1644314709490-32x32.png">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -15,32 +15,20 @@
   <!-- Global Header (N2, N3, FR-3.1) -->
   <header class="site-header" id="site-header">
     <div class="container">
-      <!-- Top Left: Signed-in User, Role Badge & Clinic Affiliation -->
+      <!-- Top Left: Signed-in User & Clinic Name -->
       <div class="header-user-badge" id="header-user-badge" style="display: none;">
         <div class="user-avatar-circle" id="user-avatar">AK</div>
         <div class="user-meta">
-          <div style="display: flex; align-items: center;">
-            <span class="user-full-name" id="user-display-name">Ankit Kumar</span>
-            <span class="badge-role badge-role-clinic" id="user-role-badge">User-Lakeside Family Clinic</span>
-          </div>
+          <span class="user-full-name" id="user-display-name">Ankit Kumar</span>
           <span class="user-clinic-affiliation">
             <span id="user-clinic-name">Lakeside Family Clinic</span>
-            <span class="user-clinic-badge" id="user-clinic-id-badge">CLN-4082</span>
+            <span class="user-clinic-badge" id="user-clinic-id">CLN-4082</span>
           </span>
         </div>
       </div>
 
-      <!-- Top Right: Switch Role, US24 Solutions Logo & Sign Out -->
+      <!-- Top Right: US24 Solutions Logo & Sign Out -->
       <div class="header-brand-actions">
-        <button type="button" class="btn-switch-role" id="btn-header-switch-role" style="display: none;" title="Switch between Clinic, Specialist, or Admin roles">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-            <circle cx="8.5" cy="7" r="4"></circle>
-            <polyline points="17 11 19 13 23 9"></polyline>
-          </svg>
-          Switch Role
-        </button>
-
         <a href="javascript:void(0)" class="company-brand-link" id="brand-home-link" aria-label="US24 Solutions - Go to portal home">
           <img src="https://us24solutions.com/wp-content/uploads/2022/09/us-24-copyq-2-min-1-e1664550612654.png" 
                alt="US24 Solutions" 
@@ -51,7 +39,6 @@
             <span class="brand-badge">SOLUTIONS</span>
           </div>
         </a>
-        
         <button type="button" class="btn-signout" id="btn-header-signout" style="display: none;" title="Sign out of your session">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -64,66 +51,28 @@
     </div>
   </header>
 
-  <!-- Quick Persona Switch Bar when authenticated (Demonstration helper) -->
-  <aside class="role-quick-bar" id="role-quick-bar" style="display: none;">
-    <div class="container" style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
-      <div>
-        <span>Active Persona: <strong id="quick-bar-role-text">Clinic Employee (Ankit Kumar - User-Lakeside Family Clinic)</strong></span>
-        <span style="margin: 0 8px; color: var(--color-border);">|</span>
-        <span>Quick Test Switch:</span>
-      </div>
-      <div style="display: flex; gap: 6px;">
-        <button type="button" class="role-pill-btn" id="quick-switch-clinic">🏥 Clinic Level</button>
-        <button type="button" class="role-pill-btn" id="quick-switch-specialist">🩺 US24 Specialist</button>
-        <button type="button" class="role-pill-btn" id="quick-switch-admin">🛡️ Admin Level</button>
-      </div>
-    </div>
-  </aside>
-
   <!-- Main Content Landmark -->
   <main id="main-content">
     
     <!-- ====================================================================
-         VIEW A1: LOGIN (F1) - WITH THREE LOGIN TYPES SELECTOR
+         VIEW A1: LOGIN (F1, FR-1.1, FR-1.5, FR-1.10)
          ==================================================================== -->
     <section class="view-section active" id="view-login" aria-labelledby="login-title">
       <div class="auth-wrapper">
         <div class="auth-card">
           <div class="auth-header">
             <h1 class="auth-title" id="login-title">My Patient</h1>
-            <p class="auth-subtitle">Secure Statement Portal by US24 Solutions</p>
+            <p class="auth-subtitle">Secure Statement Portal for US24 Solutions Clients</p>
           </div>
 
-          <!-- THREE LOGIN TYPES SELECTOR -->
-          <div class="persona-selector-container">
-            <span class="persona-selector-label">Select Login Level:</span>
-            <div class="persona-tabs-grid" role="tablist" aria-label="Login Level Selection">
-              <button type="button" class="persona-tab-btn active" id="tab-persona-clinic" role="tab" aria-selected="true">
-                <span class="persona-tab-icon">🏥</span>
-                <span class="persona-tab-name">1. Clinic Level</span>
-                <span class="persona-tab-desc">Check patient status</span>
-              </button>
-              <button type="button" class="persona-tab-btn" id="tab-persona-specialist" role="tab" aria-selected="false">
-                <span class="persona-tab-icon">🩺</span>
-                <span class="persona-tab-name">2. US24 Specialist</span>
-                <span class="persona-tab-desc">Upload patient status</span>
-              </button>
-              <button type="button" class="persona-tab-btn" id="tab-persona-admin" role="tab" aria-selected="false">
-                <span class="persona-tab-icon">🛡️</span>
-                <span class="persona-tab-name">3. Admin Level</span>
-                <span class="persona-tab-desc">Track all status</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="auth-clinic-notice" id="auth-role-notice">
-            <strong>1. Clinic Level Login (User-Lakeside Family Clinic):</strong> Sign in as clinic employee (Ankit Kumar) to check patient statements, review itemized services, and record clinic updates in the shared remarks ledger.
+          <div class="auth-clinic-notice">
+            <strong>Client Clinic Login:</strong> Sign in with your assigned clinic staff credentials to check patient billing statements and shared remark logs.
           </div>
 
           <form id="form-login" novalidate>
             <div class="form-group">
               <label for="input-email" class="form-label">Email address</label>
-              <input type="email" id="input-email" class="form-input" value="Ankitkumar87147@gmail.com" placeholder="e.g. Ankitkumar87147@gmail.com" required autocomplete="username">
+              <input type="email" id="input-email" class="form-input" placeholder="e.g. Ankitkumar87147@gmail.com" required autocomplete="username">
             </div>
 
             <div class="form-group">
@@ -131,7 +80,7 @@
                 <label for="input-password">Password</label>
                 <button type="button" class="btn-tertiary" id="btn-toggle-password" style="font-size: 0.78rem; padding: 0;">Show</button>
               </div>
-              <input type="password" id="input-password" class="form-input" value="Ankitsingh@123" placeholder="Enter your password" required autocomplete="current-password">
+              <input type="password" id="input-password" class="form-input" placeholder="Enter your password" required autocomplete="current-password">
               <span class="form-hint">Authorized system credentials</span>
             </div>
 
@@ -147,18 +96,18 @@
               <a href="javascript:void(0)" class="btn-tertiary" id="link-forgot-password">Forgot password?</a>
             </div>
 
-            <!-- Instant One-Click Login Buttons for Quick Review -->
+            <!-- Demo helper pill for effortless testing -->
             <div class="demo-credentials-pill">
-              <strong>Quick Authorized Logins:</strong><br>
-              <div style="display: grid; grid-template-columns: 1fr; gap: 6px; margin-top: 8px;">
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-quick-clinic">
-                  🏥 Sign In as Clinic Level (Ankitkumar87147@gmail.com)
+              <strong>Quick Demo Access:</strong><br>
+              <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-autofill-clinic" style="width: 100%; text-align: left; font-size: 0.8rem; padding: 7px 10px;">
+                  🏥 <strong>Clinic User:</strong> Ankitkumar87147@gmail.com
                 </button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-quick-specialist">
-                  🩺 Sign In as US24 Specialist (ankit.k@us24solutions.com)
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-autofill-specialist" style="width: 100%; text-align: left; font-size: 0.8rem; padding: 7px 10px;">
+                  🩺 <strong>US24 Specialist:</strong> ankit.k@us24solutions.com
                 </button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-quick-admin">
-                  🛡️ Sign In as Admin Level (saurabh@us24solutions.com)
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-autofill-admin" style="width: 100%; text-align: left; font-size: 0.8rem; padding: 7px 10px;">
+                  🛡️ <strong>Admin:</strong> saurabh@us24solutions.com
                 </button>
               </div>
             </div>
@@ -168,42 +117,32 @@
     </section>
 
     <!-- ====================================================================
-         VIEW A2: TWO-STEP VERIFICATION (F2)
+         VIEW A2: TWO-STEP VERIFICATION (F2, FR-1.2, FR-1.3)
          ==================================================================== -->
     <section class="view-section" id="view-verify" aria-labelledby="verify-title">
       <div class="auth-wrapper">
         <div class="auth-card">
           <div class="auth-header">
-            <div class="auth-step-indicator">Step 2 of 2</div>
             <h1 class="auth-title" id="verify-title">Two-Step Verification</h1>
-            <p class="auth-subtitle">Enter the 6-digit security code sent to your email to verify your identity.</p>
+            <p class="auth-subtitle">Verify your identity to protect patient health information</p>
           </div>
 
-          <div class="verify-email-display">
-            <div style="font-size: 0.8rem; color: var(--color-text-muted); margin-bottom: 2px;">Verifying account:</div>
-            <strong id="verify-user-name" style="font-size: 0.95rem; color: var(--color-text);">Ankit Kumar</strong>
-            <div id="verify-role-badge-container" style="margin: 4px 0;">
-              <span class="badge-role badge-role-clinic" id="verify-role-badge">User-Lakeside Family Clinic</span>
-            </div>
-            <span id="verify-masked-email" style="font-family: var(--font-mono); font-size: 0.82rem; color: var(--color-text-subtle);">A••••••••••••@gmail.com</span>
+          <div class="auth-otp-display">
+            <p style="font-size: 0.88rem; color: var(--color-text);">
+              We sent a 6-digit verification code to:<br>
+              <strong id="masked-email-display">s***@lakesideclinic.com</strong>
+            </p>
+            <p class="form-hint" style="margin-top: 6px;">The code expires in 10 minutes (single-use).</p>
           </div>
 
-          <form id="form-verify" novalidate>
-            <div class="form-group">
-              <label for="otp-input-1" class="form-label" style="text-align: center;">6-Digit Verification Code</label>
-              <div class="otp-group" id="otp-group" role="group" aria-label="6 digit verification code">
-                <input type="text" class="otp-input" id="otp-input-1" maxlength="1" inputmode="numeric" pattern="[0-9]*" autofocus>
-                <input type="text" class="otp-input" id="otp-input-2" maxlength="1" inputmode="numeric" pattern="[0-9]*">
-                <input type="text" class="otp-input" id="otp-input-3" maxlength="1" inputmode="numeric" pattern="[0-9]*">
-                <input type="text" class="otp-input" id="otp-input-4" maxlength="1" inputmode="numeric" pattern="[0-9]*">
-                <input type="text" class="otp-input" id="otp-input-5" maxlength="1" inputmode="numeric" pattern="[0-9]*">
-                <input type="text" class="otp-input" id="otp-input-6" maxlength="1" inputmode="numeric" pattern="[0-9]*">
-              </div>
-              <span class="form-hint" style="text-align: center;">A code has been sent. It expires in 10 minutes.</span>
+          <form id="form-verify">
+            <div class="form-group" style="text-align: center;">
+              <label for="otp-code-input" class="form-label" style="justify-content: center;">Enter 6-digit verification code</label>
+              <input type="text" id="otp-code-input" class="form-input" maxlength="6" inputmode="numeric" autocomplete="one-time-code" placeholder="842915" style="letter-spacing: 0.35em; font-family: var(--font-mono); font-size: 1.6rem; text-align: center; max-width: 260px; margin: 8px auto;" required>
             </div>
 
             <div id="verify-error-alert" class="badge badge-warning" style="display:none; width: 100%; padding: 10px; margin-bottom: 16px; border-radius: var(--radius-sm); text-transform: none;">
-              That code is incorrect or expired. Try again or request a new code.
+              That code is incorrect or expired. Please try again.
             </div>
 
             <button type="submit" class="btn btn-primary" id="btn-verify-submit" style="width: 100%;">
@@ -211,9 +150,8 @@
             </button>
 
             <div class="auth-actions-footer">
-              <button type="button" class="btn-tertiary" id="btn-resend-code">Resend code</button>
-              <span style="color: var(--color-border);">|</span>
-              <button type="button" class="btn-tertiary" id="btn-back-to-login">Back to sign in</button>
+              <button type="button" class="btn-tertiary" id="btn-resend-code">Didn't get a code? Resend email</button>
+              <button type="button" class="btn-tertiary" id="btn-cancel-verify" style="color: var(--color-text-subtle);">Cancel and return to sign in</button>
             </div>
           </form>
         </div>
@@ -221,21 +159,25 @@
     </section>
 
     <!-- ====================================================================
-         VIEW C1: CLINIC LEVEL HOME (N1) - THREE CARDS HUB
+         VIEW C1: CLINIC HOME - THREE CARDS HUB (N1, FR-3.2, FR-3.4)
+         Center of page: AR Report, Clinic Collection, Patient Statement
+         Only Patient Statement works; others labeled "Coming soon"
          ==================================================================== -->
     <section class="view-section" id="view-home" aria-labelledby="home-headline">
       <div class="container">
-        <div class="home-welcome-banner">
-          <h1 class="home-headline" id="home-headline">Lakeside Family Clinic</h1>
-          <p class="home-subhead">Welcome back, <strong id="home-welcome-name">Ankit Kumar</strong>. Access patient statements, line-item procedure breakdowns, and shared US24 remarks.</p>
-        </div>
+        <div class="hub-wrapper">
+          <div class="hub-welcome-banner">
+            <h1 class="hub-clinic-headline" id="home-headline">Lakeside Family Clinic Portal</h1>
+            <p class="hub-subheadline">Select a module below to view patient statements and clinic records.</p>
+          </div>
 
-        <div class="three-cards-grid" role="navigation" aria-label="Clinic Services Navigation">
-          <!-- Card 1: Patient Statement (Active) -->
-          <article class="home-card active" id="card-patient-statements" tabindex="0" role="button" aria-label="Open Patient Statements">
-            <div class="home-card-header">
-              <div class="home-card-icon-wrap active">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Three Centered Cards -->
+          <div class="three-cards-grid" role="region" aria-label="Clinic portal modules">
+            
+            <!-- CARD 1: PATIENT STATEMENT (Working) -->
+            <div class="hub-card hub-card-active" id="card-patient-statements" tabindex="0" role="button" aria-label="Open Patient Statements module">
+              <div class="hub-card-icon-wrap">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                   <polyline points="14 2 14 8 20 8"></polyline>
                   <line x1="16" y1="13" x2="8" y2="13"></line>
@@ -243,480 +185,186 @@
                   <polyline points="10 9 9 9 8 9"></polyline>
                 </svg>
               </div>
-              <span class="badge badge-highlight" id="home-new-badge">2 New</span>
+              <h2 class="hub-card-title">Patient Statement</h2>
+              <p class="hub-card-desc">Check published patient statements, view clinical charge breakdowns, and exchange remarks with US24 billing specialists.</p>
+              <div class="hub-card-tag">
+                <span class="badge badge-new" id="home-new-badge">3 New Statements</span>
+              </div>
             </div>
-            <h2 class="home-card-title">Patient Statement</h2>
-            <p class="home-card-description">View and search published patient billing statements, check line-item balances, and communicate updates directly with US24 specialists.</p>
-            <div class="home-card-action">
-              <span class="btn btn-primary" style="pointer-events: none;">View Statements</span>
-            </div>
-          </article>
 
-          <!-- Card 2: AR Report (Coming Soon) -->
-          <article class="home-card disabled" id="card-ar-report" aria-disabled="true">
-            <div class="home-card-header">
-              <div class="home-card-icon-wrap">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <!-- CARD 2: AR REPORT (Disabled / Coming Soon) -->
+            <div class="hub-card hub-card-disabled" aria-disabled="true" title="AR Report module is coming soon">
+              <div class="hub-card-icon-wrap">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <line x1="18" y1="20" x2="18" y2="10"></line>
                   <line x1="12" y1="20" x2="12" y2="4"></line>
                   <line x1="6" y1="20" x2="6" y2="14"></line>
                 </svg>
               </div>
-              <span class="badge badge-neutral">Coming soon</span>
+              <h2 class="hub-card-title">AR Report</h2>
+              <p class="hub-card-desc">Accounts receivable tracking, insurance aging analysis, and payer distribution reports.</p>
+              <div class="hub-card-tag">
+                <span class="badge badge-coming-soon">Coming soon</span>
+              </div>
             </div>
-            <h2 class="home-card-title">AR Report</h2>
-            <p class="home-card-description">Accounts receivable aging summaries, 30/60/90+ day bucket analysis, and payer adjudication analytics.</p>
-            <div class="home-card-action">
-              <span class="btn btn-secondary" style="pointer-events: none; opacity: 0.6;">Unavailable</span>
-            </div>
-          </article>
 
-          <!-- Card 3: Clinic Collection (Coming Soon) -->
-          <article class="home-card disabled" id="card-clinic-collection" aria-disabled="true">
-            <div class="home-card-header">
-              <div class="home-card-icon-wrap">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <!-- CARD 3: CLINIC COLLECTION (Disabled / Coming Soon) -->
+            <div class="hub-card hub-card-disabled" aria-disabled="true" title="Clinic Collection module is coming soon">
+              <div class="hub-card-icon-wrap">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <rect x="2" y="4" width="20" height="16" rx="2"></rect>
-                  <line x1="2" y1="10" x2="22" y2="10"></line>
+                  <line x1="12" y1="8" x2="12" y2="16"></line>
+                  <line x1="8" y1="12" x2="16" y2="12"></line>
                 </svg>
               </div>
-              <span class="badge badge-neutral">Coming soon</span>
+              <h2 class="hub-card-title">Clinic Collection</h2>
+              <p class="hub-card-desc">Patient payment collection logs, copay receipts, and bank deposit reconciliations.</p>
+              <div class="hub-card-tag">
+                <span class="badge badge-coming-soon">Coming soon</span>
+              </div>
             </div>
-            <h2 class="home-card-title">Clinic Collection</h2>
-            <p class="home-card-description">Payment reconciliation logs, merchant processor settlement reports, and patient payment plans.</p>
-            <div class="home-card-action">
-              <span class="btn btn-secondary" style="pointer-events: none; opacity: 0.6;">Unavailable</span>
-            </div>
-          </article>
+
+          </div>
         </div>
       </div>
     </section>
 
     <!-- ====================================================================
-         VIEW S1: US24 SPECIALIST DASHBOARD (F6) - UPLOAD PATIENT STATUS
-         ==================================================================== -->
-    <section class="view-section" id="view-specialist-dashboard" aria-labelledby="specialist-title">
-      <div class="container">
-        <!-- Dashboard Top Toolbar -->
-        <div class="dash-toolbar-card">
-          <div class="dash-toolbar-title">
-            <h2 id="specialist-title">US24 Specialist Portal</h2>
-            <p>Signed in as <strong id="spec-dash-name">Ankit K.</strong> &bull; US24 Billing Specialist</p>
-          </div>
-          <div class="dash-toolbar-actions">
-            <button type="button" class="btn btn-secondary" id="btn-spec-import-modal">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7 10 12 15 17 10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
-              </svg>
-              Import Spreadsheet (Bulk)
-            </button>
-            <button type="button" class="btn btn-primary" id="btn-spec-upload-modal">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-              Upload Single Statement
-            </button>
-          </div>
-        </div>
-
-        <!-- Specialist KPI Cards -->
-        <div class="dash-kpi-grid">
-          <div class="kpi-card">
-            <span class="kpi-label">My Assigned Clinics</span>
-            <span class="kpi-value" id="kpi-spec-clinics">3</span>
-            <span class="kpi-sub">Active client practices</span>
-          </div>
-          <div class="kpi-card">
-            <span class="kpi-label">Total Statements</span>
-            <span class="kpi-value" id="kpi-spec-statements">28</span>
-            <span class="kpi-sub">Across assigned practices</span>
-          </div>
-          <div class="kpi-card">
-            <span class="kpi-label">Unanswered Clinic Remarks</span>
-            <span class="kpi-value" style="color: var(--color-warning);" id="kpi-spec-remarks">2</span>
-            <span class="kpi-sub">Awaiting specialist response</span>
-          </div>
-          <div class="kpi-card">
-            <span class="kpi-label">Uploads This Week</span>
-            <span class="kpi-value" style="color: var(--color-success);" id="kpi-spec-uploads">14</span>
-            <span class="kpi-sub">100% processed without errors</span>
-          </div>
-        </div>
-
-        <!-- Section: My Assigned Clinics -->
-        <div style="margin-bottom: 28px;">
-          <h3 style="font-size: 1.1rem; margin-bottom: 12px; color: var(--color-text);">My Assigned Client Clinics</h3>
-          <div class="assigned-clinics-grid" id="assigned-clinics-list">
-            <!-- Dynamically populated clinic cards -->
-          </div>
-        </div>
-
-        <!-- Section: Unanswered Clinic Remarks Queue (FR-5.1) -->
-        <div style="margin-bottom: 28px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <h3 style="font-size: 1.1rem; color: var(--color-text); margin: 0;">Unanswered Clinic Inquiries</h3>
-            <span class="badge badge-warning" id="spec-unanswered-badge">2 inquiries require response</span>
-          </div>
-          <div class="statements-table-wrapper">
-            <table class="statements-table">
-              <thead>
-                <tr>
-                  <th>Clinic</th>
-                  <th>Patient</th>
-                  <th>Account #</th>
-                  <th>Clinic Remark Excerpt</th>
-                  <th>Author</th>
-                  <th>Timestamp</th>
-                  <th style="text-align: right;">Action</th>
-                </tr>
-              </thead>
-              <tbody id="table-unanswered-remarks">
-                <!-- Dynamically populated inquiries -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Section: Recent Uploads & Batch History -->
-        <div>
-          <h3 style="font-size: 1.1rem; margin-bottom: 12px; color: var(--color-text);">Recent Upload & Import Activity</h3>
-          <div class="statements-table-wrapper">
-            <table class="statements-table">
-              <thead>
-                <tr>
-                  <th>Date & Time</th>
-                  <th>Clinic</th>
-                  <th>Type</th>
-                  <th>File / Description</th>
-                  <th>Statements</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody id="table-recent-uploads">
-                <!-- Dynamically populated upload history -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-      </div>
-    </section>
-
-    <!-- ====================================================================
-         VIEW M1: ADMIN LEVEL PORTAL (F5, F13) - TRACK ALL THE STATUS
-         ==================================================================== -->
-    <section class="view-section" id="view-admin-dashboard" aria-labelledby="admin-title">
-      <div class="container">
-        <!-- Admin Top Toolbar -->
-        <div class="dash-toolbar-card">
-          <div class="dash-toolbar-title">
-            <h2 id="admin-title">US24 Operations & Compliance Portal</h2>
-            <p>Signed in as <strong id="admin-dash-name">Saurabh</strong> &bull; Admin Level</p>
-          </div>
-          <div class="dash-toolbar-actions">
-            <button type="button" class="btn btn-secondary" id="btn-admin-invite-modal">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                <circle cx="8.5" cy="7" r="4"></circle>
-                <line x1="20" y1="8" x2="20" y2="14"></line>
-                <line x1="23" y1="11" x2="17" y2="11"></line>
-              </svg>
-              Invite User
-            </button>
-            <button type="button" class="btn btn-primary" id="btn-admin-add-clinic-modal">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                <polyline points="9 22 9 12 15 12 15 22"></polyline>
-              </svg>
-              Add New Clinic
-            </button>
-          </div>
-        </div>
-
-        <!-- Global Admin KPIs -->
-        <div class="dash-kpi-grid">
-          <div class="kpi-card">
-            <span class="kpi-label">Total Client Clinics</span>
-            <span class="kpi-value" id="kpi-admin-clinics">3</span>
-            <span class="kpi-sub">100% active standing</span>
-          </div>
-          <div class="kpi-card">
-            <span class="kpi-label">Total Tracked Statements</span>
-            <span class="kpi-value" id="kpi-admin-statements">28</span>
-            <span class="kpi-sub">Across all client practices</span>
-          </div>
-          <div class="kpi-card">
-            <span class="kpi-label">Active System Users</span>
-            <span class="kpi-value" id="kpi-admin-users">12</span>
-            <span class="kpi-sub">Clinic staff, specialists & admins</span>
-          </div>
-          <div class="kpi-card">
-            <span class="kpi-label">24h HIPAA Audit Events</span>
-            <span class="kpi-value" style="color: var(--color-primary);" id="kpi-admin-audit">142</span>
-            <span class="kpi-sub">Fully logged & compliant</span>
-          </div>
-        </div>
-
-        <!-- Admin Sub-Navigation Tabs -->
-        <nav class="admin-subnav-tabs" role="tablist" aria-label="Admin Sections">
-          <button type="button" class="admin-tab-btn active" id="tab-admin-status-tracker" role="tab" aria-selected="true">
-            📊 All Statements Status Tracker
-          </button>
-          <button type="button" class="admin-tab-btn" id="tab-admin-clinics" role="tab" aria-selected="false">
-            🏥 Client Clinics Directory
-          </button>
-          <button type="button" class="admin-tab-btn" id="tab-admin-users" role="tab" aria-selected="false">
-            👥 User Accounts & Access
-          </button>
-          <button type="button" class="admin-tab-btn" id="tab-admin-audit" role="tab" aria-selected="false">
-            🔒 HIPAA Access Audit Trail
-          </button>
-        </nav>
-
-        <!-- Admin Tab 1: Global Status Tracker -->
-        <div class="admin-tab-panel" id="panel-admin-status-tracker">
-          <div class="filter-bar-card" style="margin-bottom: 16px;">
-            <div class="filter-inputs-grid">
-              <div class="filter-field">
-                <label for="admin-search-statement" class="filter-label">Search Patient / Account</label>
-                <input type="search" id="admin-search-statement" class="form-input" placeholder="e.g. Garcia, ACC-0048213...">
-              </div>
-              <div class="filter-field">
-                <label for="admin-filter-clinic" class="filter-label">Filter by Clinic</label>
-                <select id="admin-filter-clinic" class="form-select">
-                  <option value="all">All Clinics</option>
-                  <option value="CLN-4082">Lakeside Family Clinic</option>
-                  <option value="CLN-5120">Metro Health West</option>
-                  <option value="CLN-6033">Sunrise Pediatrics</option>
-                </select>
-              </div>
-              <div class="filter-field">
-                <label for="admin-filter-status" class="filter-label">Status</label>
-                <select id="admin-filter-status" class="form-select">
-                  <option value="all">All Statuses</option>
-                  <option value="new">Unopened / New</option>
-                  <option value="viewed">Viewed by Clinic</option>
-                  <option value="withdrawn">Withdrawn</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div class="statements-table-wrapper">
-            <table class="statements-table" aria-label="All statements status tracker">
-              <thead>
-                <tr>
-                  <th>Clinic</th>
-                  <th>Patient Name</th>
-                  <th>Account #</th>
-                  <th>Statement Date</th>
-                  <th>Balance Due</th>
-                  <th>Status</th>
-                  <th>Remarks</th>
-                  <th style="text-align: right;">Action</th>
-                </tr>
-              </thead>
-              <tbody id="table-admin-tracker-body">
-                <!-- Dynamically populated status tracker rows -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Admin Tab 2: Clinics Directory -->
-        <div class="admin-tab-panel" id="panel-admin-clinics" style="display: none;">
-          <div class="statements-table-wrapper">
-            <table class="statements-table" aria-label="Clinics directory">
-              <thead>
-                <tr>
-                  <th>Clinic Name</th>
-                  <th>Clinic ID</th>
-                  <th>Primary Contact</th>
-                  <th>Assigned Specialist</th>
-                  <th>Active Statements</th>
-                  <th>Status</th>
-                  <th style="text-align: right;">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="table-admin-clinics-body">
-                <!-- Dynamically populated clinics rows -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Admin Tab 3: User Accounts -->
-        <div class="admin-tab-panel" id="panel-admin-users" style="display: none;">
-          <div class="statements-table-wrapper">
-            <table class="statements-table" aria-label="User accounts directory">
-              <thead>
-                <tr>
-                  <th>User Full Name</th>
-                  <th>Email</th>
-                  <th>Role Level</th>
-                  <th>Clinic Affiliation</th>
-                  <th>Status</th>
-                  <th>Last Sign-In</th>
-                </tr>
-              </thead>
-              <tbody id="table-admin-users-body">
-                <!-- Dynamically populated users rows -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Admin Tab 4: HIPAA Audit Trail -->
-        <div class="admin-tab-panel" id="panel-admin-audit" style="display: none;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
-            <span style="font-size: 0.85rem; color: var(--color-text-muted);">
-              Immutable 45 CFR § 164.312(b) Audit Trail &bull; Automatic Cryptographic Verification
-            </span>
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-export-audit-csv">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7 10 12 15 17 10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
-              </svg>
-              Export Audit Log (CSV)
-            </button>
-          </div>
-          <div class="statements-table-wrapper">
-            <table class="statements-table" aria-label="HIPAA Access Audit Trail">
-              <thead>
-                <tr>
-                  <th>Timestamp (CDT)</th>
-                  <th>Actor</th>
-                  <th>Role Level</th>
-                  <th>Clinic</th>
-                  <th>Action</th>
-                  <th>Target Resource</th>
-                  <th>IP Address</th>
-                  <th>Outcome</th>
-                </tr>
-              </thead>
-              <tbody id="table-admin-audit-body" style="font-family: var(--font-mono); font-size: 0.78rem;">
-                <!-- Dynamically populated audit log -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-      </div>
-    </section>
-
-    <!-- ====================================================================
-         VIEW P1: PATIENT STATEMENT LIST (F9)
+         VIEW P1: PATIENT STATEMENT LIST & SEARCH (F9, FR-9.1-9.5)
          ==================================================================== -->
     <section class="view-section" id="view-statements" aria-labelledby="statements-list-title">
       <div class="container">
         
-        <!-- Breadcrumb & Clinic Header -->
-        <nav class="view-breadcrumb-bar" aria-label="Breadcrumb">
-          <a href="javascript:void(0)" class="breadcrumb-link" id="breadcrumb-home">Dashboard</a>
-          <span class="breadcrumb-separator" aria-hidden="true">/</span>
-          <span class="breadcrumb-current" id="statements-clinic-name">Lakeside Family Clinic</span>
-        </nav>
-
-        <div class="section-header-row">
-          <div>
-            <h1 class="section-title" id="statements-list-title">Patient Statements</h1>
-            <p class="section-subtitle" id="statements-count-hint">Showing statements published for this clinic.</p>
-          </div>
-          <div style="display: flex; gap: 10px; align-items: center;" id="statements-action-bar-extra">
-            <!-- Clinic filter for Specialist and Admin -->
-            <div id="specialist-clinic-picker-container" style="display: none;">
-              <select id="select-view-clinic" class="form-select" style="padding: 7px 12px; font-size: 0.82rem;">
-                <option value="CLN-4082">Lakeside Family Clinic</option>
-                <option value="CLN-5120">Metro Health West</option>
-                <option value="CLN-6033">Sunrise Pediatrics</option>
-              </select>
-            </div>
-            <button type="button" class="btn btn-primary" id="btn-quick-upload-statement" style="display: none;">
-              + Upload Statement
-            </button>
+        <!-- Breadcrumb Bar -->
+        <div class="view-breadcrumb-bar">
+          <button type="button" class="btn-back-nav" id="btn-back-to-home">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            Back to Home
+          </button>
+          <div class="breadcrumb-trail">
+            <span>Home</span>
+            <span class="breadcrumb-separator">›</span>
+            <span class="breadcrumb-current">Patient Statements</span>
           </div>
         </div>
 
-        <!-- Filter & Search Toolbar -->
-        <div class="filter-bar-card">
-          <form id="form-search-filter" class="filter-inputs-grid">
-            <div class="filter-field">
-              <label for="filter-search-input" class="filter-label">Search by Patient or Account</label>
-              <div style="position: relative;">
-                <input type="search" id="filter-search-input" class="form-input" placeholder="e.g. Garcia, ACC-0048213..." autocomplete="off">
+        <!-- Statements Page Heading -->
+        <div class="statements-page-header">
+          <div class="page-title-group">
+            <h1 id="statements-list-title">Patient Statements</h1>
+            <p class="clinic-subtitle">Lakeside Family Clinic (CLN-4082) &bull; Managed by US24 Solutions</p>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-simulate-inactivity" title="Test the 15-minute HIPAA inactivity timeout modal">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            Simulate Timeout Warning
+          </button>
+        </div>
+
+        <!-- Filter Bar Sheet (FR-9.3, FR-9.4) -->
+        <div class="filter-bar-sheet">
+          <div class="filter-grid">
+            <div class="filter-item">
+              <label for="search-input">Search patient or account</label>
+              <div class="input-with-icon">
+                <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="search" id="search-input" class="form-input" placeholder="Search by patient name or account number (e.g. Garcia or ACC-004)..." autocomplete="off">
               </div>
             </div>
 
-            <div class="filter-field">
-              <label for="filter-date-input" class="filter-label">Statement Date</label>
-              <input type="date" id="filter-date-input" class="form-input">
+            <div class="filter-item">
+              <label for="filter-date-from">From date</label>
+              <input type="date" id="filter-date-from" class="form-input">
             </div>
 
-            <div class="filter-field">
-              <label for="filter-status-select" class="filter-label">Status</label>
-              <select id="filter-status-select" class="form-select">
-                <option value="all">All Statements</option>
-                <option value="new">Unopened (New)</option>
-                <option value="open">Balance Due</option>
-                <option value="paid">Zero Balance / Paid</option>
+            <div class="filter-item">
+              <label for="filter-date-to">To date</label>
+              <input type="date" id="filter-date-to" class="form-input">
+            </div>
+
+            <div class="filter-item">
+              <label for="filter-sort">Sort by</label>
+              <select id="filter-sort" class="form-select">
+                <option value="date-desc">Statement date (Newest first)</option>
+                <option value="date-asc">Statement date (Oldest first)</option>
+                <option value="name-asc">Patient name (A &ndash; Z)</option>
+                <option value="balance-desc">Balance due (High &ndash; Low)</option>
               </select>
             </div>
 
-            <div class="filter-field">
-              <label for="sort-statements-select" class="filter-label">Sort by</label>
-              <select id="sort-statements-select" class="form-select">
-                <option value="date-desc">Date (Newest first)</option>
-                <option value="date-asc">Date (Oldest first)</option>
-                <option value="name-asc">Patient Name (A-Z)</option>
-                <option value="name-desc">Patient Name (Z-A)</option>
-                <option value="balance-desc">Balance (Highest first)</option>
-                <option value="balance-asc">Balance (Lowest first)</option>
-              </select>
+            <div class="filter-item">
+              <button type="button" class="btn btn-secondary" id="btn-clear-filters" style="width: 100%;">
+                Clear filters
+              </button>
             </div>
-          </form>
-
-          <div class="filter-actions-row">
-            <div class="filter-results-counter" id="results-count-text">
-              Showing <strong>6</strong> statements
-            </div>
-            <button type="button" class="btn-tertiary" id="btn-clear-filters" style="display: none;">
-              Clear filters
-            </button>
           </div>
         </div>
 
-        <!-- Statements Table View -->
-        <div class="statements-table-wrapper" id="statements-table-container">
-          <table class="statements-table" aria-label="Patient statements table">
-            <thead>
-              <tr>
-                <th scope="col" style="width: 25%;">Patient Name</th>
-                <th scope="col" style="width: 18%;">Account Number</th>
-                <th scope="col" style="width: 17%;">Statement Date</th>
-                <th scope="col" style="width: 15%; text-align: right;">Balance Due</th>
-                <th scope="col" style="width: 12%; text-align: center;">Status</th>
-                <th scope="col" style="width: 13%; text-align: right;">Action</th>
-              </tr>
-            </thead>
-            <tbody id="statements-table-body">
-              <!-- Dynamically populated statement rows -->
-            </tbody>
-          </table>
+        <!-- Results Meta Bar -->
+        <div class="results-meta-bar">
+          <div>
+            Showing <span class="results-count-bold" id="results-count-label">0</span> statements
+            <span id="active-filter-indicator" style="display: none; margin-left: 8px;">(filtered)</span>
+          </div>
+          <div>
+            <span class="badge badge-new" style="margin-right: 4px;">New</span> = Unopened by clinic
+          </div>
         </div>
 
-        <!-- Empty State Message -->
-        <div class="empty-state-card" id="statements-empty-state" style="display: none;">
-          <svg class="empty-state-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          <h3 class="empty-state-title" id="empty-state-title">No statements match your search</h3>
-          <p class="empty-state-message" id="empty-state-msg">Try clearing your search filters or searching with a different patient name or account number.</p>
-          <button type="button" class="btn btn-secondary" id="btn-empty-clear">Reset search</button>
+        <!-- Table View Sheet (Desktop) -->
+        <div class="table-sheet-card">
+          <div class="table-responsive">
+            <table class="statements-table" id="table-statements" aria-describedby="statements-list-title">
+              <thead>
+                <tr>
+                  <th scope="col" style="width: 28%;">Patient Name</th>
+                  <th scope="col" style="width: 18%;">Account Number</th>
+                  <th scope="col" style="width: 16%;">Statement Date</th>
+                  <th scope="col" style="width: 16%; text-align: right;">Balance Due</th>
+                  <th scope="col" style="width: 16%;">Last Remark</th>
+                  <th scope="col" style="width: 6%; text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="statements-table-body">
+                <!-- Dynamically generated rows -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Mobile Stacked Cards (Phone) -->
+          <div class="mobile-statements-list" id="mobile-statements-list">
+            <!-- Dynamically populated for small devices -->
+          </div>
+
+          <!-- Empty State (Hidden when results exist) -->
+          <div class="empty-state-card" id="statements-empty-state" style="display: none;">
+            <div class="empty-state-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+            </div>
+            <h3 class="empty-state-title">No statements found</h3>
+            <p class="empty-state-desc">No patient statements match the current search or date range filters. Try clearing filters or using different keywords.</p>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-empty-clear-filters">Reset all filters</button>
+          </div>
+
+          <!-- Pagination Bar -->
+          <div class="pagination-bar" id="statements-pagination-bar">
+            <div id="pagination-info">Showing page 1 of 1</div>
+            <div class="pagination-controls">
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-prev-page" disabled>Previous</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-next-page" disabled>Next</button>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -724,83 +372,96 @@
 
     <!-- ====================================================================
          VIEW P2: STATEMENT DETAIL & REMARKS LEDGER (F10, F11, F12)
+         Two-Column Ledger: Left = Document Sheet | Right = Remarks History
          ==================================================================== -->
     <section class="view-section" id="view-detail" aria-labelledby="detail-patient-name-heading">
       <div class="container">
         
         <!-- Breadcrumb Navigation -->
-        <nav class="view-breadcrumb-bar" aria-label="Breadcrumb">
-          <a href="javascript:void(0)" class="breadcrumb-link" id="detail-breadcrumb-back">← Back to Statements</a>
-          <span class="breadcrumb-separator" aria-hidden="true">/</span>
-          <span class="breadcrumb-current" id="detail-breadcrumb-patient">Elena Garcia</span>
-          <span class="badge-role badge-role-clinic" id="detail-role-indicator" style="margin-left: 8px;">Clinic Review</span>
-        </nav>
+        <div class="view-breadcrumb-bar">
+          <button type="button" class="btn-back-nav" id="btn-back-to-list">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            Back to Statements
+          </button>
+          <div class="breadcrumb-trail">
+            <span>Home</span>
+            <span class="breadcrumb-separator">›</span>
+            <span>Statements</span>
+            <span class="breadcrumb-separator">›</span>
+            <span class="breadcrumb-current" id="breadcrumb-statement-id">Statement</span>
+          </div>
+        </div>
 
-        <!-- Top Actions Bar -->
-        <div class="detail-actions-bar">
-          <div class="detail-title-block">
-            <h1 class="detail-patient-heading" id="detail-patient-name-heading">Elena Garcia</h1>
-            <div class="detail-meta-pills">
-              <span class="meta-pill">Acct: <strong id="detail-header-account">ACC-0048213</strong></span>
-              <span class="meta-pill">Stmt Date: <strong id="detail-header-date">Oct 14, 2026</strong></span>
-              <span class="meta-pill">Clinic: <strong id="detail-header-clinic">Lakeside Family Clinic</strong></span>
-              <span class="badge badge-highlight" id="detail-new-pill" style="display: none;">New</span>
+        <!-- Detail Hero Band (Patient summary & Balance Hero) -->
+        <div class="detail-hero-band">
+          <div class="detail-patient-meta">
+            <h1 class="detail-patient-name" id="detail-patient-name-heading">
+              <span id="detail-patient-name">Patient Name</span>
+              <span class="badge badge-new" id="detail-new-badge" style="display: none;">New</span>
+            </h1>
+            <div class="detail-sub-meta">
+              <span>Account: <strong class="col-mono" id="detail-account-no">ACC-000000</strong></span>
+              <span>&bull;</span>
+              <span>Statement Date: <strong id="detail-statement-date">Oct 14, 2026</strong></span>
+              <span>&bull;</span>
+              <span id="detail-published-meta" style="color: var(--color-primary); font-weight: 500;">Published by US24 Specialist</span>
             </div>
           </div>
 
-          <div class="detail-actions-group">
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-print-statement" title="Print formatted statement (PDF)">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <div class="detail-actions-bar">
+            <div class="detail-balance-hero" style="margin-right: 18px;">
+              <div class="balance-hero-label">Patient Balance Due</div>
+              <div class="balance-hero-amount" id="detail-balance-due">$0.00</div>
+            </div>
+            
+            <button type="button" class="btn btn-secondary" id="btn-print-statement" title="Print this medical statement">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="6 9 6 2 18 2 18 9"></polyline>
                 <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
                 <rect x="6" y="14" width="12" height="8"></rect>
               </svg>
-              Print / Save PDF
+              Print
             </button>
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-download-statement" title="Download statement file">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+            <button type="button" class="btn btn-primary" id="btn-download-pdf" title="Download official PDF copy">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                 <polyline points="7 10 12 15 17 10"></polyline>
                 <line x1="12" y1="15" x2="12" y2="3"></line>
               </svg>
               Download PDF
             </button>
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-withdraw-statement" style="display: none; color: var(--color-danger); border-color: var(--color-danger);" title="Withdraw statement (Specialist/Admin only)">
-              Withdraw Statement
-            </button>
           </div>
         </div>
 
-        <!-- Two Column Ledger Grid: Left = Document Sheet, Right = Remarks Ledger -->
+        <!-- Two-Column Ledger Layout -->
         <div class="detail-columns-grid">
           
           <!-- LEFT COLUMN: STATEMENT DOCUMENT SHEET -->
-          <div class="statement-document-card">
-            <div class="statement-letterhead">
-              <div class="clinic-brand-block">
-                <h2 class="doc-clinic-name" id="doc-clinic-name">Lakeside Family Clinic</h2>
-                <div class="doc-clinic-address">
-                  1420 N. Ashland Ave, Suite 300<br>
-                  Chicago, IL 60622 &bull; (312) 555-0140
-                </div>
+          <div class="statement-document-card" id="printable-statement-sheet">
+            <!-- Document Letterhead -->
+            <div class="doc-letterhead">
+              <div class="doc-clinic-info">
+                <h3>Lakeside Family Clinic</h3>
+                <p>104 Medical Plaza Way, Suite 200, Peoria, IL 61614</p>
+                <p>Phone: (309) 555-0192 &bull; Fax: (309) 555-0193</p>
+                <p style="margin-top: 4px; font-size: 0.78rem; color: var(--color-primary);">RCM & Billing Administered by US24 Solutions</p>
               </div>
-
-              <div class="statement-title-box">
-                <div class="doc-heading">PATIENT BILLING STATEMENT</div>
-                <div class="doc-stmt-number">STMT #<span id="doc-stmt-number">2026-10-0048213</span></div>
-                <div class="doc-stmt-date">Date: <strong id="doc-stmt-date">Oct 14, 2026</strong></div>
+              <div class="doc-statement-badge">
+                <div class="doc-badge-title">PATIENT STATEMENT</div>
+                <div class="doc-badge-date">Date: <span id="doc-date">Oct 14, 2026</span></div>
+                <div class="doc-badge-date">Account: <span id="doc-account" class="col-mono">ACC-0048213</span></div>
               </div>
             </div>
 
-            <!-- Demographics & Insurance Summary -->
-            <div class="doc-demographics-grid">
+            <!-- Demographics & Insurance Summary Grid -->
+            <div class="doc-summary-grid">
               <div class="doc-meta-item">
-                <label>Guarantor / Patient</label>
+                <label>Patient Full Name</label>
                 <value id="doc-patient-name">Elena Garcia</value>
-              </div>
-              <div class="doc-meta-item">
-                <label>Account Number</label>
-                <value id="doc-account-num">ACC-0048213</value>
               </div>
               <div class="doc-meta-item">
                 <label>Date of Birth</label>
@@ -856,7 +517,7 @@
 
             <!-- Notes & Instructions -->
             <div class="doc-patient-notes">
-              <p><strong>Payment Notice:</strong> Please submit your payment within 30 days of the statement date. If you have questions regarding your insurance coverage, please notify your clinic or contact insurance member services directly.</p>
+              <p><strong>Payment Notice:</strong> Please submit your payment within 30 days of the statement date. If you have questions regarding your insurance coverage, please notify Lakeside Family Clinic or contact your insurance member services directly.</p>
             </div>
 
             <!-- Other Statements for this patient -->
@@ -869,11 +530,11 @@
 
             <!-- Print-only footer -->
             <div class="print-page-footer" style="display: none;">
-              Printed on <span id="print-timestamp"></span> &bull; Confidential Protected Health Information (HIPAA) &bull; Page 1 of 1
+              Printed by Lakeside Family Clinic Staff on <span id="print-timestamp"></span> &bull; Confidential Protected Health Information (HIPAA) &bull; Page 1 of 1
             </div>
           </div>
 
-          <!-- RIGHT COLUMN: REMARKS LEDGER -->
+          <!-- RIGHT COLUMN: REMARKS LEDGER (F11, FR-11.1-11.7) -->
           <div class="remarks-card">
             <div class="remarks-header">
               <h3>
@@ -892,46 +553,19 @@
               <!-- Dynamically populated entries -->
             </div>
 
-            <!-- Add Remark Form (Role-Adaptive) -->
+            <!-- Add Clinic Remark Form (FR-11.4, FR-11.5) -->
             <div class="add-remark-section">
-              <h4 class="add-remark-title" id="add-remark-heading">Add Remark</h4>
-              <p class="add-remark-rule-hint">Remarks cannot be edited or deleted once saved. They will be shared immediately with the clinic and US24 specialists.</p>
+              <h4 class="add-remark-title">Add Clinic Remark</h4>
+              <p class="add-remark-rule-hint">Remarks cannot be edited or deleted once saved. They will be shared immediately with US24 billing specialists.</p>
               
               <form id="form-add-remark">
-                <!-- Specialist role selector for remarks -->
-                <div id="specialist-remark-type-row" style="display: none; margin-bottom: 10px;">
-                  <label class="form-label">Remark Type</label>
-                  <div style="display: flex; gap: 8px;">
-                    <label style="display: flex; align-items: center; gap: 4px; font-size: 0.8rem; cursor: pointer;">
-                      <input type="radio" name="remark-type-radio" value="specialist" checked> US24 Specialist Note
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 4px; font-size: 0.8rem; cursor: pointer;">
-                      <input type="radio" name="remark-type-radio" value="insurance"> Payer / Insurance Remark
-                    </label>
-                  </div>
-                </div>
-
-                <!-- Payer name & claim ref (Visible only if Insurance remark selected) -->
-                <div id="insurance-extra-fields" style="display: none; margin-bottom: 10px;">
-                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                    <div>
-                      <label for="input-ins-company" class="form-label" style="font-size: 0.76rem;">Insurance Payer</label>
-                      <input type="text" id="input-ins-company" class="form-input" placeholder="e.g. Blue Cross, Aetna, Medicare">
-                    </div>
-                    <div>
-                      <label for="input-ins-claim" class="form-label" style="font-size: 0.76rem;">Claim / Ref #</label>
-                      <input type="text" id="input-ins-claim" class="form-input" placeholder="e.g. CLM-98214-A">
-                    </div>
-                  </div>
-                </div>
-
                 <div class="form-group" style="margin-bottom: 8px;">
-                  <label for="textarea-remark" class="form-label">Remark Content</label>
-                  <textarea id="textarea-remark" class="form-textarea" placeholder="Type your update or status remark regarding this patient statement..." maxlength="2000" required></textarea>
+                  <label for="textarea-remark" class="form-label">Remark Note</label>
+                  <textarea id="textarea-remark" class="form-textarea" placeholder="Type your clinic update or inquiry regarding this patient statement..." maxlength="2000" required></textarea>
                 </div>
                 
                 <div class="char-counter-line">
-                  <span class="form-hint">Posting as: <strong id="remark-posting-author">Ankit Kumar (User-Lakeside Family Clinic)</strong></span>
+                  <span class="form-hint">Author: <strong id="remark-author-hint">Ankit Kumar (User-Lakeside Family Clinic)</strong></span>
                   <span class="char-counter" id="char-counter">0 / 2,000</span>
                 </div>
 
@@ -950,337 +584,8 @@
   </main>
 
   <!-- ====================================================================
-       MODAL 1: SPECIALIST UPLOAD SINGLE STATEMENT (F7)
-       ==================================================================== -->
-  <div class="modal-backdrop" id="modal-upload-statement" role="dialog" aria-modal="true" aria-labelledby="modal-upload-title">
-    <div class="modal-sheet modal-sheet-lg">
-      <div class="modal-header">
-        <h3 id="modal-upload-title">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="17 8 12 3 7 8"></polyline>
-            <line x1="12" y1="3" x2="12" y2="15"></line>
-          </svg>
-          Upload Single Patient Statement
-        </h3>
-        <button type="button" class="btn-tertiary" id="btn-close-upload-modal" style="font-size: 1.2rem; line-height: 1;">&times;</button>
-      </div>
-      <form id="form-upload-statement">
-        <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-            <div class="form-group">
-              <label class="form-label" for="upload-clinic-select">Target Client Clinic *</label>
-              <select id="upload-clinic-select" class="form-select" required>
-                <option value="CLN-4082">Lakeside Family Clinic (CLN-4082)</option>
-                <option value="CLN-5120">Metro Health West (CLN-5120)</option>
-                <option value="CLN-6033">Sunrise Pediatrics (CLN-6033)</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="upload-stmt-date">Statement Date *</label>
-              <input type="date" id="upload-stmt-date" class="form-input" required>
-            </div>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-            <div class="form-group">
-              <label class="form-label" for="upload-patient-name">Patient Full Name *</label>
-              <input type="text" id="upload-patient-name" class="form-input" placeholder="e.g. David Martinez" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="upload-account-num">Account Number *</label>
-              <input type="text" id="upload-account-num" class="form-input" placeholder="e.g. ACC-0059124" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="upload-dob">Date of Birth *</label>
-              <input type="text" id="upload-dob" class="form-input" placeholder="MM/DD/YYYY" required>
-            </div>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 14px;">
-            <div class="form-group">
-              <label class="form-label" for="upload-balance-due">Patient Balance Due ($) *</label>
-              <input type="number" step="0.01" id="upload-balance-due" class="form-input" placeholder="250.00" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="upload-service-dates">Dates of Service *</label>
-              <input type="text" id="upload-service-dates" class="form-input" placeholder="10/10/2026 - 10/10/2026" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="upload-insurance">Primary Insurance</label>
-              <input type="text" id="upload-insurance" class="form-input" placeholder="e.g. UnitedHealthcare">
-            </div>
-          </div>
-
-          <!-- Procedure Line Items Summary -->
-          <div class="form-group" style="margin-bottom: 14px;">
-            <label class="form-label" for="upload-cpt-desc">Primary Procedure / CPT Description</label>
-            <input type="text" id="upload-cpt-desc" class="form-input" value="CPT 99214 - Office Outpatient Visit - Moderate Severity" placeholder="CPT Code and Clinical Description">
-          </div>
-
-          <!-- PDF File Attachment Dropzone -->
-          <div class="form-group">
-            <label class="form-label">Attach Statement Document (PDF)</label>
-            <div class="dropzone-box" id="upload-dropzone">
-              <div class="dropzone-icon">📄</div>
-              <div class="dropzone-text">Drag & drop patient statement PDF or click to browse</div>
-              <div class="dropzone-hint">Supported: PDF up to 15MB &bull; Automated HIPAA encryption (AES-256)</div>
-              <div id="upload-file-name" style="display: none; margin-top: 8px; font-weight: 600; color: var(--color-primary);"></div>
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" id="btn-cancel-upload">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="btn-publish-single-stmt">Confirm & Publish Statement</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- ====================================================================
-       MODAL 2: SPECIALIST BULK SPREADSHEET IMPORT (F8)
-       ==================================================================== -->
-  <div class="modal-backdrop" id="modal-import-statements" role="dialog" aria-modal="true" aria-labelledby="modal-import-title">
-    <div class="modal-sheet modal-sheet-lg">
-      <div class="modal-header">
-        <h3 id="modal-import-title">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          Import Statements Spreadsheet (Bulk)
-        </h3>
-        <button type="button" class="btn-tertiary" id="btn-close-import-modal" style="font-size: 1.2rem; line-height: 1;">&times;</button>
-      </div>
-      <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
-        <div class="form-group" style="margin-bottom: 14px;">
-          <label class="form-label" for="import-clinic-select">Select Destination Practice *</label>
-          <select id="import-clinic-select" class="form-select" required>
-            <option value="CLN-4082">Lakeside Family Clinic (CLN-4082)</option>
-            <option value="CLN-5120">Metro Health West (CLN-5120)</option>
-            <option value="CLN-6033">Sunrise Pediatrics (CLN-6033)</option>
-          </select>
-        </div>
-
-        <div class="dropzone-box" id="import-dropzone" style="margin-bottom: 16px;">
-          <div class="dropzone-icon">📊</div>
-          <div class="dropzone-text">Drop CSV or Excel statement batch file here</div>
-          <div class="dropzone-hint">Format: standard US24 statement import template (.csv, .xlsx)</div>
-          <div id="import-file-name" style="display: none; margin-top: 8px; font-weight: 600; color: var(--color-primary);"></div>
-        </div>
-
-        <!-- Live Parsed Rows Preview -->
-        <div>
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="font-size: 0.82rem; font-weight: 600; color: var(--color-text);">Batch Validation Preview:</span>
-            <span class="badge badge-highlight" id="import-summary-badge">3 Valid Rows Ready &bull; 0 Errors</span>
-          </div>
-          <div class="statements-table-wrapper" style="max-height: 180px; overflow-y: auto;">
-            <table class="statements-table" style="font-size: 0.78rem;">
-              <thead>
-                <tr>
-                  <th>Row</th>
-                  <th>Patient Name</th>
-                  <th>Account #</th>
-                  <th>DOS</th>
-                  <th>Balance Due</th>
-                  <th>Validation</th>
-                </tr>
-              </thead>
-              <tbody id="import-preview-rows">
-                <tr>
-                  <td>1</td>
-                  <td><strong>Julian Vance</strong></td>
-                  <td>ACC-0091823</td>
-                  <td>10/12/2026</td>
-                  <td>$310.00</td>
-                  <td><span class="badge badge-neutral" style="color: var(--color-success);">✓ Valid</span></td>
-                </tr>
-                <tr>
-                  <td>2</td>
-                  <td><strong>Natalie Cole</strong></td>
-                  <td>ACC-0091824</td>
-                  <td>10/14/2026</td>
-                  <td>$185.50</td>
-                  <td><span class="badge badge-neutral" style="color: var(--color-success);">✓ Valid</span></td>
-                </tr>
-                <tr>
-                  <td>3</td>
-                  <td><strong>Carlos Delgado</strong></td>
-                  <td>ACC-0091825</td>
-                  <td>10/15/2026</td>
-                  <td>$425.00</td>
-                  <td><span class="badge badge-neutral" style="color: var(--color-success);">✓ Valid</span></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" id="btn-cancel-import">Cancel</button>
-        <button type="button" class="btn btn-primary" id="btn-execute-import">Publish 3 Statements to Clinic</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ====================================================================
-       MODAL 3: WITHDRAW STATEMENT (Specialist/Admin Only)
-       ==================================================================== -->
-  <div class="modal-backdrop" id="modal-withdraw-statement" role="dialog" aria-modal="true" aria-labelledby="modal-withdraw-title">
-    <div class="modal-sheet">
-      <div class="modal-header">
-        <h3 id="modal-withdraw-title" style="color: var(--color-danger);">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="15" y1="9" x2="9" y2="15"></line>
-            <line x1="9" y1="9" x2="15" y2="15"></line>
-          </svg>
-          Withdraw Statement
-        </h3>
-        <button type="button" class="btn-tertiary" id="btn-close-withdraw-modal" style="font-size: 1.2rem; line-height: 1;">&times;</button>
-      </div>
-      <div class="modal-body">
-        <p>Are you sure you want to withdraw this statement for <strong id="withdraw-patient-name">Elena Garcia</strong>?</p>
-        <p style="font-size: 0.82rem; color: var(--color-text-muted);">Withdrawing removes active balance visibility from the clinic portal while preserving complete audit logs under HIPAA compliance.</p>
-        
-        <div class="form-group" style="margin-top: 12px;">
-          <label for="textarea-withdraw-reason" class="form-label">Reason for Withdrawal *</label>
-          <textarea id="textarea-withdraw-reason" class="form-textarea" placeholder="e.g. Invoiced under incorrect clinic ID, replaced by revised statement #2026-10-02..." required></textarea>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" id="btn-cancel-withdraw">Cancel</button>
-        <button type="button" class="btn btn-primary" id="btn-confirm-withdraw" style="background: var(--color-danger); border-color: var(--color-danger);">Confirm Withdrawal</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ====================================================================
-       MODAL 4: ADMIN ADD NEW CLINIC
-       ==================================================================== -->
-  <div class="modal-backdrop" id="modal-add-clinic" role="dialog" aria-modal="true" aria-labelledby="modal-add-clinic-title">
-    <div class="modal-sheet">
-      <div class="modal-header">
-        <h3 id="modal-add-clinic-title">Add New Client Clinic</h3>
-        <button type="button" class="btn-tertiary" id="btn-close-clinic-modal" style="font-size: 1.2rem; line-height: 1;">&times;</button>
-      </div>
-      <form id="form-add-clinic">
-        <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label" for="new-clinic-name">Clinic Name *</label>
-            <input type="text" id="new-clinic-name" class="form-input" placeholder="e.g. Valley Medical Associates" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="new-clinic-id">Clinic ID *</label>
-            <input type="text" id="new-clinic-id" class="form-input" placeholder="e.g. CLN-7041" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="new-clinic-contact">Primary Contact / Email *</label>
-            <input type="text" id="new-clinic-contact" class="form-input" placeholder="Dr. Alan Ross (contact@valleymed.org)" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="new-clinic-specialist">Assigned Billing Specialist</label>
-            <select id="new-clinic-specialist" class="form-select">
-              <option value="Ankit K.">Ankit K. (US24 Specialist)</option>
-            </select>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" id="btn-cancel-add-clinic">Cancel</button>
-          <button type="submit" class="btn btn-primary">Create Practice</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- ====================================================================
-       MODAL 5: ADMIN INVITE USER
-       ==================================================================== -->
-  <div class="modal-backdrop" id="modal-invite-user" role="dialog" aria-modal="true" aria-labelledby="modal-invite-user-title">
-    <div class="modal-sheet">
-      <div class="modal-header">
-        <h3 id="modal-invite-user-title">Invite New User Account</h3>
-        <button type="button" class="btn-tertiary" id="btn-close-invite-modal" style="font-size: 1.2rem; line-height: 1;">&times;</button>
-      </div>
-      <form id="form-invite-user">
-        <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label" for="invite-user-name">User Full Name *</label>
-            <input type="text" id="invite-user-name" class="form-input" placeholder="e.g. Dr. Emily Thorne" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="invite-user-email">Email Address *</label>
-            <input type="email" id="invite-user-email" class="form-input" placeholder="e.g. e.thorne@lakesidefamily.org" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="invite-user-role">Account Role Level *</label>
-            <select id="invite-user-role" class="form-select" required>
-              <option value="clinic_user">1. Clinic Level (Clinic Employee)</option>
-              <option value="specialist">2. US24 Specialist (Billing Specialist)</option>
-              <option value="admin">3. Admin Level (Operations Manager)</option>
-            </select>
-          </div>
-          <div class="form-group" id="invite-clinic-group">
-            <label class="form-label" for="invite-user-clinic">Clinic Affiliation</label>
-            <select id="invite-user-clinic" class="form-select">
-              <option value="Lakeside Family Clinic">Lakeside Family Clinic</option>
-              <option value="Metro Health West">Metro Health West</option>
-              <option value="Sunrise Pediatrics">Sunrise Pediatrics</option>
-            </select>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" id="btn-cancel-invite">Cancel</button>
-          <button type="submit" class="btn btn-primary">Send Activation Invite</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- ====================================================================
-       MODAL 6: ROLE SWITCHER POPUP (For Instant Review)
-       ==================================================================== -->
-  <div class="modal-backdrop" id="modal-switch-persona" role="dialog" aria-modal="true" aria-labelledby="modal-switch-title">
-    <div class="modal-sheet">
-      <div class="modal-header">
-        <h3 id="modal-switch-title">Switch Active Login Level</h3>
-        <button type="button" class="btn-tertiary" id="btn-close-switch-modal" style="font-size: 1.2rem; line-height: 1;">&times;</button>
-      </div>
-      <div class="modal-body">
-        <p style="font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 14px;">
-          Quickly switch between the three roles to test different permissions and workflows:
-        </p>
-        <div style="display: grid; gap: 10px;">
-          <button type="button" class="persona-tab-btn" id="btn-modal-switch-clinic" style="display: flex; flex-direction: row; justify-content: flex-start; padding: 12px 16px; text-align: left;">
-            <span style="font-size: 1.5rem; margin-right: 12px;">🏥</span>
-            <div>
-              <strong style="color: var(--color-text);">1. Clinic Level (Ankitkumar87147@gmail.com)</strong>
-              <div style="font-size: 0.74rem; color: var(--color-text-muted);">User-Lakeside Family Clinic &bull; Pass: Ankitsingh@123</div>
-            </div>
-          </button>
-          <button type="button" class="persona-tab-btn" id="btn-modal-switch-specialist" style="display: flex; flex-direction: row; justify-content: flex-start; padding: 12px 16px; text-align: left;">
-            <span style="font-size: 1.5rem; margin-right: 12px;">🩺</span>
-            <div>
-              <strong style="color: var(--color-text);">2. US24 Specialist (ankit.k@us24solutions.com)</strong>
-              <div style="font-size: 0.74rem; color: var(--color-text-muted);">US24 Specialist (Ankit K.) &bull; Pass: Ankitsingh@123</div>
-            </div>
-          </button>
-          <button type="button" class="persona-tab-btn" id="btn-modal-switch-admin" style="display: flex; flex-direction: row; justify-content: flex-start; padding: 12px 16px; text-align: left;">
-            <span style="font-size: 1.5rem; margin-right: 12px;">🛡️</span>
-            <div>
-              <strong style="color: var(--color-text);">3. Admin Level (saurabh@us24solutions.com)</strong>
-              <div style="font-size: 0.74rem; color: var(--color-text-muted);">Admin (Saurabh) &bull; Pass: Kashi@123#</div>
-            </div>
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ====================================================================
-       MODAL 7: INACTIVITY TIMEOUT WARNING (G1)
+       MODAL: INACTIVITY TIMEOUT WARNING (G1, FR-1.9, WCAG 2.2.1)
+       Appears at 13 minutes with 2-minute countdown
        ==================================================================== -->
   <div class="modal-backdrop" id="modal-timeout" role="dialog" aria-modal="true" aria-labelledby="modal-timeout-title">
     <div class="modal-sheet">
