@@ -8,7 +8,7 @@ export default defineConfig({
     strictPort: true,
     // The API runs separately in development; the browser only ever talks to this origin.
     proxy: {
-      '/api': { target: 'http://localhost:4000', changeOrigin: false },
+      '/api': { target: 'http://127.0.0.1:4000', changeOrigin: true },
     },
   },
   build: {

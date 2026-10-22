@@ -4,16 +4,19 @@ import { requireRole } from '../middleware/guards.js';
 
 export const dashboardRouter = Router();
 
-// C1: clinic home, with the count of unopened statements (N4).
+// C1: clinic home, with the count of unopened statements (N4) and total active statements.
 dashboardRouter.get('/home', requireRole('clinic_user'), async (req, res) => {
   const { rows } = await query(
-    `SELECT count(*)::int AS new_count FROM statement
-      WHERE clinic_id = $1 AND status = 'active' AND first_opened_by_clinic_at IS NULL`,
+    `SELECT count(*)::int AS total_count,
+            count(*) FILTER (WHERE first_opened_by_clinic_at IS NULL)::int AS new_count
+       FROM statement
+      WHERE clinic_id = $1 AND status = 'active'`,
     [req.user.clinic_id],
   );
   res.json({
     clinic: { id: req.user.clinic_id, name: req.user.clinic_name, code: req.user.clinic_code },
-    newCount: rows[0].new_count,
+    totalCount: rows[0]?.total_count || 0,
+    newCount: rows[0]?.new_count || 0,
   });
 });
 

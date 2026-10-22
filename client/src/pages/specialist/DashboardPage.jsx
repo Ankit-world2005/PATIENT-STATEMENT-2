@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ClinicsDropdown } from '../../components/ClinicsDropdown.jsx';
-import { IconBuilding, IconChat, IconTable, IconUpload } from '../../components/Icons.jsx';
+import { IconBuilding, IconChat, IconClock, IconDocument, IconTable, IconUpload } from '../../components/Icons.jsx';
 import { Alert, EmptyState, PageHeader, Spinner, StatusBadge } from '../../components/ui.jsx';
 import { api } from '../../lib/api.js';
 import { useAuth } from '../../lib/auth.jsx';
@@ -126,6 +126,42 @@ export function DashboardPage() {
       ) : (
         <div id="panel-overview" role="tabpanel" aria-labelledby="tab-overview" className="dashboard-grid">
           <div className="dashboard-main">
+            {/* Aggregate Specialist KPI Stats Cards */}
+            <div className="stats-kpi-grid" style={{ marginBottom: '20px' }}>
+              <div className="stat-kpi-card">
+                <div className="kpi-icon-wrap kpi-blue"><IconBuilding size={20} /></div>
+                <div className="kpi-content">
+                  <span className="kpi-label">Assigned Clinics</span>
+                  <strong className="kpi-value">{data.clinics.length}</strong>
+                </div>
+              </div>
+              <div className="stat-kpi-card">
+                <div className="kpi-icon-wrap"><IconDocument size={20} /></div>
+                <div className="kpi-content">
+                  <span className="kpi-label">Active Statements</span>
+                  <strong className="kpi-value">
+                    {data.clinics.reduce((sum, c) => sum + (c.statementCount || 0), 0)}
+                  </strong>
+                </div>
+              </div>
+              <div className="stat-kpi-card">
+                <div className="kpi-icon-wrap kpi-teal"><IconClock size={20} /></div>
+                <div className="kpi-content">
+                  <span className="kpi-label">Unopened by Clinics</span>
+                  <strong className="kpi-value">
+                    {data.clinics.reduce((sum, c) => sum + (c.unopenedCount || 0), 0)}
+                  </strong>
+                </div>
+              </div>
+              <div className="stat-kpi-card">
+                <div className="kpi-icon-wrap kpi-plum"><IconChat size={20} /></div>
+                <div className="kpi-content">
+                  <span className="kpi-label">Awaiting Reply</span>
+                  <strong className="kpi-value text-plum">{data.unanswered.length}</strong>
+                </div>
+              </div>
+            </div>
+
             <section className="panel" aria-labelledby="my-clinics">
               <div className="panel-header"><h2 id="my-clinics">My clinics</h2></div>
               {data.clinics.length === 0 ? (

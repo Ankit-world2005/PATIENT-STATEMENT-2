@@ -35,6 +35,7 @@ adminRouter.get('/summary', async (_req, res) => {
            (SELECT count(*) FROM app_user WHERE status = 'active')::int AS active_users,
            (SELECT count(*) FROM app_user WHERE status = 'invited')::int AS invited_users,
            (SELECT count(*) FROM statement WHERE status = 'active')::int AS active_statements,
+           (SELECT count(*) FROM audit_event)::int AS total_audit_events,
            (SELECT count(*) FROM audit_event WHERE action = 'access.blocked' AND occurred_at > now() - interval '7 days')::int AS blocked_7d,
            (SELECT count(*) FROM remark)::int AS total_remarks,
            (SELECT count(*) FROM statement WHERE awaiting_reply_since IS NOT NULL AND status = 'active')::int AS awaiting_remarks,

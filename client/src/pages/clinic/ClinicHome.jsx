@@ -8,10 +8,10 @@ import { useAuth } from '../../lib/auth.jsx';
 // Statement comes first on every screen size (implementation plan C-5).
 export function ClinicHome() {
   const { user } = useAuth();
-  const [newCount, setNewCount] = useState(null);
+  const [data, setData] = useState(null);
 
   useEffect(() => {
-    api('/home').then((d) => setNewCount(d.newCount)).catch(() => {});
+    api('/home').then(setData).catch(() => {});
   }, []);
 
   return (
@@ -24,8 +24,12 @@ export function ClinicHome() {
             <h2 className="hub-card-title">Patient Statement</h2>
             <p className="hub-card-desc">View your patients' statements, their remark history, and download or print copies.</p>
             <div className="hub-card-tag">
-              {newCount > 0 ? (
-                <span className="badge badge-new">{newCount} new</span>
+              {data ? (
+                data.newCount > 0 ? (
+                  <span className="badge badge-new">{data.newCount} new ({data.totalCount} total)</span>
+                ) : (
+                  <span className="badge badge-open">{data.totalCount} active statements</span>
+                )
               ) : (
                 <span className="badge badge-open">Open</span>
               )}
