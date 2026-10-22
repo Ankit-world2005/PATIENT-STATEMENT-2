@@ -22,6 +22,16 @@ const CLINICS = [
     zip: '61761', contact: 'Sam Ortiz', phone: '(309) 555-0108', email: 'billing@northgate-ortho.example' },
   { code: 'CLN-9200', name: 'Namaste Rehab Clinics LLC', a1: '700 E Township Line Rd', a2: null, city: 'Spring House', state: 'PA',
     zip: '19002', contact: 'Office Manager', phone: '(215) 555-0199', email: 'billing@namaste-rehab.example' },
+  { code: 'CLN-NEOM', name: 'Neomedica Group LLC', a1: '100 Medical Center Blvd', a2: 'Suite 100', city: 'Houston', state: 'TX',
+    zip: '77001', contact: 'Office Manager', phone: '(713) 555-0111', email: 'neomedica.mypatient@gmail.com' },
+  { code: 'CLN-ARRA', name: 'ARRA FY TX LLC', a1: '200 Health Way', a2: null, city: 'Dallas', state: 'TX',
+    zip: '75201', contact: 'Office Manager', phone: '(214) 555-0122', email: 'arra.mypatient@gmail.com' },
+  { code: 'CLN-HFPC', name: 'HEALTH FIRST PHYSIO CARE LLC', a1: '300 Physio Park Dr', a2: null, city: 'Austin', state: 'TX',
+    zip: '73301', contact: 'Office Manager', phone: '(512) 555-0133', email: 'healthfirst.mypatient@gmail.com' },
+  { code: 'CLN-SAVN', name: 'Savan Enterprises LLC', a1: '400 Enterprise Plaza', a2: null, city: 'San Antonio', state: 'TX',
+    zip: '78201', contact: 'Office Manager', phone: '(210) 555-0144', email: 'savan.mypatient@gmail.com' },
+  { code: 'CLN-EVLV', name: 'Evolve Physical Therapy', a1: '500 Wellness Blvd', a2: null, city: 'Fort Worth', state: 'TX',
+    zip: '76101', contact: 'Office Manager', phone: '(817) 555-0155', email: 'evolve.mypatient@gmail.com' },
 ];
 
 const LAKESIDE_CSV = `patient_name,account_number,statement_date,balance_due,patient_dob,service_date_from,service_date_to,cpt_codes,billed_amount,insurance_paid,adjustments,insurance_name
@@ -145,7 +155,26 @@ async function main() {
       email: 'priya.shah@riverside-peds.example', name: 'Priya Shah', role: 'clinic_user',
       clinicId: clinicIds['CLN-5120'], invitedBy: admin.id,
     });
-    for (const [spec, code] of [[specialist, 'CLN-4082'], [specialist, 'CLN-5120'], [specialist, 'CLN-9200'], [kevin, 'CLN-5120'], [kevin, 'CLN-6301']]) {
+    const extraClinicUsers = [
+      { email: 'neomedica.mypatient@gmail.com', name: 'Neomedica Admin', code: 'CLN-NEOM', pass: 'Neomedica@123' },
+      { email: 'arra.mypatient@gmail.com', name: 'Arra Admin', code: 'CLN-ARRA', pass: 'Arra@123' },
+      { email: 'healthfirst.mypatient@gmail.com', name: 'Health First Admin', code: 'CLN-HFPC', pass: 'Healthfirst@123' },
+      { email: 'savan.mypatient@gmail.com', name: 'Savan Admin', code: 'CLN-SAVN', pass: 'Savan@123' },
+      { email: 'evolve.mypatient@gmail.com', name: 'Evolve Admin', code: 'CLN-EVLV', pass: 'Evolve@123' },
+    ];
+    for (const cu of extraClinicUsers) {
+      await createUser(client, {
+        email: cu.email, name: cu.name, role: 'clinic_user', clinicId: clinicIds[cu.code],
+        password: cu.pass, invitedBy: admin.id,
+      });
+    }
+    const assignments = [
+      [specialist, 'CLN-4082'], [specialist, 'CLN-5120'], [specialist, 'CLN-9200'],
+      [specialist, 'CLN-NEOM'], [specialist, 'CLN-ARRA'], [specialist, 'CLN-HFPC'],
+      [specialist, 'CLN-SAVN'], [specialist, 'CLN-EVLV'],
+      [kevin, 'CLN-5120'], [kevin, 'CLN-6301'],
+    ];
+    for (const [spec, code] of assignments) {
       await client.query('INSERT INTO specialist_assignment (specialist_id, clinic_id, assigned_by_id) VALUES ($1, $2, $3)',
         [spec.id, clinicIds[code], admin.id]);
     }
