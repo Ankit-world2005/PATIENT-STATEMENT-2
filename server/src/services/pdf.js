@@ -78,55 +78,135 @@ export async function renderStatementPdf(statement, clinic) {
   y -= 26;
 
   // Patient and coverage
+  const locationDisplay = statement.location_name || statement.locationName || clinic.name;
+  const currentBal = statement.current_balance ?? statement.currentBalance ?? statement.balance_due;
   const meta = [
-    ['Patient', statement.patient_name],
+    ['Patient Name', statement.patient_name],
+    ['Location', locationDisplay],
+    ['PR Type', statement.pr_type || statement.prType || 'Patient'],
+    ['Status', statement.ledger_status || statement.status || 'Active'],
     ['Date of birth', usDate(statement.patient_dob)],
+    ['Insurance', statement.insurance_name || 'Self-pay'],
     ['Dates of service',
       statement.service_date_from ? `${usDate(statement.service_date_from)} - ${usDate(statement.service_date_to)}` : '-'],
-    ['Insurance', statement.insurance_name || 'Self-pay'],
+    ['Current Outstanding Balance', money(currentBal)],
   ];
   meta.forEach(([label, value], i) => {
     const x = i % 2 === 0 ? left : 320;
-    const yy = y - Math.floor(i / 2) * 34;
-    text(label.toUpperCase(), x, yy, { f: bold, size: 7.5, color: MUTED });
-    text(value, x, yy - 13, { size: 11 });
+    const yy = y - Math.floor(i / 2) * 28;
+    text(label.toUpperCase(), x, yy, { f: bold, size: 7, color: MUTED });
+    text(printable(value), x, yy - 11, { size: 9.5 });
   });
-  y -= 78;
+  y -= 4 * 28 + 6;
 
-  // Procedure codes
-  text('PROCEDURE (CPT) CODES', left, y, { f: bold, size: 7.5, color: MUTED });
-  y -= 14;
-  const codes = statement.cpt_codes?.length ? statement.cpt_codes.join('   ') : 'None listed';
-  text(codes, left, y, { size: 10.5 });
-  y -= 28;
+  // Multi-cycle billing history table
+  const hasCycles = statement.cycle1_date || statement.cycle2_date || statement.cycle3_date;
+  if (hasCycles) {
+    rule(y);
+    y -= 14;
+    text('ELECTRONIC STATEMENT HISTORY & CYCLE BALANCES', left, y, { f: bold, size: 7.5, color: MUTED });
+    y -= 14;
 
-  // Financial summary
-  rule(y);
-  y -= 20;
-  const lines = [
-    ['Total billed charges', money(statement.billed_amount)],
-    ['Insurance payments', statement.insurance_paid == null ? '-' : `-${money(statement.insurance_paid)}`],
-    ['Adjustments', money(statement.adjustments)],
-  ];
-  for (const [label, value] of lines) {
-    text(label, 330, y, { color: MUTED });
-    textRight(value, right, y);
-    y -= 18;
+    // Header
+    text('Statement Cycle', left, y, { f: bold, size: 8, color: MUTED });
+    text('Sent Date', 200, y, { f: bold, size: 8, color: MUTED });
+    text('Balance Due', 320, y, { f: bold, size: 8, color: MUTED });
+    text('Payment Received', 440, y, { f: bold, size: 8, color: MUTED });
+    y -= 6;
+    rule(y, 0.5);
+    y -= 12;
+
+    const cycles = [
+      ['1st Electronic Statement', statement.cycle1_date || statement.statement_date, statement.cycle1_balance ?? statement.balance_due, statement.cycle1_payment],
+      ['2nd Electronic Statement', statement.cycle2_date, statement.cycle2_balance, statement.cycle2_payment],
+      ['3rd Electronic Statement', statement.cycle3_date, statement.cycle3_balance, statement.cycle3_payment],
+    ];
+
+    for (const [cycleName, cDate, cBal, cPay] of cycles) {
+      text(cycleName, left, y, { size: 9 });
+      text(usDate(cDate), 200, y, { size: 9 });
+      text(money(cBal), 320, y, { size: 9 });
+      text(cPay ? printable(cPay) : '$0.00', 440, y, { size: 9, color: TEAL });
+      y -= 14;
+    }
+    rule(y, 0.5);
+    y -= 12;
+    text('Current Outstanding Balance', left, y, { f: bold, size: 9 });
+    textRight(money(currentBal), right, y, { f: bold, size: 11, color: TEAL });
+    y -= 16;
   }
-  page.drawLine({ start: { x: 330, y: y + 8 }, end: { x: right, y: y + 8 }, thickness: 1.5, color: INK });
-  y -= 8;
-  text('Patient balance due', 330, y, { f: bold, size: 12, color: TEAL });
-  textRight(money(statement.balance_due), right, y, { f: bold, size: 12, color: TEAL });
-  y -= 40;
+
+  // Procedure codes (if present)
+  if (statement.cpt_codes?.length) {
+    rule(y);
+    y -= 14;
+    text('PROCEDURE (CPT) CODES', left, y, { f: bold, size: 7.5, color: MUTED });
+    y -= 12;
+    text(statement.cpt_codes.join('   '), left, y, { size: 9.5 });
+    y -= 16;
+  }
+
+  // Financial summary (if billed charges exist)
+  if (statement.billed_amount != null) {
+    rule(y);
+    y -= 16;
+    const lines = [
+      ['Total billed charges', money(statement.billed_amount)],
+      ['Insurance payments', statement.insurance_paid == null ? '-' : `-${money(statement.insurance_paid)}`],
+      ['Adjustments', money(statement.adjustments)],
+    ];
+    for (const [label, value] of lines) {
+      text(label, 330, y, { color: MUTED });
+      textRight(value, right, y);
+      y -= 14;
+    }
+    page.drawLine({ start: { x: 330, y: y + 6 }, end: { x: right, y: y + 6 }, thickness: 1.5, color: INK });
+    y -= 8;
+    text('Patient balance due', 330, y, { f: bold, size: 10, color: TEAL });
+    textRight(money(statement.balance_due), right, y, { f: bold, size: 10, color: TEAL });
+    y -= 20;
+  }
+
+  // Statement Remarks & Ledger Notes
+  const us24Remark = statement.remarks || statement.us24_notes || statement.us24Notes;
+  const clientRemark = statement.client_response || statement.clientResponse;
+  const vobRemark = statement.vob_notes || statement.vobNotes;
+  const hasRemarks = us24Remark || clientRemark || vobRemark;
+
+  if (hasRemarks) {
+    rule(y);
+    y -= 14;
+    text('STATEMENT REMARKS & LEDGER NOTES', left, y, { f: bold, size: 7.5, color: MUTED });
+    y -= 14;
+
+    if (us24Remark) {
+      text('US24 Specialist Remarks / Notes:', left, y, { f: bold, size: 8, color: TEAL });
+      y -= 10;
+      text(printable(us24Remark).slice(0, 110), left, y, { size: 8.5 });
+      y -= 12;
+    }
+    if (clientRemark) {
+      text('Client Response:', left, y, { f: bold, size: 8, color: rgb(0.08, 0.5, 0.24) });
+      y -= 10;
+      text(printable(clientRemark).slice(0, 110), left, y, { size: 8.5 });
+      y -= 12;
+    }
+    if (vobRemark) {
+      text('AS PER VOB- Notes:', left, y, { f: bold, size: 8, color: rgb(0.7, 0.4, 0.05) });
+      y -= 10;
+      text(printable(vobRemark).slice(0, 110), left, y, { size: 8.5 });
+      y -= 14;
+    }
+  }
 
   rule(y);
-  y -= 18;
-  text('Please pay within 30 days of the statement date. For questions about this statement or your insurance', left, y, { size: 9, color: MUTED });
-  y -= 12;
-  text(`coverage, contact ${clinic.name} at ${clinic.contact_phone}.`, left, y, { size: 9, color: MUTED });
+  y -= 16;
+  text('Please pay within 30 days of the statement date. For questions about this statement or your insurance', left, y, { size: 8.5, color: MUTED });
+  y -= 10;
+  text(`coverage, contact ${clinic.name} at ${clinic.contact_phone}.`, left, y, { size: 8.5, color: MUTED });
 
-  text('Confidential: contains protected health information.', left, 40, { size: 8, color: MUTED });
-  textRight('My Patient | US24 Solutions', right, 40, { size: 8, color: MUTED });
+  text('Confidential: contains protected health information.', left, 35, { size: 7.5, color: MUTED });
+  textRight('My Patient | US24 Solutions', right, 35, { size: 7.5, color: MUTED });
 
   return Buffer.from(await doc.save());
 }

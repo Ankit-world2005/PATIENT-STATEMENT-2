@@ -134,6 +134,9 @@ export function StatementDetailPage() {
         <div className="detail-patient-meta">
           <h1 className="detail-patient-name">
             {s.patientName}
+            {s.locationName && <span className="badge badge-secondary" style={{ marginLeft: 8, fontSize: '0.8rem', verticalAlign: 'middle' }}>{s.locationName}</span>}
+            {s.prType && <span className={`badge-pr pr-${s.prType.toLowerCase().replace(/[^a-z0-9]/g, '-')}`} style={{ marginLeft: 8, fontSize: '0.8rem', verticalAlign: 'middle' }}>{s.prType}</span>}
+            {s.ledgerStatus && <span className={`badge-ledger-status status-${s.ledgerStatus.toLowerCase().replace(/[^a-z0-9]/g, '-')}`} style={{ marginLeft: 8, fontSize: '0.8rem', verticalAlign: 'middle' }}>{s.ledgerStatus}</span>}
             {s.wasNew && <span className="badge badge-new">New</span>}
             {s.status?.toLowerCase() === 'withdrawn' && <StatusBadge status="withdrawn" />}
           </h1>
