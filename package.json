@@ -1,6 +1,10 @@
 {
   "name": "my-patient",
   "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
   "description": "My Patient - US24 Solutions patient statement portal (React + Node.js + PostgreSQL)",
   "scripts": {
     "install:all": "npm install && npm --prefix server install && npm --prefix client install",
@@ -19,6 +23,8 @@
     "concurrently": "^9.2.1"
   },
   "dependencies": {
-    "serverless-http": "^4.0.0"
+    "@vitejs/plugin-react": "^5.2.0",
+    "serverless-http": "^4.0.0",
+    "vite": "^7.3.7"
   }
 }
