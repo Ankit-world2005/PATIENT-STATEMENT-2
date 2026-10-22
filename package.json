@@ -10,11 +10,15 @@
     "db:seed": "npm --prefix server run db:seed",
     "db:reset": "npm --prefix server run db:reset",
     "dev": "concurrently -n api,web -c cyan,magenta \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "postinstall": "npm --prefix server install && npm --prefix client install",
     "build": "npm --prefix client run build",
     "start": "npm --prefix server start",
     "test": "npm --prefix server test"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
+  },
+  "dependencies": {
+    "serverless-http": "^4.0.0"
   }
 }

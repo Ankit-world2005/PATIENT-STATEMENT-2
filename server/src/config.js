@@ -31,8 +31,10 @@ export const config = {
   appSecret,
   // Public URL of the portal, used in invitation and reset links.
   appUrl: (env.APP_URL || 'http://localhost:5173').replace(/\/$/, ''),
-  trustProxy: env.TRUST_PROXY || false,
-  storageDir: path.resolve(serverRoot, env.STORAGE_DIR || 'storage'),
+  trustProxy: env.TRUST_PROXY || (process.env.NETLIFY ? 1 : false),
+  storageDir: env.STORAGE_DIR
+    ? (path.isAbsolute(env.STORAGE_DIR) ? env.STORAGE_DIR : path.resolve(serverRoot, env.STORAGE_DIR))
+    : (process.env.NETLIFY || process.env.LAMBDA_TASK_ROOT ? '/tmp/storage' : path.resolve(serverRoot, 'storage')),
   smtp: {
     host: env.SMTP_HOST || 'localhost',
     port: Number(env.SMTP_PORT || 1025),
