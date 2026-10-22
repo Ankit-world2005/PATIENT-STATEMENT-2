@@ -552,6 +552,7 @@ adminRouter.get('/remarks', async (req, res) => {
   const clinicId = req.query.clinicId ? String(req.query.clinicId) : null;
   const type = ['clinic', 'specialist', 'insurance'].includes(req.query.type) ? req.query.type : 'all';
   const awaiting = req.query.awaiting === 'true' || req.query.awaiting === '1';
+  const recent7d = req.query.recent7d === 'true' || req.query.recent7d === '1';
   const q = String(req.query.q ?? '').trim().toLowerCase().slice(0, 100);
   const page = Math.max(1, parseInt(req.query.page || '1', 10));
   const limit = Math.min(50, Math.max(10, parseInt(req.query.limit || '20', 10)));
@@ -572,6 +573,10 @@ adminRouter.get('/remarks', async (req, res) => {
 
   if (awaiting) {
     where.push(`st.awaiting_reply_since IS NOT NULL`);
+  }
+
+  if (recent7d) {
+    where.push(`r.created_at > now() - interval '7 days'`);
   }
 
   if (q) {

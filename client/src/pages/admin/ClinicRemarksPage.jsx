@@ -12,6 +12,7 @@ export function ClinicRemarksPage() {
   const clinicId = searchParams.get('clinicId') ?? '';
   const type = searchParams.get('type') ?? 'all';
   const awaiting = searchParams.get('awaiting') === '1';
+  const recent7d = searchParams.get('recent7d') === '1';
   const page = Number(searchParams.get('page') ?? 1);
 
   const [search, setSearch] = useState(q);
@@ -27,7 +28,8 @@ export function ClinicRemarksPage() {
         v === null ||
         (k === 'page' && v === 1) ||
         (k === 'type' && v === 'all') ||
-        (k === 'awaiting' && !v)
+        (k === 'awaiting' && !v) ||
+        (k === 'recent7d' && !v)
       ) {
         next.delete(k);
       } else {
@@ -56,6 +58,7 @@ export function ClinicRemarksPage() {
     if (q) query.set('q', q);
     if (clinicId) query.set('clinicId', clinicId);
     if (awaiting) query.set('awaiting', '1');
+    if (recent7d) query.set('recent7d', '1');
 
     api(`/admin/remarks?${query.toString()}`)
       .then((res) => {
@@ -75,7 +78,9 @@ export function ClinicRemarksPage() {
     return () => {
       ignore = true;
     };
-  }, [q, clinicId, type, awaiting, page]);
+  }, [q, clinicId, type, awaiting, recent7d, page]);
+
+  const isAllFilterActive = !awaiting && !recent7d && !clinicId && type === 'all' && !q;
 
   return (
     <div className="container page-pad">
@@ -86,37 +91,70 @@ export function ClinicRemarksPage() {
         subtitle="Monitor communication threads, patient status notes, and ledger updates across all clinics."
       />
 
-      {/* KPI Stats Bar */}
+      {/* KPI Stats Bar with Interactive Filters */}
       {data?.stats && (
-        <div className="stats-kpi-grid">
-          <div className="stat-kpi-card">
+        <div className="stats-kpi-grid" role="region" aria-label="Remark status filters">
+          <button
+            type="button"
+            className={`stat-kpi-card interactive ${isAllFilterActive ? 'active' : ''}`}
+            onClick={() => update({ awaiting: '', recent7d: '', clinicId: '', type: 'all', q: '', page: 1 })}
+            title="Click to view all remarks"
+            aria-pressed={isAllFilterActive}
+          >
             <div className="kpi-icon-wrap"><IconChat size={20} /></div>
             <div className="kpi-content">
               <span className="kpi-label">Total Remarks</span>
               <strong className="kpi-value">{data.stats.total_remarks ?? 0}</strong>
             </div>
-          </div>
-          <div className="stat-kpi-card">
+          </button>
+
+          <button
+            type="button"
+            className={`stat-kpi-card interactive card-plum ${awaiting ? 'active' : ''}`}
+            onClick={() => update({ awaiting: awaiting ? '' : '1', recent7d: '', page: 1 })}
+            title="Click to filter statements awaiting reply"
+            aria-pressed={awaiting}
+          >
             <div className="kpi-icon-wrap kpi-plum"><IconClock size={20} /></div>
             <div className="kpi-content">
               <span className="kpi-label">Awaiting Reply</span>
               <strong className="kpi-value text-plum">{data.stats.awaiting_count ?? 0}</strong>
             </div>
-          </div>
-          <div className="stat-kpi-card">
+          </button>
+
+          <button
+            type="button"
+            className={`stat-kpi-card interactive card-blue ${clinicId ? 'active' : ''}`}
+            onClick={() => {
+              const el = document.getElementById('r-clinic');
+              if (el) {
+                el.focus();
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }}
+            title="Click to focus clinic filter"
+            aria-pressed={Boolean(clinicId)}
+          >
             <div className="kpi-icon-wrap kpi-blue"><IconBuilding size={20} /></div>
             <div className="kpi-content">
               <span className="kpi-label">Active Clinics</span>
               <strong className="kpi-value">{data.clinics?.length ?? 0}</strong>
             </div>
-          </div>
-          <div className="stat-kpi-card">
+          </button>
+
+          <button
+            type="button"
+            className={`stat-kpi-card interactive card-teal ${recent7d ? 'active' : ''}`}
+            onClick={() => update({ recent7d: recent7d ? '' : '1', awaiting: '', page: 1 })}
+            title="Click to filter remarks from the last 7 days"
+            aria-pressed={recent7d}
+          >
             <div className="kpi-icon-wrap kpi-teal"><IconChat size={20} /></div>
             <div className="kpi-content">
               <span className="kpi-label">Remarks (Last 7 Days)</span>
               <strong className="kpi-value">{data.stats.recent_7d_count ?? 0}</strong>
             </div>
-          </div>
+          </button>
         </div>
       )}
 
@@ -188,14 +226,33 @@ export function ClinicRemarksPage() {
 
       {/* Remarks Feed & Table */}
       <div className="table-sheet-card">
+        {(awaiting || recent7d || clinicId || type !== 'all' || q) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', background: 'rgba(15, 23, 42, 0.03)', borderBottom: '1px solid var(--color-border)', fontSize: '0.85rem', flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 600, color: 'var(--color-text-muted)' }}>Active filter:</span>
+            {awaiting && <span className="badge badge-plum">Awaiting reply</span>}
+            {recent7d && <span className="badge badge-info">Last 7 days</span>}
+            {clinicId && <span className="badge badge-open">{data?.clinics?.find((c) => c.id === clinicId)?.name || 'Selected clinic'}</span>}
+            {type !== 'all' && <span className="badge badge-open">Type: {type}</span>}
+            {q && <span className="badge badge-open">Search: “{q}”</span>}
+            <button
+              type="button"
+              className="btn btn-tertiary btn-sm"
+              style={{ marginLeft: 'auto', padding: '2px 8px', fontSize: '0.8rem' }}
+              onClick={() => update({ awaiting: '', recent7d: '', clinicId: '', type: 'all', q: '', page: 1 })}
+            >
+              Clear all
+            </button>
+          </div>
+        )}
+
         {loading && !data ? (
           <Spinner label="Loading clinic updates and remarks…" />
         ) : data?.items?.length === 0 ? (
           <EmptyState
-            title={q || clinicId || awaiting || type !== 'all' ? 'No remarks match your filters.' : 'No clinic remarks recorded yet.'}
+            title={q || clinicId || awaiting || recent7d || type !== 'all' ? 'No remarks match your filters.' : 'No clinic remarks recorded yet.'}
           >
-            {q || clinicId || awaiting || type !== 'all'
-              ? 'Try resetting your search query or selecting all clinics.'
+            {q || clinicId || awaiting || recent7d || type !== 'all'
+              ? 'Try clearing your filters or selecting all clinics to see all remarks.'
               : 'When clinic users or specialists add notes to patient statements, they will appear here.'}
           </EmptyState>
         ) : (
