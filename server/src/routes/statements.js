@@ -90,21 +90,21 @@ statementsRouter.get('/', async (req, res) => {
             s.cycle2_date, s.cycle2_balance, s.cycle2_payment,
             s.cycle3_date, s.cycle3_balance, s.cycle3_payment,
             s.current_balance, s.pr_type, COALESCE(s.ledger_status, s.status) AS status,
-            COALESCE(s.us24_notes, (
+            COALESCE((
               SELECT r.body FROM remark r JOIN statement st ON st.id = r.statement_id
                WHERE (st.id = s.id OR (st.patient_name = s.patient_name AND st.clinic_id = s.clinic_id)) AND r.type = 'specialist'
                ORDER BY r.created_at DESC, r.id DESC LIMIT 1
-            )) AS us24_notes,
-            COALESCE(s.client_response, (
+            ), s.us24_notes) AS us24_notes,
+            COALESCE((
               SELECT r.body FROM remark r JOIN statement st ON st.id = r.statement_id
                WHERE (st.id = s.id OR (st.patient_name = s.patient_name AND st.clinic_id = s.clinic_id)) AND r.type = 'clinic'
                ORDER BY r.created_at DESC, r.id DESC LIMIT 1
-            )) AS client_response,
-            COALESCE(s.vob_notes, (
+            ), s.client_response) AS client_response,
+            COALESCE((
               SELECT r.body FROM remark r JOIN statement st ON st.id = r.statement_id
                WHERE (st.id = s.id OR (st.patient_name = s.patient_name AND st.clinic_id = s.clinic_id)) AND r.type = 'insurance'
                ORDER BY r.created_at DESC, r.id DESC LIMIT 1
-            )) AS vob_notes,
+            ), s.vob_notes) AS vob_notes,
             s.last_remark_at, s.version,
             s.first_opened_by_clinic_at IS NULL AS is_new,
             s.awaiting_reply_since IS NOT NULL AS awaiting_reply,
@@ -144,6 +144,7 @@ statementsRouter.get('/', async (req, res) => {
       status: r.status,
       // Ledger Notes
       us24Notes: r.us24_notes || '',
+      remarks: r.us24_notes || '',
       clientResponse: r.client_response || '',
       vobNotes: r.vob_notes || '',
       // Metadata
@@ -197,21 +198,21 @@ statementsRouter.get('/export', async (req, res) => {
             s.cycle2_date, s.cycle2_balance, s.cycle2_payment,
             s.cycle3_date, s.cycle3_balance, s.cycle3_payment,
             s.current_balance, s.pr_type, COALESCE(s.ledger_status, s.status) AS status,
-            COALESCE(s.us24_notes, (
+            COALESCE((
               SELECT r.body FROM remark r JOIN statement st ON st.id = r.statement_id
                WHERE (st.id = s.id OR (st.patient_name = s.patient_name AND st.clinic_id = s.clinic_id)) AND r.type = 'specialist'
                ORDER BY r.created_at DESC, r.id DESC LIMIT 1
-            )) AS us24_notes,
-            COALESCE(s.client_response, (
+            ), s.us24_notes) AS us24_notes,
+            COALESCE((
               SELECT r.body FROM remark r JOIN statement st ON st.id = r.statement_id
                WHERE (st.id = s.id OR (st.patient_name = s.patient_name AND st.clinic_id = s.clinic_id)) AND r.type = 'clinic'
                ORDER BY r.created_at DESC, r.id DESC LIMIT 1
-            )) AS client_response,
-            COALESCE(s.vob_notes, (
+            ), s.client_response) AS client_response,
+            COALESCE((
               SELECT r.body FROM remark r JOIN statement st ON st.id = r.statement_id
                WHERE (st.id = s.id OR (st.patient_name = s.patient_name AND st.clinic_id = s.clinic_id)) AND r.type = 'insurance'
                ORDER BY r.created_at DESC, r.id DESC LIMIT 1
-            )) AS vob_notes
+            ), s.vob_notes) AS vob_notes
        FROM statement s
        JOIN clinic c ON c.id = s.clinic_id
       WHERE ${whereSql}
@@ -417,6 +418,7 @@ statementsRouter.get('/:id', async (req, res) => {
         pr_type: s.pr_type ?? 'Patient',
         us24Notes: s.us24_notes ?? '',
         us24_notes: s.us24_notes ?? '',
+        remarks: s.us24_notes ?? '',
         clientResponse: s.client_response ?? '',
         client_response: s.client_response ?? '',
         vobNotes: s.vob_notes ?? '',
@@ -431,7 +433,8 @@ statementsRouter.get('/:id', async (req, res) => {
         insuranceName: s.insurance_name,
         source: s.source,
         version: s.version,
-        status: s.ledger_status || s.status,
+        status: s.status,
+        ledgerStatus: s.ledger_status || s.status,
         withdrawnAt: s.withdrawn_at,
         withdrawnByName: s.withdrawn_by_id ? nameOf[s.withdrawn_by_id] : null,
         // Withdrawal reasons may contain PHI and are for staff only.
@@ -447,7 +450,18 @@ statementsRouter.get('/:id', async (req, res) => {
         id: c.id, name: c.name, code: c.clinic_code, addressLine1: c.address_line1, addressLine2: c.address_line2,
         city: c.city, state: c.state, postalCode: c.postal_code, phone: c.contact_phone,
       },
-      remarks: remarks.rows.map(remarkView),
+      remarks: remarks.rows.length > 0
+        ? remarks.rows.map(remarkView)
+        : (s.us24_notes ? [{
+            id: 'initial',
+            type: 'specialist',
+            body: s.us24_notes,
+            authorName: nameOf[s.uploaded_by_id] || 'US24 Specialist',
+            authorRole: 'specialist',
+            insuranceName: null,
+            insuranceReference: null,
+            createdAt: s.uploaded_at,
+          }] : []),
       otherStatements: others.rows.map((o) => ({
         id: o.id, statementDate: o.statement_date, balanceDue: o.balance_due, version: o.version, status: o.status,
       })),
@@ -525,7 +539,7 @@ statementsRouter.post('/:id/remarks', requireRole('clinic_user', 'specialist'), 
 
   const remark = await withTransaction(async (db) => {
     const s = await getVisibleStatement(db, req, req.params.id, { forUpdate: true });
-    if (s.status !== 'active') throw conflict('Remarks cannot be added to a withdrawn statement.');
+    if (s.status?.toLowerCase() === 'withdrawn') throw conflict('Remarks cannot be added to a withdrawn statement.');
     const isInsurance = input.type === 'insurance';
     const r = await insertRemark(db, {
       statementId: s.id,

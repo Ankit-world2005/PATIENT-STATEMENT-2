@@ -119,7 +119,7 @@ export function StatementDetailPage() {
       <BackBar to={backTo} label="Back to statements" trail={[isStaff ? clinic.name : 'Statements', s.patientName]} />
 
       {published && <Alert tone="success" onDismiss={() => setPublished(null)}>Statement published to {published}.</Alert>}
-      {s.status === 'withdrawn' && (
+      {s.status?.toLowerCase() === 'withdrawn' && (
         <Alert tone="error" title={`Withdrawn on ${dateTime(s.withdrawnAt)} by ${s.withdrawnByName}.`}>
           Reason: {s.withdrawalReason}
         </Alert>
@@ -135,7 +135,7 @@ export function StatementDetailPage() {
           <h1 className="detail-patient-name">
             {s.patientName}
             {s.wasNew && <span className="badge badge-new">New</span>}
-            {s.status === 'withdrawn' && <StatusBadge status="withdrawn" />}
+            {s.status?.toLowerCase() === 'withdrawn' && <StatusBadge status="withdrawn" />}
           </h1>
           <div className="detail-sub-meta">
             <span>Account <strong className="col-mono">{s.accountNumber}</strong></span>
@@ -161,7 +161,7 @@ export function StatementDetailPage() {
             <button type="button" className="btn btn-primary" onClick={download} disabled={downloading}>
               <IconDownload /> {downloading ? 'Preparing…' : 'Download PDF'}
             </button>
-            {user.role === 'specialist' && s.status === 'active' && (
+            {user.role === 'specialist' && s.status?.toLowerCase() !== 'withdrawn' && (
               <button type="button" className="btn btn-danger-outline" onClick={() => setDialog('withdraw')}>Withdraw</button>
             )}
           </div>
@@ -212,8 +212,20 @@ export function StatementDetailPage() {
           statementId={s.id}
           remarks={remarks}
           role={user.role}
-          canAdd={s.status === 'active' && user.role !== 'admin'}
-          onAdded={(r) => setData((d) => ({ ...d, remarks: [...d.remarks, r] }))}
+          canAdd={s.status?.toLowerCase() !== 'withdrawn' && user.role !== 'admin'}
+          onAdded={(r) => {
+            setData((d) => ({
+              ...d,
+              remarks: [...d.remarks, r],
+              statement: {
+                ...d.statement,
+                us24Notes: r.type === 'specialist' ? r.body : d.statement.us24Notes,
+                remarks: r.type === 'specialist' ? r.body : (d.statement.remarks || d.statement.us24Notes),
+                clientResponse: r.type === 'clinic' ? r.body : d.statement.clientResponse,
+                vobNotes: r.type === 'insurance' ? r.body : d.statement.vobNotes,
+              },
+            }));
+          }}
         />
       </div>
 

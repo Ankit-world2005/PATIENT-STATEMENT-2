@@ -58,6 +58,27 @@ export function StatementDocument({ statement: s, clinic: c }) {
         </dl>
       </div>
 
+      {(s.remarks || s.us24Notes || s.clientResponse || s.vobNotes) && (
+        <div className="doc-remarks-box" style={{ marginTop: '16px', padding: '12px 16px', background: 'var(--color-bg-subtle, #f8fafc)', borderRadius: '6px', border: '1px solid var(--color-border, #e2e8f0)' }}>
+          <h4 style={{ margin: '0 0 8px 0', fontSize: '0.88rem', fontWeight: 600, color: 'var(--color-text-subtle)' }}>Statement Remarks & Ledger Notes</h4>
+          {(s.remarks || s.us24Notes) && (
+            <p style={{ margin: '4px 0', fontSize: '0.9rem' }}>
+              <strong>Specialist Remarks:</strong> {s.remarks || s.us24Notes}
+            </p>
+          )}
+          {s.clientResponse && (
+            <p style={{ margin: '4px 0', fontSize: '0.9rem' }}>
+              <strong>Client Response:</strong> {s.clientResponse}
+            </p>
+          )}
+          {s.vobNotes && (
+            <p style={{ margin: '4px 0', fontSize: '0.9rem' }}>
+              <strong>AS PER VOB- Notes:</strong> {s.vobNotes}
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="doc-patient-notes">
         <p>
           <strong>Payment notice:</strong> Please pay within 30 days of the statement date. For questions about this

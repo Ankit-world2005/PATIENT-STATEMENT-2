@@ -360,7 +360,7 @@ export function StatementListPage() {
                     <th scope="col" className="th-right">CURRENT OUTSTANDING BALANCE</th>
                     <th scope="col">PR TYPE</th>
                     <th scope="col">STATUS</th>
-                    <th scope="col" className="th-left">US24 NOTES</th>
+                    <th scope="col" className="th-left" title="Specialist remarks and ledger notes">REMARKS</th>
                     <th scope="col" className="th-left">CLIENT RESPONSE</th>
                     <th scope="col" className="th-left">AS PER VOB- Notes</th>
                     <th scope="col"><span className="sr-only">Open</span></th>
@@ -407,7 +407,7 @@ export function StatementListPage() {
                         <LedgerStatus status={s.status} />
                       </td>
                       <td className="cell-note">
-                        <NotePreview text={s.us24Notes} label="US24 Notes" />
+                        <NotePreview text={s.remarks || s.us24Notes} label="Remarks" />
                       </td>
                       <td className="cell-note">
                         <NotePreview text={s.clientResponse} label="Client Response" />

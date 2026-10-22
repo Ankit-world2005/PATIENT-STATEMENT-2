@@ -10,7 +10,7 @@ import { sha256Hex, statementFileKey, storage } from '../lib/storage.js';
 import { getOwnDraft, getPublishableClinic } from '../services/access.js';
 import { runCleanup } from '../services/cleanup.js';
 import { checkUploadedPdf, renderStatementPdf } from '../services/pdf.js';
-import { findDuplicate, insertStatements, lockChainHead } from '../services/statements.js';
+import { findDuplicate, insertRemark, insertStatements, lockChainHead } from '../services/statements.js';
 
 export const uploadsRouter = Router();
 
@@ -42,6 +42,9 @@ uploadsRouter.post('/', upload.single('pdf'), async (req, res) => {
   const raw = Object.fromEntries(FIELDS.map((f) => [f.key, req.body?.[f.key] ?? null]));
   if (req.body?.remarks && !raw.us24_notes) {
     raw.us24_notes = req.body.remarks;
+  }
+  if (req.body?.us24_notes && !raw.remarks) {
+    raw.remarks = req.body.us24_notes;
   }
   if (req.body?.location && !raw.location_name) {
     raw.location_name = req.body.location;
@@ -131,12 +134,14 @@ uploadsRouter.post('/:id/publish', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5)`,
       [created.id, fileKey, draft.original_filename, draft.size_bytes, draft.sha256],
     );
-    if (p.us24_notes) {
-      await db.query(
-        `INSERT INTO remark (statement_id, author_id, author_role, type, body)
-         VALUES ($1, $2, 'specialist', 'specialist', $3)`,
-        [created.id, req.user.id, p.us24_notes],
-      );
+    const remarkBody = p.remarks || p.us24_notes;
+    if (remarkBody) {
+      await insertRemark(db, {
+        statementId: created.id,
+        author: req.user,
+        type: 'specialist',
+        body: remarkBody,
+      });
     }
     await db.query('DELETE FROM upload_draft WHERE id = $1', [draft.id]);
     await audit(db, req, { action: 'statement.upload', targetType: 'statement', targetId: created.id, clinicId: draft.clinic_id });

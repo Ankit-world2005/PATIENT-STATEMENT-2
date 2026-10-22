@@ -21,6 +21,7 @@ const INITIAL_VALUES = {
   pr_type: 'Copay',
   status: 'Active',
   us24_notes: '',
+  remarks: '',
 };
 
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -125,6 +126,12 @@ export function UploadPage() {
         form.set('statement_date', new Date().toISOString().slice(0, 10));
       } else {
         form.set('statement_date', values.cycle1_date.trim());
+      }
+
+      const note = (values.remarks || values.us24_notes || '').trim();
+      if (note) {
+        form.set('remarks', note);
+        form.set('us24_notes', note);
       }
 
       if (file) {
@@ -284,7 +291,7 @@ export function UploadPage() {
             </div>
             <div>
               <dt>Remarks</dt>
-              <dd>{f.us24_notes || '—'}</dd>
+              <dd>{f.remarks || f.us24_notes || '—'}</dd>
             </div>
             <div>
               <dt>Statement PDF</dt>
@@ -590,15 +597,18 @@ export function UploadPage() {
           </div>
 
           <div className="form-row-1" style={{ marginTop: '16px' }}>
-            <Field label="Remarks" error={errors.us24_notes} hint="Specialist billing notes, patient remarks, or follow-up instructions">
+            <Field label="Remarks" error={errors.remarks || errors.us24_notes} hint="Specialist billing notes, patient remarks, or follow-up instructions">
               {(p) => (
                 <textarea
                   {...p}
                   className="form-input"
                   rows={3}
                   placeholder="Enter remarks or notes for this patient record..."
-                  value={values.us24_notes}
-                  onChange={(e) => setValue('us24_notes', e.target.value)}
+                  value={values.remarks !== undefined && values.remarks !== '' ? values.remarks : values.us24_notes}
+                  onChange={(e) => {
+                    setValue('remarks', e.target.value);
+                    setValue('us24_notes', e.target.value);
+                  }}
                 />
               )}
             </Field>

@@ -34,6 +34,8 @@ export async function insertStatements(db, items) {
           v = 'active';
         } else if (col === 'ledger_status') {
           v = item.status || item.ledger_status || 'Active';
+        } else if (col === 'us24_notes') {
+          v = item.us24_notes || item.remarks || null;
         }
         params.push(col === 'cpt_codes' && Array.isArray(v) && v.length === 0 ? null : v ?? null);
         return `$${params.length}${CASTS[col] ?? ''}`;

@@ -30,6 +30,7 @@ export const FIELDS = [
   { key: 'pr_type', label: 'PR type', type: 'text', max: 50 },
   { key: 'status', label: 'Status', type: 'text', max: 50 },
   { key: 'us24_notes', label: 'US24 notes', type: 'text', max: 2000 },
+  { key: 'remarks', label: 'Remarks', type: 'text', max: 2000 },
   { key: 'client_response', label: 'Client response', type: 'text', max: 2000 },
   { key: 'vob_notes', label: 'AS PER VOB- Notes', type: 'text', max: 2000 },
 ];
@@ -199,6 +200,12 @@ export function validateStatement(raw) {
     const suffix = normalizedRaw._rowNumber ? String(normalizedRaw._rowNumber).padStart(4, '0') : Math.floor(10000 + Math.random() * 90000);
     normalizedRaw.account_number = `ACC-${clean || 'PT'}-${suffix}`;
   }
+  if (!normalizedRaw.us24_notes && normalizedRaw.remarks) {
+    normalizedRaw.us24_notes = normalizedRaw.remarks;
+  }
+  if (!normalizedRaw.remarks && normalizedRaw.us24_notes) {
+    normalizedRaw.remarks = normalizedRaw.us24_notes;
+  }
 
   const data = {};
   const errors = [];
@@ -207,6 +214,9 @@ export function validateStatement(raw) {
     if (result.error) errors.push({ field: field.key, message: result.error });
     else data[field.key] = result.value;
   }
+
+  if (data.us24_notes && !data.remarks) data.remarks = data.us24_notes;
+  if (data.remarks && !data.us24_notes) data.us24_notes = data.remarks;
 
   const has = (k) => data[k] !== undefined && data[k] !== null;
   if (has('statement_date') && data.statement_date > todayPlusOne()) {

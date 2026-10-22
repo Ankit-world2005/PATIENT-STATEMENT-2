@@ -226,9 +226,23 @@ export async function publishImport(req, batchId) {
       const head = await lockChainHead(db, r.duplicate_of_statement_id);
       items.push({ ...base, ...r.data, import_row_number: r.row_number, version: head.version + 1, supersedes_id: head.id });
     }
-    if (!items.length) throw badRequest('There are no rows to publish. Cancel this import instead.');
-
-    await insertStatements(db, items);
+    const createdStatements = await insertStatements(db, items);
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      const created = createdStatements[i];
+      const remarkBody = it.remarks || it.us24_notes;
+      if (remarkBody && created?.id) {
+        await db.query(
+          `INSERT INTO remark (statement_id, author_id, author_role, type, body)
+           VALUES ($1, $2, 'specialist', 'specialist', $3)`,
+          [created.id, req.user.id, remarkBody],
+        );
+        await db.query(
+          `UPDATE statement SET last_remark_at = now() WHERE id = $1`,
+          [created.id],
+        );
+      }
+    }
 
     const failed = rows.filter((r) => r.outcome === 'invalid');
     const skipped = duplicates.filter((r) => r.duplicate_decision === 'skip');

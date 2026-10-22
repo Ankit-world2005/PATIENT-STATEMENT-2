@@ -44,8 +44,9 @@ function RemarkForm({ statementId, role, onAdded }) {
       toast('Remark added.');
     } catch (err) {
       // Typed text is kept so nothing is lost (App Flow 4.1).
-      setErrors(err.fieldErrors);
-      if (!Object.keys(err.fieldErrors).length) setError(err.status === 0 ? "Couldn't save. Check your connection and try again." : err.message);
+      const fe = err.fieldErrors || {};
+      setErrors(fe);
+      if (!Object.keys(fe).length) setError(err.status === 0 ? "Couldn't save. Check your connection and try again." : err.message || 'Error posting remark.');
     } finally {
       setBusy(false);
     }
@@ -113,24 +114,27 @@ export function RemarksLedger({ statementId, remarks, canAdd, role, onAdded, pri
       </div>
       <ol className={`remarks-feed ${printMode ? 'print-feed' : ''}`} ref={feed} aria-label="Remark history, oldest first">
         {remarks.length === 0 && <li className="remarks-empty">No remarks yet.</li>}
-        {remarks.map((r) => (
-          <li key={r.id} id={`remark-${r.id}`} className={`remark-entry ${TYPE[r.type].cls}-remark`}>
-            <div className="remark-meta">
-              <span className="remark-author-role">
-                {r.authorName}
-                <span className={`remark-role-tag tag-${TYPE[r.type].cls}`}>{TYPE[r.type].label}</span>
-              </span>
-              <time className="remark-timestamp" dateTime={r.createdAt}>{dateTime(r.createdAt)}</time>
-            </div>
-            {r.type === 'insurance' && (
-              <div className="remark-insurance-extra">
-                <strong>Payer:</strong> {r.insuranceName}
-                {r.insuranceReference && <> · <strong>Ref #:</strong> {r.insuranceReference}</>}
+        {remarks.map((r) => {
+          const tInfo = TYPE[r.type] || { cls: 'specialist', label: r.type === 'clinic' ? 'Clinic' : 'US24 Specialist' };
+          return (
+            <li key={r.id} id={`remark-${r.id}`} className={`remark-entry ${tInfo.cls}-remark`}>
+              <div className="remark-meta">
+                <span className="remark-author-role">
+                  {r.authorName || 'Staff'}
+                  <span className={`remark-role-tag tag-${tInfo.cls}`}>{tInfo.label}</span>
+                </span>
+                <time className="remark-timestamp" dateTime={r.createdAt}>{dateTime(r.createdAt)}</time>
               </div>
-            )}
-            <div className="remark-body">{r.body}</div>
-          </li>
-        ))}
+              {r.type === 'insurance' && (
+                <div className="remark-insurance-extra">
+                  <strong>Payer:</strong> {r.insuranceName}
+                  {r.insuranceReference && <> · <strong>Ref #:</strong> {r.insuranceReference}</>}
+                </div>
+              )}
+              <div className="remark-body">{r.body}</div>
+            </li>
+          );
+        })}
       </ol>
       {!printMode && canAdd && <RemarkForm statementId={statementId} role={role} onAdded={onAdded} />}
     </section>
