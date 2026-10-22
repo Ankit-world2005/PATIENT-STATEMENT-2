@@ -8,7 +8,7 @@ import { date, fileSize, money } from '../../lib/format.js';
 const INITIAL_VALUES = {
   location_name: '',
   patient_name: '',
-  cycle1_date: '',
+  cycle1_date: new Date().toISOString().slice(0, 10),
   cycle1_balance: '',
   cycle1_payment: '',
   cycle2_date: '',
@@ -42,14 +42,11 @@ export function UploadPage() {
     api('/publishable-clinics')
       .then((d) => {
         setClinics(d.clinics);
-        if (d.clinics.length === 1) {
-          setClinicId(d.clinics[0].id);
-          setValues((v) => ({ ...v, location_name: v.location_name || d.clinics[0].name }));
-        } else if (!d.clinics.some((c) => c.id === params.get('clinicId'))) {
-          setClinicId('');
-        } else {
-          const chosen = d.clinics.find((c) => c.id === params.get('clinicId'));
-          if (chosen) setValues((v) => ({ ...v, location_name: v.location_name || chosen.name }));
+        if (d.clinics?.length > 0) {
+          const matching = d.clinics.find((c) => c.id === params.get('clinicId'));
+          const chosen = matching || d.clinics[0];
+          setClinicId(chosen.id);
+          setValues((v) => ({ ...v, location_name: v.location_name || chosen.name }));
         }
       })
       .catch((err) => setError(err.message));
@@ -84,24 +81,44 @@ export function UploadPage() {
   const continueToConfirm = async (e) => {
     e.preventDefault();
     const fe = {};
-    if (!clinicId) fe.clinicId = 'Choose a clinic.';
+    if (!clinicId) fe.clinicId = 'Please select a clinic.';
     if (!values.patient_name.trim()) fe.patient_name = 'Patient name is required.';
     if (!values.cycle1_date.trim()) fe.cycle1_date = '1st electronic statement date is required.';
 
-    setErrors(fe);
-    setError('');
-    if (Object.keys(fe).length) return;
+    if (Object.keys(fe).length > 0) {
+      setErrors(fe);
+      const missing = [];
+      if (fe.clinicId) missing.push('Clinic');
+      if (fe.patient_name) missing.push('Patient name');
+      if (fe.cycle1_date) missing.push('1st electronic statement date');
+      setError(`Please complete the required fields: ${missing.join(', ')}.`);
+      setTimeout(() => {
+        const el = document.querySelector('.has-error input, .has-error select');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.focus?.();
+        }
+      }, 50);
+      return;
+    }
 
     setBusy(true);
+    setError('');
     try {
       const form = new FormData();
       form.set('clinicId', clinicId);
       for (const [k, v] of Object.entries(values)) {
         if (typeof v === 'string' && v.trim()) form.set(k, v.trim());
       }
-      // If current balance wasn't explicitly entered, default it from cycle 1 balance
+      // If current balance wasn't explicitly entered, default it from cycle 1 balance or 0.00
       if (!values.current_balance.trim() && values.cycle1_balance.trim()) {
         form.set('current_balance', values.cycle1_balance.trim());
+        form.set('balance_due', values.cycle1_balance.trim());
+      } else if (!values.current_balance.trim() && !values.cycle1_balance.trim()) {
+        form.set('current_balance', '0.00');
+        form.set('balance_due', '0.00');
+      } else if (values.current_balance.trim()) {
+        form.set('balance_due', values.current_balance.trim());
       }
       // Provide statement_date fallback
       if (!values.cycle1_date.trim()) {
@@ -117,10 +134,22 @@ export function UploadPage() {
       const { id } = await api('/uploads', { method: 'POST', form });
       const d = await api(`/uploads/${id}`);
       setDraft(d.draft);
-      window.scrollTo({ top: 0 });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
-      setErrors(err.fieldErrors || {});
-      setError(err.message);
+      const fe = { ...(err.fieldErrors || {}) };
+      if (fe.statement_date && !fe.cycle1_date) fe.cycle1_date = fe.statement_date;
+      if (fe.balance_due && !fe.cycle1_balance && !fe.current_balance) {
+        fe.cycle1_balance = fe.balance_due;
+      }
+      setErrors(fe);
+      setError(err.message || 'Please correct the highlighted fields.');
+      setTimeout(() => {
+        const el = document.querySelector('.has-error input, .has-error select, .has-error textarea');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.focus?.();
+        }
+      }, 50);
     } finally {
       setBusy(false);
     }
@@ -627,6 +656,8 @@ export function UploadPage() {
             )}
           </Field>
         </section>
+
+        {error && <Alert tone="error" style={{ marginBottom: '16px' }}>{error}</Alert>}
 
         <div className="form-actions">
           <button type="button" className="btn btn-secondary" onClick={cancel}>Cancel</button>

@@ -52,9 +52,18 @@ uploadsRouter.post('/', upload.single('pdf'), async (req, res) => {
   if (req.body?.status && !raw.status) {
     raw.status = req.body.status;
   }
+  if (!raw.balance_due && !raw.cycle1_balance && !raw.current_balance) {
+    raw.balance_due = '0.00';
+    raw.current_balance = '0.00';
+  }
 
   const { data, errors } = validateStatement(raw);
-  const fieldErrors = Object.fromEntries(errors.map((e) => [e.field, e.message]));
+  const fieldErrors = Object.fromEntries(errors.map((e) => {
+    let field = e.field;
+    if (field === 'statement_date') field = 'cycle1_date';
+    if (field === 'balance_due') field = 'cycle1_balance';
+    return [field, e.message];
+  }));
 
   let fileBuffer;
   let filename;
