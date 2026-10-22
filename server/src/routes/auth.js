@@ -48,12 +48,12 @@ export function maskEmail(email) {
 const resetFingerprint = (u) => `${u.password_hash}|${u.last_login?.toISOString() ?? ''}|${u.status}`;
 const inviteFingerprint = (u) => `${u.status}|${u.invited_at.toISOString()}`;
 
-// In development, store active OTP in memory to enable auto-fill when no SMTP is configured.
+// In development or when DEV_LOG_EMAIL=true, store active OTP in memory to enable auto-fill.
 const devOtpStore = new Map();
 
 async function issueEmailCode(db, idHash) {
   const code = emailCode();
-  if (!config.isProduction) devOtpStore.set(idHash, code);
+  if (!config.isProduction || config.devLogEmail) devOtpStore.set(idHash, code);
   await db.query(
     `UPDATE user_session
         SET otp_hash = $2, otp_expires_at = now() + $3::interval, otp_sent_at = now()
@@ -62,6 +62,14 @@ async function issueEmailCode(db, idHash) {
   );
   return code;
 }
+
+authRouter.get('/dev-otp', (req, res) => {
+  if (!config.isProduction || config.devLogEmail) {
+    const code = req.session ? devOtpStore.get(req.session.idHash) : null;
+    return res.json({ code: code || null });
+  }
+  res.status(404).json({ code: null });
+});
 
 // --- A1: password step -------------------------------------------------------
 const loginSchema = z.object({
@@ -135,7 +143,7 @@ authRouter.post('/login', authLimiter, async (req, res) => {
     maskedEmail: maskEmail(user.email),
     hasTotp: user.has_totp,
     emailFailed: !sent,
-    devOtp: !config.isProduction ? code : undefined,
+    devOtp: (!config.isProduction || config.devLogEmail) ? code : undefined,
   });
 });
 

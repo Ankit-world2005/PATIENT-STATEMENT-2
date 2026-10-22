@@ -35,10 +35,10 @@ export const config = {
   appSecret,
   // Public URL of the portal, used in invitation and reset links.
   appUrl: (env.APP_URL || 'http://localhost:5173').replace(/\/$/, ''),
-  trustProxy: env.TRUST_PROXY || (process.env.NETLIFY ? 1 : false),
+  trustProxy: env.TRUST_PROXY || (process.env.NETLIFY || process.env.VERCEL ? 1 : false),
   storageDir: env.STORAGE_DIR
     ? (path.isAbsolute(env.STORAGE_DIR) ? env.STORAGE_DIR : path.resolve(serverRoot, env.STORAGE_DIR))
-    : (process.env.NETLIFY || process.env.LAMBDA_TASK_ROOT ? '/tmp/storage' : path.resolve(serverRoot, 'storage')),
+    : (process.env.NETLIFY || process.env.LAMBDA_TASK_ROOT || process.env.VERCEL ? '/tmp/storage' : path.resolve(serverRoot, 'storage')),
   smtp: {
     host: env.SMTP_HOST || 'localhost',
     port: Number(env.SMTP_PORT || 1025),
@@ -47,8 +47,8 @@ export const config = {
     pass: env.SMTP_PASS || '',
   },
   mailFrom: env.MAIL_FROM || 'My Patient <no-reply@us24solutions.com>',
-  // Development aid: print codes and links to the console. Never enabled in production.
-  devLogEmail: !isProduction && bool('DEV_LOG_EMAIL', true),
+  // Development aid: print codes and links to the console. Can be enabled in staging via DEV_LOG_EMAIL=true.
+  devLogEmail: bool('DEV_LOG_EMAIL', !isProduction),
   breachedPasswordCheck: bool('BREACHED_PASSWORD_CHECK', true),
   session: {
     idleMinutes: 15, // FR-1.9
