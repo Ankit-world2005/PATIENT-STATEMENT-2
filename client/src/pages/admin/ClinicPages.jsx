@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
-import { IconBuilding, IconShield, IconUsers } from '../../components/Icons.jsx';
+import { IconBuilding, IconChat, IconShield, IconUsers } from '../../components/Icons.jsx';
 import { Alert, BackBar, ConfirmDialog, EmptyState, Field, PageHeader, Spinner, StatusBadge } from '../../components/ui.jsx';
 import { api } from '../../lib/api.js';
 import { shortDate } from '../../lib/format.js';
@@ -20,6 +20,8 @@ export function AdminHome() {
       stat: summary && `${summary.active_users} active · ${summary.invited_users} invited` },
     { to: '/manage/audit', icon: IconShield, title: 'Audit log', desc: 'Review and export who viewed, uploaded or downloaded what.',
       stat: summary && `${summary.blocked_7d} blocked attempts (7 days)` },
+    { to: '/manage/remarks', icon: IconChat, title: 'Clinic updates & remarks', desc: 'Track clinic remarks, patient status notes and ledger updates.',
+      stat: summary && `${summary.total_remarks ?? 0} remarks${summary.awaiting_remarks ? ` · ${summary.awaiting_remarks} awaiting reply` : ''}` },
   ];
   return (
     <div className="container">
@@ -28,7 +30,7 @@ export function AdminHome() {
           <h1 className="hub-clinic-headline">Administration</h1>
           <p className="hub-subheadline">{summary ? `${summary.active_statements.toLocaleString('en-US')} active statements across all clinics` : ' '}</p>
         </div>
-        <div className="three-cards-grid">
+        <div className="admin-cards-grid">
           {cards.map((c) => (
             <Link key={c.to} to={c.to} className="hub-card hub-card-active">
               <div className="hub-card-icon-wrap"><c.icon size={30} /></div>

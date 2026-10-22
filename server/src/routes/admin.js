@@ -35,7 +35,10 @@ adminRouter.get('/summary', async (_req, res) => {
            (SELECT count(*) FROM app_user WHERE status = 'active')::int AS active_users,
            (SELECT count(*) FROM app_user WHERE status = 'invited')::int AS invited_users,
            (SELECT count(*) FROM statement WHERE status = 'active')::int AS active_statements,
-           (SELECT count(*) FROM audit_event WHERE action = 'access.blocked' AND occurred_at > now() - interval '7 days')::int AS blocked_7d`);
+           (SELECT count(*) FROM audit_event WHERE action = 'access.blocked' AND occurred_at > now() - interval '7 days')::int AS blocked_7d,
+           (SELECT count(*) FROM remark)::int AS total_remarks,
+           (SELECT count(*) FROM statement WHERE awaiting_reply_since IS NOT NULL AND status = 'active')::int AS awaiting_remarks,
+           (SELECT count(*) FROM statement WHERE last_remark_at > now() - interval '7 days')::int AS recent_remarks_7d`);
   res.json(rows[0]);
 });
 
@@ -540,5 +543,109 @@ adminRouter.get('/audit/export.csv', async (req, res) => {
   }
   res.type('text/csv')
     .set('Content-Disposition', `attachment; filename="audit-log-${new Date().toISOString().slice(0, 10)}.csv"`)
-    .send(`﻿${lines.join('\r\n')}\r\n`);
+    .send(`\uFEFF${lines.join('\r\n')}\r\n`);
 });
+
+// --- M6: clinic remarks & updates -------------------------------------------
+adminRouter.get('/remarks', async (req, res) => {
+  const clinicId = req.query.clinicId ? String(req.query.clinicId) : null;
+  const type = ['clinic', 'specialist', 'insurance'].includes(req.query.type) ? req.query.type : 'all';
+  const awaiting = req.query.awaiting === 'true' || req.query.awaiting === '1';
+  const q = String(req.query.q ?? '').trim().toLowerCase().slice(0, 100);
+  const page = Math.max(1, parseInt(req.query.page || '1', 10));
+  const limit = Math.min(50, Math.max(10, parseInt(req.query.limit || '20', 10)));
+  const offset = (page - 1) * limit;
+
+  const where = ['TRUE'];
+  const params = [];
+
+  if (clinicId && isUuid(clinicId)) {
+    params.push(clinicId);
+    where.push(`st.clinic_id = $${params.length}`);
+  }
+
+  if (type !== 'all') {
+    params.push(type);
+    where.push(`r.type = $${params.length}`);
+  }
+
+  if (awaiting) {
+    where.push(`st.awaiting_reply_since IS NOT NULL`);
+  }
+
+  if (q) {
+    params.push(`%${q.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`);
+    where.push(`(lower(st.patient_name) LIKE $${params.length} OR lower(st.account_number) LIKE $${params.length} OR lower(r.body) LIKE $${params.length} OR lower(c.name) LIKE $${params.length})`);
+  }
+
+  const countQuery = `
+    SELECT count(*)::int AS total
+    FROM remark r
+    JOIN statement st ON st.id = r.statement_id
+    JOIN clinic c ON c.id = st.clinic_id
+    WHERE ${where.join(' AND ')}
+  `;
+  const { rows: countRows } = await query(countQuery, params);
+  const total = countRows[0]?.total || 0;
+
+  params.push(limit, offset);
+  const dataQuery = `
+    SELECT r.id, r.statement_id, r.type, r.body, r.insurance_name, r.insurance_reference, r.created_at,
+           r.author_role, u.full_name AS author_name, u.email AS author_email,
+           st.patient_name, st.account_number, st.statement_date, st.current_balance, st.balance_due,
+           st.pr_type, st.ledger_status, st.awaiting_reply_since,
+           c.id AS clinic_id, c.name AS clinic_name, c.clinic_code
+    FROM remark r
+    JOIN statement st ON st.id = r.statement_id
+    JOIN clinic c ON c.id = st.clinic_id
+    LEFT JOIN app_user u ON u.id = r.author_id
+    WHERE ${where.join(' AND ')}
+    ORDER BY r.created_at DESC
+    LIMIT $${params.length - 1} OFFSET $${params.length}
+  `;
+  const { rows: items } = await query(dataQuery, params);
+
+  // Clinic list for filter dropdown
+  const { rows: clinics } = await query(`SELECT id, name, clinic_code FROM clinic WHERE is_active = true ORDER BY name ASC`);
+
+  // Overall stats
+  const { rows: statsRows } = await query(`
+    SELECT
+      (SELECT count(*) FROM remark)::int AS total_remarks,
+      (SELECT count(*) FROM statement WHERE awaiting_reply_since IS NOT NULL AND status = 'active')::int AS awaiting_count,
+      (SELECT count(*) FROM remark WHERE created_at > now() - interval '7 days')::int AS recent_7d_count
+  `);
+
+  res.json({
+    items: items.map((r) => ({
+      id: r.id,
+      statementId: r.statement_id,
+      type: r.type,
+      body: r.body,
+      insuranceName: r.insurance_name,
+      insuranceReference: r.insurance_reference,
+      createdAt: r.created_at,
+      authorRole: r.author_role,
+      authorName: r.author_name || 'System',
+      authorEmail: r.author_email,
+      patientName: r.patient_name,
+      accountNumber: r.account_number,
+      statementDate: r.statement_date,
+      currentBalance: r.current_balance ?? r.balance_due,
+      prType: r.pr_type,
+      ledgerStatus: r.ledger_status,
+      awaitingReply: Boolean(r.awaiting_reply_since),
+      clinic: {
+        id: r.clinic_id,
+        name: r.clinic_name,
+        code: r.clinic_code,
+      },
+    })),
+    clinics: clinics.map((c) => ({ id: c.id, name: c.name, code: c.clinic_code })),
+    stats: statsRows[0] || { total_remarks: 0, awaiting_count: 0, recent_7d_count: 0 },
+    total,
+    page,
+    pageCount: Math.ceil(total / limit) || 1,
+  });
+});
+

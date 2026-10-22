@@ -5,6 +5,7 @@ import { useAuth } from './lib/auth.jsx';
 import { landingPath } from './lib/format.js';
 import { AuditLogPage } from './pages/admin/AuditLogPage.jsx';
 import { AdminHome, ClinicDetailPage, ClinicFormPage, ClinicsPage } from './pages/admin/ClinicPages.jsx';
+import { ClinicRemarksPage } from './pages/admin/ClinicRemarksPage.jsx';
 import { InviteUserPage, UserDetailPage, UsersPage } from './pages/admin/UserPages.jsx';
 import { AuthenticatorPage } from './pages/auth/AuthenticatorPage.jsx';
 import { LoginPage } from './pages/auth/LoginPage.jsx';
@@ -75,6 +76,7 @@ export function App() {
           <Route path="/manage/users/invite" element={<InviteUserPage />} />
           <Route path="/manage/users/:id" element={<UserDetailPage />} />
           <Route path="/manage/audit" element={<AuditLogPage />} />
+          <Route path="/manage/remarks" element={<ClinicRemarksPage />} />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />
