@@ -80,7 +80,11 @@ export function normalizeHeader(header) {
 const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
 
 function isBlank(raw) {
-  return raw === null || raw === undefined || (typeof raw === 'string' && raw.trim() === '');
+  if (raw === null || raw === undefined) return true;
+  if (typeof raw === 'string') {
+    return raw.replace(/[\u00A0\s]+/g, ' ').trim() === '';
+  }
+  return false;
 }
 
 function pad(n) {
@@ -104,7 +108,7 @@ export function parseDate(raw) {
     if (!Number.isInteger(raw) || raw < 1 || raw > 2958465) return null;
     return parseDate(new Date(Date.UTC(1899, 11, 30) + raw * 86400000));
   }
-  const s = String(raw).trim();
+  const s = String(raw).replace(/[\u00A0\s]+/g, ' ').trim();
   let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
   if (m) return isoFromParts(Number(m[1]), Number(m[2]), Number(m[3]));
   m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -112,7 +116,7 @@ export function parseDate(raw) {
   return null;
 }
 
-/** Parses an amount into a fixed 2-decimal string, or null. Accepts "$1,234.50", "-25", "(25.00)". */
+/** Parses an amount into a fixed 2-decimal string, or null. Accepts "$1,234.50", "-25", "(25.00)", "Paid $3.29 on 07/29/2026". */
 export function parseMoney(raw) {
   let n;
   if (typeof raw === 'number') {
@@ -120,7 +124,18 @@ export function parseMoney(raw) {
     if (Math.abs(Math.round(raw * 100) - raw * 100) > 1e-6) return null;
     n = Math.round(raw * 100) / 100;
   } else {
-    let s = String(raw).trim().replace(/[$,\s]/g, '');
+    let s = String(raw).replace(/[\u00A0\s]+/g, ' ').trim();
+    if (!s || s === '-' || s.toLowerCase() === 'n/a' || s.toLowerCase() === 'none') return null;
+
+    // Support notes/payment annotations e.g. "Paid $3.29 on 07/29/2026"
+    const dollarMatch = s.match(/\$([0-9,]+(?:\.[0-9]{1,2})?)/);
+    if (dollarMatch) {
+      const cleanNum = dollarMatch[1].replace(/,/g, '');
+      n = Number(cleanNum);
+      if (Number.isFinite(n) && Math.abs(n) < 1e10) return n.toFixed(2);
+    }
+
+    s = s.replace(/[$,\s]/g, '');
     let negative = false;
     if (/^\(.*\)$/.test(s)) {
       negative = true;

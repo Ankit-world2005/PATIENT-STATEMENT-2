@@ -40,7 +40,13 @@ async function readXlsx(buffer) {
   } catch {
     throw new ImportFileError("This workbook can't be read. Save it as Excel Workbook (.xlsx) and try again.");
   }
-  const sheet = workbook.worksheets[0];
+  // Prefer sheet named "PATIENT STATEMENT" or containing "statement", fallback to first sheet
+  const sheet =
+    workbook.worksheets.find(
+      (w) =>
+        w.name.toLowerCase().includes('patient statement') ||
+        w.name.toLowerCase().includes('statement')
+    ) || workbook.worksheets[0];
   if (!sheet) throw new ImportFileError('The workbook has no sheets.');
   const rows = [];
   sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
@@ -84,10 +90,61 @@ export function mapHeaderColumns(headerValues) {
     }
     const clean = String(raw).trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 
-    // Check for cycle statement date indicators
+    // 1. Current / outstanding balance
+    if (
+      clean === 'current_outstanding_balance' ||
+      clean === 'outstanding_balance' ||
+      clean === 'current_balance' ||
+      (clean.includes('current') && (clean.includes('balance') || clean.includes('outstanding')))
+    ) {
+      mapped.push('current_balance');
+      continue;
+    }
+
+    // 2. Balance due amounts (cycle specific or generic)
+    if (clean.includes('balance') || clean.includes('amount_due')) {
+      if (clean.includes('1st') || clean.includes('first') || clean.startsWith('cycle_1') || clean.startsWith('cycle1')) {
+        mapped.push('cycle1_balance');
+      } else if (clean.includes('2nd') || clean.includes('second') || clean.startsWith('cycle_2') || clean.startsWith('cycle2')) {
+        mapped.push('cycle2_balance');
+      } else if (clean.includes('3rd') || clean.includes('third') || clean.startsWith('cycle_3') || clean.startsWith('cycle3')) {
+        mapped.push('cycle3_balance');
+      } else if (currentCycle === 1) {
+        mapped.push('cycle1_balance');
+      } else if (currentCycle === 2) {
+        mapped.push('cycle2_balance');
+      } else if (currentCycle === 3) {
+        mapped.push('cycle3_balance');
+      } else {
+        mapped.push('balance_due');
+      }
+      continue;
+    }
+
+    // 3. Payment received (cycle specific or generic)
+    if (clean.includes('payment') || clean.includes('pmt')) {
+      if (clean.includes('1st') || clean.includes('first') || clean.startsWith('cycle_1') || clean.startsWith('cycle1')) {
+        mapped.push('cycle1_payment');
+      } else if (clean.includes('2nd') || clean.includes('second') || clean.startsWith('cycle_2') || clean.startsWith('cycle2')) {
+        mapped.push('cycle2_payment');
+      } else if (clean.includes('3rd') || clean.includes('third') || clean.startsWith('cycle_3') || clean.startsWith('cycle3')) {
+        mapped.push('cycle3_payment');
+      } else if (currentCycle === 1) {
+        mapped.push('cycle1_payment');
+      } else if (currentCycle === 2) {
+        mapped.push('cycle2_payment');
+      } else if (currentCycle === 3) {
+        mapped.push('cycle3_payment');
+      } else {
+        mapped.push(null);
+      }
+      continue;
+    }
+
+    // 4. Cycle statement dates (must not be balance or payment)
     if (
       (clean.includes('1st') || clean.includes('first') || clean.startsWith('cycle_1') || clean === 'cycle1') &&
-      (clean.includes('statement') || clean.includes('electronic') || clean.includes('date'))
+      (clean.includes('statement') || clean.includes('electronic') || clean.includes('date') || clean.includes('sent'))
     ) {
       currentCycle = 1;
       mapped.push('cycle1_date');
@@ -95,7 +152,7 @@ export function mapHeaderColumns(headerValues) {
     }
     if (
       (clean.includes('2nd') || clean.includes('second') || clean.startsWith('cycle_2') || clean === 'cycle2') &&
-      (clean.includes('statement') || clean.includes('electronic') || clean.includes('date'))
+      (clean.includes('statement') || clean.includes('electronic') || clean.includes('date') || clean.includes('sent'))
     ) {
       currentCycle = 2;
       mapped.push('cycle2_date');
@@ -103,66 +160,38 @@ export function mapHeaderColumns(headerValues) {
     }
     if (
       (clean.includes('3rd') || clean.includes('third') || clean.startsWith('cycle_3') || clean === 'cycle3') &&
-      (clean.includes('statement') || clean.includes('electronic') || clean.includes('date'))
+      (clean.includes('statement') || clean.includes('electronic') || clean.includes('date') || clean.includes('sent'))
     ) {
       currentCycle = 3;
       mapped.push('cycle3_date');
       continue;
     }
 
-    // Check for current / outstanding balance
-    if (
-      (clean.includes('current') && (clean.includes('balance') || clean.includes('outstanding'))) ||
-      clean === 'current_outstanding_balance' ||
-      clean === 'outstanding_balance'
-    ) {
-      mapped.push('current_balance');
+    // 5. Patient name
+    if (clean === 'patient_name' || clean === 'patient' || clean === 'name' || clean === 'patient_full_name') {
+      mapped.push('patient_name');
       continue;
     }
 
-    // Check for balance due amount
-    if (
-      clean === 'balance_due_amount' ||
-      clean === 'balance_due' ||
-      clean === 'balance' ||
-      clean === 'patient_balance' ||
-      clean === 'amount_due' ||
-      (clean.includes('balance') && (clean.includes('due') || clean.includes('amt') || clean.includes('amount')))
-    ) {
-      if (currentCycle === 1) mapped.push('cycle1_balance');
-      else if (currentCycle === 2) mapped.push('cycle2_balance');
-      else if (currentCycle === 3) mapped.push('cycle3_balance');
-      else mapped.push('balance_due');
-      continue;
-    }
-
-    // Check for payment received
-    if (
-      clean === 'payment_received' ||
-      clean === 'payment' ||
-      clean === 'payments' ||
-      clean === 'pmt_received' ||
-      clean === 'pmt_rcvd' ||
-      (clean.includes('payment') && clean.includes('received'))
-    ) {
-      if (currentCycle === 1) mapped.push('cycle1_payment');
-      else if (currentCycle === 2) mapped.push('cycle2_payment');
-      else if (currentCycle === 3) mapped.push('cycle3_payment');
-      else mapped.push(null);
-      continue;
-    }
-
-    // Ledger specific fields
+    // 6. Location
     if (clean === 'location' || clean === 'clinic_location' || clean.includes('location_name')) {
       mapped.push('location_name');
       continue;
     }
+
+    // 7. PR Type
     if (clean === 'pr_type' || clean === 'pr' || clean.includes('patient_resp') || clean === 'patient_responsibility') {
       mapped.push('pr_type');
       continue;
     }
+
+    // 8. Notes & remarks
     if (clean === 'us24_notes' || clean === 'us24' || clean.includes('specialist_note') || clean.includes('us24_note')) {
       mapped.push('us24_notes');
+      continue;
+    }
+    if (clean === 'remarks' || clean === 'remark') {
+      mapped.push('remarks');
       continue;
     }
     if (clean === 'client_response' || clean === 'clinic_response' || clean.includes('client_note') || clean.includes('clinic_note')) {
@@ -173,12 +202,14 @@ export function mapHeaderColumns(headerValues) {
       mapped.push('vob_notes');
       continue;
     }
-    if (clean === 'status') {
-      mapped.push(null);
+
+    // 9. Status
+    if (clean === 'status' || clean === 'ledger_status' || clean === 'patient_status') {
+      mapped.push('status');
       continue;
     }
 
-    // Fallback to standard normalizeHeader
+    // 10. Fallback to standard normalizeHeader
     mapped.push(normalizeHeader(raw));
   }
 

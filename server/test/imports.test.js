@@ -101,3 +101,28 @@ test('parses a 17-column multi-cycle medical billing ledger with repeating balan
   assert.equal(validated[0].data.balance_due, '200.00');
   assert.match(validated[0].data.account_number, /^ACC-SMITHJ-\d{4}$/);
 });
+
+test('parses Namaste Rehab Clinics LLC status sheet format with cycle-specific balance and payment annotations', async () => {
+  const header = 'LOCATION ,PATIENT NAME,1ST ELECTRONIC STATEMENT SENT DATE,BALANCE DUE AMOUNT AS ON 1ST ELECTRONIC STATEMENT,PAYMENT RECEIVED,2ND ELECTRONIC STATEMENT SENT DATE,BALANCE DUE AMOUNT AS ON 2ND ELECTRONIC STATEMENT,PAYMENT RECEIVED,3RD ELECTRONIC STATEMENT SENT DATE,BALANCE DUE AMOUNT AS ON 3RD ELECTRONIC STATEMENT,PAYMENT RECEIVED,CURRENT OUTSTANDING BALANCE,PR TYPE,STATUS,US24 NOTES,CLIENT RESPONSE,AS PER VOB- Notes';
+  const row1 = 'Spring House,Jeanne Costello,06/08/2026,3.29,Paid $3.29 on 07/29/2026,07/27/2026,3.29,Paid $3.29 on 07/29/2026,,,,0.00,Coinsurance,Payment Received,,Paid in full,As per VOB';
+  const file = csv(`${header}\n${row1}\n`);
+  const { format, rows } = await parseImportFile(file, 'namaste.csv');
+  assert.equal(format, 'csv');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].raw.location_name, 'Spring House');
+  assert.equal(rows[0].raw.patient_name, 'Jeanne Costello');
+  assert.equal(rows[0].raw.cycle1_date, '06/08/2026');
+  assert.equal(rows[0].raw.cycle1_balance, '3.29');
+  assert.equal(rows[0].raw.cycle1_payment, 'Paid $3.29 on 07/29/2026');
+  assert.equal(rows[0].raw.cycle2_date, '07/27/2026');
+  assert.equal(rows[0].raw.cycle2_balance, '3.29');
+  assert.equal(rows[0].raw.status, 'Payment Received');
+
+  const validated = validateRows(rows);
+  assert.equal(validated[0].outcome, 'valid');
+  assert.equal(validated[0].data.patient_name, 'Jeanne Costello');
+  assert.equal(validated[0].data.statement_date, '2026-06-08');
+  assert.equal(validated[0].data.cycle1_balance, '3.29');
+  assert.equal(validated[0].data.cycle1_payment, '3.29');
+  assert.equal(validated[0].data.status, 'Payment Received');
+});

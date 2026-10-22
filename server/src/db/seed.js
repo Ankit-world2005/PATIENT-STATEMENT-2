@@ -20,6 +20,8 @@ const CLINICS = [
     zip: '61704', contact: 'Helen Park', phone: '(309) 555-0177', email: 'frontdesk@maplegrove-im.example' },
   { code: 'CLN-7004', name: 'Northgate Orthopedics', a1: '15 Northgate Blvd', a2: null, city: 'Normal', state: 'IL',
     zip: '61761', contact: 'Sam Ortiz', phone: '(309) 555-0108', email: 'billing@northgate-ortho.example' },
+  { code: 'CLN-9200', name: 'Namaste Rehab Clinics LLC', a1: '700 E Township Line Rd', a2: null, city: 'Spring House', state: 'PA',
+    zip: '19002', contact: 'Office Manager', phone: '(215) 555-0199', email: 'billing@namaste-rehab.example' },
 ];
 
 const LAKESIDE_CSV = `patient_name,account_number,statement_date,balance_due,patient_dob,service_date_from,service_date_to,cpt_codes,billed_amount,insurance_paid,adjustments,insurance_name
@@ -143,7 +145,7 @@ async function main() {
       email: 'priya.shah@riverside-peds.example', name: 'Priya Shah', role: 'clinic_user',
       clinicId: clinicIds['CLN-5120'], invitedBy: admin.id,
     });
-    for (const [spec, code] of [[specialist, 'CLN-4082'], [specialist, 'CLN-5120'], [kevin, 'CLN-5120'], [kevin, 'CLN-6301']]) {
+    for (const [spec, code] of [[specialist, 'CLN-4082'], [specialist, 'CLN-5120'], [specialist, 'CLN-9200'], [kevin, 'CLN-5120'], [kevin, 'CLN-6301']]) {
       await client.query('INSERT INTO specialist_assignment (specialist_id, clinic_id, assigned_by_id) VALUES ($1, $2, $3)',
         [spec.id, clinicIds[code], admin.id]);
     }
