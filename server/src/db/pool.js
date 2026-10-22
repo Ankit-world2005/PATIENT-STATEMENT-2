@@ -4,10 +4,17 @@ import { config } from '../config.js';
 // Return DATE columns as 'YYYY-MM-DD' strings instead of local-midnight Date objects.
 pg.types.setTypeParser(1082, (value) => value);
 
+const useSsl =
+  config.isProduction ||
+  config.databaseUrl?.includes('sslmode=require') ||
+  config.databaseUrl?.includes('postgres.database.azure.com');
+
+const rejectUnauthorized = process.env.DB_SSL_REJECT_UNAUTHORIZED === 'false' ? false : true;
+
 export const pool = new pg.Pool({
   connectionString: config.databaseUrl,
   max: 10,
-  ssl: config.isProduction ? { rejectUnauthorized: true } : undefined,
+  ssl: useSsl ? { rejectUnauthorized } : undefined,
 });
 
 pool.on('error', (err) => {
