@@ -1,6 +1,7 @@
 {
   "name": "my-patient",
   "private": true,
+  "type": "module",
   "workspaces": [
     "client",
     "server"

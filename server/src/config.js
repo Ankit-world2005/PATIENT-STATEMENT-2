@@ -1,14 +1,13 @@
 import { existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-const currentDir = typeof __dirname !== 'undefined'
-  ? __dirname
-  : (typeof import.meta !== 'undefined' && import.meta.url ? path.dirname(fileURLToPath(import.meta.url)) : process.cwd());
-const serverRoot = path.resolve(currentDir, '..');
-const envFile = path.join(serverRoot, '.env');
+const serverRoot = process.env.LAMBDA_TASK_ROOT || process.cwd();
+const envFile = path.join(serverRoot, 'server', '.env');
+const localEnvFile = path.join(serverRoot, '.env');
 if (existsSync(envFile)) {
   try { process.loadEnvFile(envFile); } catch { /* ignore */ }
+} else if (existsSync(localEnvFile)) {
+  try { process.loadEnvFile(localEnvFile); } catch { /* ignore */ }
 }
 
 const env = process.env;
