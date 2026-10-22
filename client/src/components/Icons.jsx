@@ -44,3 +44,7 @@ export const IconUsers = (p) => (
 );
 export const IconShield = (p) => <Svg {...p}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></Svg>;
 export const IconClock = (p) => <Svg {...p}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></Svg>;
+export const IconChevronDown = (p) => <Svg {...p}><polyline points="6 9 12 15 18 9" /></Svg>;
+export const IconArrowRight = (p) => (
+  <Svg {...p}><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></Svg>
+);

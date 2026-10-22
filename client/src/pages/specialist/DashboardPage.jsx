@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
+import { ClinicsDropdown } from '../../components/ClinicsDropdown.jsx';
 import { IconBuilding, IconChat, IconTable, IconUpload } from '../../components/Icons.jsx';
 import { Alert, EmptyState, PageHeader, Spinner, StatusBadge } from '../../components/ui.jsx';
 import { api } from '../../lib/api.js';
@@ -45,6 +46,7 @@ export function DashboardPage() {
         title="Specialist dashboard"
         subtitle={`Welcome back, ${firstName}. Here's what needs your attention.`}
       >
+        <ClinicsDropdown clinics={data.clinics} />
         {canPublish ? (
           <>
             <Link to="/statements/upload" className="btn btn-secondary">
