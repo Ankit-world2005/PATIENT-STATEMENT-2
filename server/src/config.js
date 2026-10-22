@@ -2,9 +2,14 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const currentDir = typeof __dirname !== 'undefined'
+  ? __dirname
+  : (typeof import.meta !== 'undefined' && import.meta.url ? path.dirname(fileURLToPath(import.meta.url)) : process.cwd());
+const serverRoot = path.resolve(currentDir, '..');
 const envFile = path.join(serverRoot, '.env');
-if (existsSync(envFile)) process.loadEnvFile(envFile);
+if (existsSync(envFile)) {
+  try { process.loadEnvFile(envFile); } catch { /* ignore */ }
+}
 
 const env = process.env;
 const isProduction = env.NODE_ENV === 'production';
