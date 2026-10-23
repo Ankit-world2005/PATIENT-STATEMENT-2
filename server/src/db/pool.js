@@ -7,12 +7,23 @@ pg.types.setTypeParser(1082, (value) => value);
 const useSsl =
   config.isProduction ||
   config.databaseUrl?.includes('sslmode=require') ||
-  config.databaseUrl?.includes('postgres.database.azure.com');
+  config.databaseUrl?.includes('postgres.database.azure.com') ||
+  config.databaseUrl?.includes('supabase.co') ||
+  config.databaseUrl?.includes('supabase.com');
 
-const rejectUnauthorized = process.env.DB_SSL_REJECT_UNAUTHORIZED === 'false' ? false : true;
+const isSupabase =
+  config.databaseUrl?.includes('supabase.co') ||
+  config.databaseUrl?.includes('supabase.com');
+
+const rejectUnauthorized =
+  process.env.DB_SSL_REJECT_UNAUTHORIZED === 'false' || isSupabase ? false : true;
+
+const cleanConnectionString = isSupabase
+  ? config.databaseUrl.replace(/[?&]sslmode=[^&]+/, '')
+  : config.databaseUrl;
 
 export const pool = new pg.Pool({
-  connectionString: config.databaseUrl,
+  connectionString: cleanConnectionString,
   max: 10,
   ssl: useSsl ? { rejectUnauthorized } : undefined,
 });
