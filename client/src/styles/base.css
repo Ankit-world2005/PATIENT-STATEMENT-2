@@ -127,7 +127,7 @@ body {
 
 /* ==========================================================================
    HEADER COMPONENT (N2, N3, FR-3.1)
-   Left: User Full Name | Right: US24 Solutions Logo + Sign Out
+   Left: US24 Solutions Logo | Right: User Full Name + Sign Out
    ========================================================================== */
 .site-header {
   height: var(--header-height);
@@ -144,6 +144,17 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+}
+
+.header-user-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .header-user-badge {

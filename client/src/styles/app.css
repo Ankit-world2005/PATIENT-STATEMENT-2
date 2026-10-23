@@ -567,6 +567,7 @@ input[type="date"].form-input {
   .user-avatar-circle { width: 32px; height: 32px; font-size: 0.8rem; }
   .user-full-name { font-size: 0.9rem; }
   .brand-logo-img { height: 28px; max-width: 110px; }
+  .header-user-actions,
   .header-brand-actions { gap: 10px; }
   .signout-label { display: none; }
   .btn-signout { padding: 6px 9px; }
