@@ -187,11 +187,34 @@ export function ImportNewPage() {
   );
 }
 
-function StatTile({ label, value, tone }) {
+function StatTile({ label, value, tone, onClick, actionHint, title }) {
+  const isClickable = Boolean(onClick);
   return (
-    <div className={`stat-tile ${tone ? `stat-${tone}` : ''}`}>
+    <div
+      className={`stat-tile ${tone ? `stat-${tone}` : ''} ${isClickable ? 'stat-tile-clickable' : ''}`}
+      onClick={onClick}
+      role={isClickable ? 'button' : undefined}
+      tabIndex={isClickable ? 0 : undefined}
+      title={title || (isClickable && actionHint ? `${label}: ${actionHint}` : undefined)}
+      aria-label={isClickable ? `${label}: ${value ?? 0}. ${actionHint || 'Click to view'}` : undefined}
+      onKeyDown={
+        isClickable
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+    >
       <div className="stat-value">{value?.toLocaleString('en-US') ?? '—'}</div>
       <div className="stat-label">{label}</div>
+      {actionHint && (
+        <div className="stat-action-hint">
+          <span>{actionHint}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -285,10 +308,57 @@ export function ImportPreviewPage() {
       </div>
 
       <div className="stat-tiles">
-        <StatTile label="Rows in file" value={t.total} />
-        <StatTile label="Ready to publish" value={t.valid} tone="success" />
-        <StatTile label="Invalid rows" value={t.invalid} tone={t.invalid ? 'danger' : undefined} />
-        <StatTile label="Possible duplicates" value={t.duplicate} tone={t.duplicate ? 'warning' : undefined} />
+        <StatTile
+          label="Rows in file"
+          value={t.total}
+          actionHint="Scroll to preview ↓"
+          title="Total rows detected in uploaded file"
+          onClick={() => {
+            const el = document.getElementById('sample-heading');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+          }}
+        />
+        <StatTile
+          label="Ready to publish"
+          value={t.valid}
+          tone="success"
+          actionHint="Jump to publish ↓"
+          title="Valid records ready to be published to clinic"
+          onClick={() => {
+            const el = document.querySelector('.publish-bar');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+          }}
+        />
+        <StatTile
+          label="Invalid rows"
+          value={t.invalid}
+          tone={t.invalid ? 'danger' : undefined}
+          actionHint={t.invalid ? 'Review invalid rows ↓' : '0 invalid (clean)'}
+          title={t.invalid ? `${t.invalid} invalid row(s) require attention` : 'All rows passed basic validation'}
+          onClick={() => {
+            if (t.invalid > 0) {
+              const el = document.getElementById('invalid-heading');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            } else {
+              toast('No invalid rows found in this file.', 'success');
+            }
+          }}
+        />
+        <StatTile
+          label="Possible duplicates"
+          value={t.duplicate}
+          tone={t.duplicate ? 'warning' : undefined}
+          actionHint={t.duplicate ? 'Review duplicates ↓' : '0 duplicates (clean)'}
+          title={t.duplicate ? `${t.duplicate} possible duplicate(s) found` : 'No duplicates detected'}
+          onClick={() => {
+            if (t.duplicate > 0) {
+              const el = document.getElementById('dup-heading');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            } else {
+              toast('No duplicate rows detected.', 'success');
+            }
+          }}
+        />
       </div>
 
       {ignored.length > 0 && (
@@ -464,7 +534,9 @@ export function ImportPreviewPage() {
 // --- S6: result summary (FR-7.6) ----------------------------------------------------
 export function ImportResultPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const location = useLocation();
+  const toast = useToast();
   const download = useDownload();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -515,10 +587,56 @@ export function ImportResultPage() {
       {done && (
         <>
           <div className="stat-tiles">
-            <StatTile label="Uploaded to clinic" value={t.published} tone="success" />
-            <StatTile label="New versions" value={t.newVersions} />
-            <StatTile label="Skipped duplicates" value={t.skipped} tone={t.skipped ? 'warning' : undefined} />
-            <StatTile label="Failed rows" value={t.invalid} tone={t.invalid ? 'danger' : undefined} />
+            <StatTile
+              label="Uploaded to clinic"
+              value={t.published}
+              tone="success"
+              actionHint="View in ledger →"
+              title={`View published statements in ${b.clinic.name} ledger`}
+              onClick={() => navigate(`/clinics/${b.clinic.id}/statements`)}
+            />
+            <StatTile
+              label="New versions"
+              value={t.newVersions}
+              tone={t.newVersions ? 'info' : undefined}
+              actionHint={t.newVersions > 0 ? 'View in ledger →' : 'All new records'}
+              title={t.newVersions > 0 ? `View ${t.newVersions} updated version(s)` : 'No previous statements were superseded'}
+              onClick={() => {
+                if (t.newVersions > 0) {
+                  navigate(`/clinics/${b.clinic.id}/statements`);
+                } else {
+                  toast(`No new versions updated. All ${t.published || 0} records were uploaded as fresh statements.`, 'info');
+                }
+              }}
+            />
+            <StatTile
+              label="Skipped duplicates"
+              value={t.skipped}
+              tone={t.skipped ? 'warning' : undefined}
+              actionHint={t.skipped > 0 ? 'Download report ↓' : '0 skipped (clean)'}
+              title={t.skipped > 0 ? 'Download report of skipped duplicate rows' : 'No duplicate rows were skipped'}
+              onClick={() => {
+                if (b.hasErrorReport || t.skipped > 0) {
+                  download(`/imports/${id}/error-report`, 'skipped-duplicates.csv');
+                } else {
+                  toast('No duplicate rows were skipped. All rows were processed cleanly.', 'success');
+                }
+              }}
+            />
+            <StatTile
+              label="Failed rows"
+              value={t.invalid}
+              tone={t.invalid ? 'danger' : undefined}
+              actionHint={t.invalid > 0 ? 'Download error report ↓' : '0 failed (clean)'}
+              title={t.invalid > 0 ? 'Download error report for failed rows' : 'All rows passed validation'}
+              onClick={() => {
+                if (b.hasErrorReport || t.invalid > 0) {
+                  download(`/imports/${id}/error-report`, 'import-errors.csv');
+                } else {
+                  toast('No failed rows. All records in this file imported cleanly.', 'success');
+                }
+              }}
+            />
           </div>
           {b.hasErrorReport ? (
             <div className="panel panel-inline">

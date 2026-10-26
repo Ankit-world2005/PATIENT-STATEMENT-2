@@ -793,6 +793,9 @@ a.hub-card { text-decoration: none; color: inherit; }
   border-radius: var(--radius-md);
   padding: 14px 16px;
   box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 .stat-value { font-size: 1.75rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .stat-label { font-size: 0.8rem; color: var(--color-text-muted); font-weight: 600; margin-top: 4px; }
@@ -802,6 +805,66 @@ a.hub-card { text-decoration: none; color: inherit; }
 .stat-danger .stat-value { color: var(--color-danger); }
 .stat-warning { border-top: 3px solid var(--color-warning); }
 .stat-warning .stat-value { color: var(--color-warning); }
+.stat-info { border-top: 3px solid var(--color-primary); }
+.stat-info .stat-value { color: var(--color-primary); }
+
+.stat-tile-clickable {
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+  position: relative;
+}
+.stat-tile-clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px -2px rgba(0, 0, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+  border-color: var(--color-primary);
+}
+.stat-tile-clickable:active {
+  transform: translateY(0) scale(0.99);
+  box-shadow: var(--shadow-sm);
+}
+.stat-tile-clickable:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.stat-success.stat-tile-clickable:hover {
+  border-color: var(--color-success);
+  box-shadow: 0 6px 16px -2px rgba(13, 148, 136, 0.18), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+}
+.stat-warning.stat-tile-clickable:hover {
+  border-color: var(--color-warning);
+  box-shadow: 0 6px 16px -2px rgba(217, 119, 6, 0.18), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+}
+.stat-danger.stat-tile-clickable:hover {
+  border-color: var(--color-danger);
+  box-shadow: 0 6px 16px -2px rgba(220, 38, 38, 0.18), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+}
+
+.stat-action-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--color-border);
+  transition: color 0.15s ease;
+}
+.stat-tile-clickable:hover .stat-action-hint {
+  color: var(--color-primary);
+}
+.stat-success.stat-tile-clickable:hover .stat-action-hint {
+  color: var(--color-success);
+}
+.stat-warning.stat-tile-clickable:hover .stat-action-hint {
+  color: var(--color-warning);
+}
+.stat-danger.stat-tile-clickable:hover .stat-action-hint {
+  color: var(--color-danger);
+}
+
 
 .publish-bar {
   position: sticky;
