@@ -40,13 +40,14 @@ export const config = {
     ? (path.isAbsolute(env.STORAGE_DIR) ? env.STORAGE_DIR : path.resolve(serverRoot, env.STORAGE_DIR))
     : (process.env.NETLIFY || process.env.LAMBDA_TASK_ROOT || process.env.VERCEL ? '/tmp/storage' : path.resolve(serverRoot, 'storage')),
   smtp: {
-    host: env.SMTP_HOST || 'localhost',
-    port: Number(env.SMTP_PORT || 1025),
-    secure: bool('SMTP_SECURE', false),
+    service: env.SMTP_SERVICE || ((env.SMTP_HOST && env.SMTP_HOST.includes('gmail')) || (env.SMTP_USER && env.SMTP_USER.includes('@gmail.com')) ? 'gmail' : undefined),
+    host: env.SMTP_HOST || (env.SMTP_USER && env.SMTP_USER.includes('@gmail.com') ? 'smtp.gmail.com' : 'localhost'),
+    port: Number(env.SMTP_PORT || (env.SMTP_USER && env.SMTP_USER.includes('@gmail.com') ? 465 : 1025)),
+    secure: bool('SMTP_SECURE', env.SMTP_PORT === '465' || Boolean(env.SMTP_USER && env.SMTP_USER.includes('@gmail.com'))),
     user: env.SMTP_USER || '',
     pass: env.SMTP_PASS || '',
   },
-  mailFrom: env.MAIL_FROM || 'My Patient <no-reply@us24solutions.com>',
+  mailFrom: env.MAIL_FROM || (env.SMTP_USER ? `My Patient <${env.SMTP_USER}>` : 'My Patient <no-reply@us24solutions.com>'),
   // Development aid: print codes and links to the console. Can be enabled in staging via DEV_LOG_EMAIL=true.
   devLogEmail: bool('DEV_LOG_EMAIL', !isProduction),
   breachedPasswordCheck: bool('BREACHED_PASSWORD_CHECK', true),
