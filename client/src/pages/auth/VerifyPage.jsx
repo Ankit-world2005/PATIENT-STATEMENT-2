@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router';
+import { Navigate, useNavigate } from 'react-router';
 import { Alert, Field } from '../../components/ui.jsx';
-import { IconShield } from '../../components/Icons.jsx';
 import { api } from '../../lib/api.js';
 import { useAuth } from '../../lib/auth.jsx';
 import { landingPath } from '../../lib/format.js';
@@ -17,7 +16,6 @@ export function VerifyPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [cooldown, setCooldown] = useState(60);
-  const [offerTotp, setOfferTotp] = useState(false);
   const [devOtp, setDevOtp] = useState(pending?.devOtp || '');
   // Holds this page while the result of a successful verify is being applied.
   const verified = useRef(false);
@@ -45,29 +43,6 @@ export function VerifyPage() {
     }
   }, [pending]);
 
-  if (user && offerTotp) {
-    return (
-      <div className="auth-wrapper">
-        <div className="auth-card">
-          <div className="auth-header">
-            <div className="auth-icon"><IconShield size={28} /></div>
-            <h1 className="auth-title">You're signed in</h1>
-            <p className="auth-subtitle">Optional: use an authenticator app for faster, more reliable codes.</p>
-          </div>
-          <p className="auth-copy">
-            With an authenticator app (such as Microsoft Authenticator or Google Authenticator) you can sign in even
-            when email is slow. You can keep using email codes if you prefer.
-          </p>
-          <div className="stack-sm">
-            <Link to="/account/authenticator" className="btn btn-primary btn-block">Set up an authenticator app</Link>
-            <button type="button" className="btn btn-secondary btn-block" onClick={() => navigate(landingPath(user), { replace: true })}>
-              Not now
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
   if (user && verified.current) return null;
   if (user) return <Navigate to={landingPath(user)} replace />;
   if (!pending) return <Navigate to="/login" replace />;
@@ -83,8 +58,7 @@ export function VerifyPage() {
     try {
       verified.current = true;
       const result = await verify(codeToVerify, method);
-      if (result.offerTotp) setOfferTotp(true);
-      else navigate(landingPath(result.user), { replace: true });
+      navigate(landingPath(result.user), { replace: true });
     } catch (err) {
       verified.current = false;
       if (err.status === 401) {
