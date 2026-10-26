@@ -73,6 +73,161 @@ function PrintDialog({ statementId, onCancel }) {
   );
 }
 
+function formatBytes(bytes) {
+  if (!bytes || bytes <= 0) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function PatientPdfStatTab({ statement: s, onSwitchToStatement }) {
+  const [previewId, setPreviewId] = useState(null);
+  const files = s.patientFiles || [];
+
+  return (
+    <div className="pdf-stat-hub">
+      <div className="pdf-stat-header">
+        <div>
+          <h2 className="pdf-stat-header-title">
+            <IconFileText size={20} color="#253B80" />
+            PDF Statements for {s.patientName}
+            {files.length > 0 && (
+              <span className="badge badge-secondary" style={{ fontSize: '0.75rem', fontWeight: 600 }}>
+                {files.length} {files.length === 1 ? 'file' : 'files'} from ZIP
+              </span>
+            )}
+          </h2>
+          <p className="pdf-stat-header-subtitle">
+            All updated statement PDFs extracted from ZIP archives for Account <strong className="col-mono">{s.accountNumber}</strong>
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          onClick={onSwitchToStatement}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+        >
+          ← View Statement Details
+        </button>
+      </div>
+
+      {files.length > 0 ? (
+        <div className="pdf-file-cards-list">
+          {files.map((file) => (
+            <div key={file.statementId} className={`pdf-file-card ${file.isCurrent ? 'is-current' : ''}`}>
+              <div className="pdf-file-card-top">
+                <div className="pdf-file-card-info">
+                  <div className="pdf-file-icon-box">
+                    <IconFileText size={22} />
+                  </div>
+                  <div>
+                    <div className="pdf-file-title">
+                      <span>{file.name}</span>
+                      {file.isCurrent ? (
+                        <span className="badge badge-success" style={{ fontSize: '0.72rem' }}>Current Statement</span>
+                      ) : (
+                        <span className="badge badge-secondary" style={{ fontSize: '0.72rem' }}>Past Cycle</span>
+                      )}
+                      {file.version > 1 && (
+                        <span className="badge badge-info" style={{ fontSize: '0.72rem' }}>v{file.version}</span>
+                      )}
+                    </div>
+                    <div className="pdf-file-meta">
+                      <span>Statement Date: <strong>{date(file.statementDate)}</strong></span>
+                      <span>Balance: <strong className="col-mono">{money(file.balanceDue)}</strong></span>
+                      <span>Size: <strong>{formatBytes(file.sizeBytes)}</strong></span>
+                      <span>Updated: <strong>{dateTime(file.createdAt)}</strong></span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pdf-file-actions">
+                  <a
+                    href={`/api/statements/${file.statementId}/file`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-primary btn-sm"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                    title="Open PDF Statement in a new tab"
+                  >
+                    <IconExternalLink size={13} /> Open PDF
+                  </a>
+                  <a
+                    href={`/api/statements/${file.statementId}/download`}
+                    className="btn btn-secondary btn-sm"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                    title="Download this PDF statement"
+                  >
+                    <IconDownload size={13} /> Download
+                  </a>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setPreviewId(previewId === file.statementId ? null : file.statementId)}
+                  >
+                    {previewId === file.statementId ? 'Hide Preview' : 'Preview'}
+                  </button>
+                </div>
+              </div>
+
+              {previewId === file.statementId && (
+                <div className="pdf-preview-container">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--color-text-muted)' }}>
+                      Previewing {file.name}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => setPreviewId(null)}
+                      style={{ padding: '2px 8px', fontSize: '0.75rem' }}
+                    >
+                      Close Preview
+                    </button>
+                  </div>
+                  <iframe
+                    className="pdf-preview-frame"
+                    src={`/api/statements/${file.statementId}/file`}
+                    title={`PDF preview for ${file.name}`}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="pdf-file-card" style={{ padding: '32px 24px', textAlign: 'center' }}>
+          <div style={{ margin: '0 auto 16px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 48, height: 48, borderRadius: 24, background: '#f1f5f9', color: '#64748b' }}>
+            <IconFileText size={24} />
+          </div>
+          <h3 style={{ margin: '0 0 8px', fontSize: '1rem', fontWeight: 600 }}>No PDF from ZIP Archive Attached</h3>
+          <p style={{ margin: '0 0 20px', color: 'var(--color-text-muted)', fontSize: '0.88rem', maxWidth: 480, marginInline: 'auto' }}>
+            This patient's statement was uploaded via spreadsheet without an extracted ZIP PDF file. You can still view and download the official system-generated PDF statement.
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <a
+              href={`/api/statements/${s.id}/file`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-primary"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <IconExternalLink size={14} /> Open Generated Statement PDF
+            </a>
+            <a
+              href={`/api/statements/${s.id}/download`}
+              className="btn btn-secondary"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <IconDownload size={14} /> Download PDF
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // P2 – Statement detail with remarks (F10, F11, F12)
 export function StatementDetailPage() {
   const { id } = useParams();
@@ -84,6 +239,7 @@ export function StatementDetailPage() {
   const [dialog, setDialog] = useState(null);
   const [downloading, setDownloading] = useState(false);
   const [published, setPublished] = useState(location.state?.published ?? null);
+  const [docTab, setDocTab] = useState('statement'); // 'statement' | 'pdf'
 
   const load = useCallback(() => {
     setError(null);
@@ -157,22 +313,27 @@ export function StatementDetailPage() {
           </div>
 
           <div className="detail-hero-tabs">
-            <a
-              href={`/api/statements/${s.id}/file`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="pdf-stat-tab-btn"
-              title={s.file ? `Open Extracted PDF Statement (${s.file.name})` : 'Open PDF Statement in a new tab'}
+            <button
+              type="button"
+              className={`pdf-stat-tab-btn ${docTab === 'statement' ? 'active' : ''}`}
+              onClick={() => setDocTab('statement')}
+              title="View Statement Details & Ledger"
             >
-              <IconFileText size={15} />
-              <span>PDF Stat.</span>
-              {s.file && (
-                <span className="badge badge-secondary" style={{ marginLeft: 6, fontSize: '0.68rem', padding: '1px 5px' }}>
-                  PDF
+              Statement
+            </button>
+            <button
+              type="button"
+              className={`pdf-stat-tab-btn ${docTab === 'pdf' ? 'active' : ''}`}
+              onClick={() => setDocTab('pdf')}
+              title="View All PDF Statements from ZIP uploads for this patient"
+            >
+              <IconFileText size={15} /> PDF Stat.
+              {s.patientFiles?.length > 0 && (
+                <span className="badge badge-secondary" style={{ marginLeft: 6, fontSize: '0.68rem', padding: '1px 6px' }}>
+                  {s.patientFiles.length}
                 </span>
               )}
-              <IconExternalLink size={13} style={{ marginLeft: 3, opacity: 0.7 }} />
-            </a>
+            </button>
           </div>
         </div>
 
@@ -195,7 +356,9 @@ export function StatementDetailPage() {
 
       <div className="detail-columns-grid">
         <div className="statement-document-card">
-          {s.source === 'pdf_upload' && s.file && !s.lineItems?.length ? (
+          {docTab === 'pdf' ? (
+            <PatientPdfStatTab statement={s} onSwitchToStatement={() => setDocTab('statement')} />
+          ) : s.source === 'pdf_upload' && s.file && !s.lineItems?.length ? (
             <div className="pdf-panel" style={{ padding: '32px 20px', textAlign: 'center' }}>
               <p style={{ marginBottom: 14, fontWeight: 500 }}>
                 This statement was uploaded as a PDF document ({s.file.name}).

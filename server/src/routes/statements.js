@@ -357,7 +357,7 @@ statementsRouter.get('/:id', async (req, res) => {
       wasNew = upd.rowCount === 1;
     }
 
-    const [clinic, file, remarks, people, others] = await Promise.all([
+    const [clinic, file, remarks, people, others, patientFiles] = await Promise.all([
       db.query('SELECT * FROM clinic WHERE id = $1', [s.clinic_id]),
       db.query('SELECT original_filename, size_bytes FROM statement_file WHERE statement_id = $1', [s.id]),
       db.query(
@@ -374,6 +374,21 @@ statementsRouter.get('/:id', async (req, res) => {
              FROM statement o
             WHERE o.clinic_id = $1 AND o.account_number = $2 AND o.id <> $3 AND ${scope}
             ORDER BY o.statement_date DESC, o.version DESC LIMIT 50`,
+          params,
+        );
+      })(),
+      (() => {
+        const params = [s.clinic_id, s.account_number, s.patient_name];
+        const scope = statementScope(req.user, 'st', params);
+        return db.query(
+          `SELECT sf.statement_id, sf.original_filename, sf.size_bytes, sf.created_at,
+                  st.statement_date, st.version, st.status, st.balance_due
+             FROM statement_file sf
+             JOIN statement st ON st.id = sf.statement_id
+            WHERE st.clinic_id = $1
+              AND (st.account_number = $2 OR LOWER(TRIM(st.patient_name)) = LOWER(TRIM($3)))
+              AND ${scope}
+            ORDER BY st.statement_date DESC, st.version DESC`,
           params,
         );
       })(),
@@ -445,6 +460,17 @@ statementsRouter.get('/:id', async (req, res) => {
         uploadedByName: nameOf[s.uploaded_by_id],
         wasNew,
         file: file.rows[0] ? { name: file.rows[0].original_filename, sizeBytes: file.rows[0].size_bytes } : null,
+        patientFiles: patientFiles.rows.map((pf) => ({
+          statementId: pf.statement_id,
+          name: pf.original_filename,
+          sizeBytes: pf.size_bytes,
+          createdAt: pf.created_at,
+          statementDate: pf.statement_date,
+          version: pf.version,
+          status: pf.status,
+          balanceDue: pf.balance_due,
+          isCurrent: pf.statement_id === s.id,
+        })),
         earlierVersionId: earlier?.id ?? null,
         newerVersionId: newer?.id ?? null,
       },
