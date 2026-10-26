@@ -11,12 +11,11 @@ export function VerifyPage() {
   const { user, pending, verify, cancelPending } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
-  const [code, setCode] = useState(pending?.devOtp || '');
+  const [code, setCode] = useState('');
   const [method, setMethod] = useState('email');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [cooldown, setCooldown] = useState(60);
-  const [devOtp, setDevOtp] = useState(pending?.devOtp || '');
   // Holds this page while the result of a successful verify is being applied.
   const verified = useRef(false);
 
@@ -25,23 +24,6 @@ export function VerifyPage() {
     const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
     return () => clearTimeout(t);
   }, [cooldown]);
-
-  // If no devOtp in pending, fetch active OTP from dev endpoint for auto-fill
-  useEffect(() => {
-    if (pending?.devOtp) {
-      setDevOtp(pending.devOtp);
-      setCode((c) => (c ? c : pending.devOtp));
-    } else {
-      api('/auth/dev-otp')
-        .then((d) => {
-          if (d?.code) {
-            setDevOtp(d.code);
-            setCode((prev) => (prev ? prev : d.code));
-          }
-        })
-        .catch(() => {});
-    }
-  }, [pending]);
 
   if (user && verified.current) return null;
   if (user) return <Navigate to={landingPath(user)} replace />;
@@ -78,33 +60,12 @@ export function VerifyPage() {
     await doVerify(code);
   };
 
-  const handleAutoFill = (otpVal) => {
-    const val = (otpVal || devOtp || '123456').trim();
-    setCode(val);
-    setError('');
-    toast(`OTP code ${val} auto-filled!`);
-  };
-
-  const handleAutoFillAndVerify = async (otpVal) => {
-    const val = (otpVal || devOtp || '123456').trim();
-    setCode(val);
-    setError('');
-    toast(`Verifying code ${val}…`);
-    await doVerify(val);
-  };
-
   const resend = async () => {
     setError('');
     try {
-      const res = await api('/auth/resend', { method: 'POST' });
+      await api('/auth/resend', { method: 'POST' });
       setCooldown(60);
-      if (res?.devOtp) {
-        setDevOtp(res.devOtp);
-        setCode(res.devOtp);
-        toast(`New code ${res.devOtp} generated & auto-filled!`);
-      } else {
-        toast(`A new code was sent to ${pending.maskedEmail}.`);
-      }
+      toast(`A new code was sent to ${pending.maskedEmail}.`);
     } catch (err) {
       if (err.status === 401) {
         await cancelPending();
@@ -137,68 +98,24 @@ export function VerifyPage() {
           )}
         </div>
 
-        {/* Auto-fill OTP Helper Card when no SMTP configured */}
-        {method === 'email' && devOtp && (
-          <div className="dev-otp-card">
-            <div className="dev-otp-header">
-              <span className="badge badge-warning">No SMTP Configured</span>
-              <span className="dev-otp-title">Auto-fill ready</span>
-            </div>
-            <p className="dev-otp-desc">
-              <span>Your one-time sign-in code:</span>
-              <strong className="dev-otp-number">{devOtp}</strong>
-            </p>
-            <div className="dev-otp-actions">
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => handleAutoFill(devOtp)}
-                disabled={busy}
-              >
-                ⚡ Auto-fill OTP
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                onClick={() => handleAutoFillAndVerify(devOtp)}
-                disabled={busy}
-              >
-                Auto-fill & verify →
-              </button>
-            </div>
-          </div>
-        )}
-
-        {pending.emailFailed && method === 'email' && !devOtp && (
+        {pending.emailFailed && method === 'email' && (
           <Alert tone="warning">We couldn't send your code. Try "Resend code" in a minute{pending.hasTotp ? ' or use your authenticator app' : ''}.</Alert>
         )}
 
         <form onSubmit={submit} noValidate>
           <Field label={method === 'email' ? 'Code from your email' : 'Code from your authenticator app'} error={error}>
             {(p) => (
-              <div className="otp-input-group">
-                <input
-                  {...p}
-                  className="form-input otp-input"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={6}
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  autoFocus
-                />
-                {method === 'email' && devOtp && (
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm otp-autofill-btn"
-                    onClick={() => handleAutoFill(devOtp)}
-                    disabled={busy}
-                    title="Auto-fill OTP code"
-                  >
-                    ⚡ Auto-fill
-                  </button>
-                )}
-              </div>
+              <input
+                {...p}
+                className="form-input otp-input"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                autoFocus
+                placeholder="6-digit code"
+              />
             )}
           </Field>
           <button type="submit" className="btn btn-primary btn-block" disabled={busy}>

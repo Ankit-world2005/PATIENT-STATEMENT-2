@@ -97,6 +97,25 @@ export const CLINIC_PROVISIONS = [
       password: 'Evolve@123',
     },
   },
+  {
+    clinic: {
+      name: 'WestAZ',
+      code: 'CLN-0001',
+      addressLine1: '100 Medical Center Blvd',
+      addressLine2: null,
+      city: 'Phoenix',
+      state: 'AZ',
+      postalCode: '85001',
+      contactName: 'WestAZ Manager',
+      contactPhone: '(602) 555-0100',
+      contactEmail: 'westaz.mypatient@gmail.com',
+    },
+    user: {
+      email: 'westaz.mypatient@gmail.com',
+      fullName: 'WestAZ Clinic',
+      password: 'westaz@123#',
+    },
+  },
 ];
 
 export async function provisionClinicsAndUsers() {
