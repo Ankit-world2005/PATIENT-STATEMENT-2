@@ -828,8 +828,8 @@ a.hub-card { text-decoration: none; color: inherit; }
   font-weight: 700;
 }
 .steps li + li::after { order: -1; content: ''; width: 24px; height: 1px; background: var(--color-border-control); }
-.steps li.current { color: var(--color-text); font-weight: 700; }
-.steps li.current::before { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+.steps li.current { color: var(--color-primary); font-weight: 700; }
+.steps li.current::before { background: var(--color-accent); border-color: var(--color-accent); color: #fff; }
 .steps li.done::before { content: '✓'; background: var(--color-success-bg); border-color: var(--color-success); color: var(--color-success); }
 .steps-page { margin-top: 4px; }
 
@@ -887,8 +887,8 @@ a.hub-card { text-decoration: none; color: inherit; }
   box-shadow: 0 6px 16px -2px rgba(13, 148, 136, 0.18), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
 }
 .stat-warning.stat-tile-clickable:hover {
-  border-color: var(--color-warning);
-  box-shadow: 0 6px 16px -2px rgba(217, 119, 6, 0.18), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+  border-color: var(--color-accent);
+  box-shadow: 0 6px 16px -2px rgba(243, 108, 33, 0.22), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
 }
 .stat-danger.stat-tile-clickable:hover {
   border-color: var(--color-danger);
@@ -908,13 +908,13 @@ a.hub-card { text-decoration: none; color: inherit; }
   transition: color 0.15s ease;
 }
 .stat-tile-clickable:hover .stat-action-hint {
-  color: var(--color-primary);
+  color: var(--color-accent);
 }
 .stat-success.stat-tile-clickable:hover .stat-action-hint {
   color: var(--color-success);
 }
 .stat-warning.stat-tile-clickable:hover .stat-action-hint {
-  color: var(--color-warning);
+  color: var(--color-accent);
 }
 .stat-danger.stat-tile-clickable:hover .stat-action-hint {
   color: var(--color-danger);
@@ -933,9 +933,9 @@ a.hub-card { text-decoration: none; color: inherit; }
   padding: 14px 18px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-left: 4px solid var(--color-primary);
+  border-left: 4px solid var(--color-accent);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 10px 25px rgba(37, 59, 128, 0.12);
   font-size: 0.92rem;
 }
 
@@ -1195,15 +1195,15 @@ a.hub-card { text-decoration: none; color: inherit; }
 }
 
 .patient-ledger-table thead tr th {
-  background: #2563EB; /* Vibrant Royal/Electric Blue */
+  background: #253B80; /* Royal Navy Blue */
   color: #FFFFFF;
   font-weight: 700;
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 11px 14px;
-  border-bottom: 2px solid #1D4ED8;
-  border-right: 1px solid rgba(255, 255, 255, 0.28);
+  border-bottom: 2px solid #1B2D66;
+  border-right: 1px solid rgba(255, 255, 255, 0.22);
   white-space: nowrap;
   vertical-align: middle;
   text-align: center;
@@ -1242,7 +1242,7 @@ a.hub-card { text-decoration: none; color: inherit; }
 
 .patient-ledger-table thead tr th.sticky-col-location,
 .patient-ledger-table thead tr th.sticky-col-patient {
-  background: #1D4ED8; /* Slightly deeper blue for pinned headers */
+  background: #1B2D66; /* Deeper Navy Blue for pinned headers */
   z-index: 12;
 }
 

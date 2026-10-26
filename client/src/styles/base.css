@@ -7,44 +7,50 @@
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,600;0,8..60,700;1,8..60,600&display=swap');
 
 :root {
-  /* Surfaces & Lines (UI Brief 3.1) */
-  --color-bg: #F7F6F2;              /* Warm paper background */
-  --color-surface: #FFFFFF;         /* Crisp white sheet surface */
-  --color-surface-sunken: #EFEDE6;  /* Sunken table headers, filter bars */
-  --color-surface-hover: #F2EFE8;   /* Interactive hover row */
-  --color-border: #DDD9CF;          /* Fine ruled sheet borders */
-  --color-border-control: #7C776B;  /* Input & select borders (≥3:1 contrast) */
-  --color-border-focus: #1F5BD6;    /* Accessible keyboard focus ring */
+  /* Surfaces & Lines */
+  --color-bg: #FFFFFF;              /* Pure White background (#FFFFFF) */
+  --color-surface: #FFFFFF;         /* Pure White surface (#FFFFFF) */
+  --color-surface-sunken: #F4F6FB;  /* Subtle Royal Navy-tinted sunken header / filter bars */
+  --color-surface-hover: #EEF2FA;   /* Subtle Navy-tinted interactive hover row */
+  --color-border: #E2E8F0;          /* Clean modern border */
+  --color-border-control: #CBD5E1;  /* Input & select borders */
+  --color-border-focus: #F36C21;    /* Safety Orange keyboard focus ring */
 
   /* Text & Typography */
-  --color-text: #1C2430;            /* Dark ink text */
-  --color-text-muted: #465163;      /* Secondary descriptive text */
-  --color-text-subtle: #5E6878;     /* Timestamps, hints, coming soon tags */
-  --color-text-on-primary: #FFFFFF; /* High contrast text on dark buttons */
+  --color-text: #0F172A;            /* Deep ink / slate text for maximum readability */
+  --color-text-muted: #475569;      /* Secondary descriptive text */
+  --color-text-subtle: #64748B;     /* Timestamps, hints */
+  --color-text-on-primary: #FFFFFF; /* High contrast white text on buttons */
 
-  /* Actions & Brand */
-  --color-primary: #0D5C63;         /* Clinical deep teal */
-  --color-primary-hover: #09474D;   /* Dark teal for active/hover */
-  --color-primary-subtle: #E1EFEF;  /* Subtle teal tint for highlights */
-  --color-primary-light: #EBF5F5;
+  /* Primary Brand: Royal Navy Blue (HEX #253B80) */
+  --color-primary: #253B80;         /* Royal Navy Blue */
+  --color-primary-hover: #1B2C66;   /* Deeper Navy hover */
+  --color-primary-subtle: #EDF2FC;  /* Subtle Navy tint for highlights */
+  --color-primary-light: #F4F7FD;
+
+  /* Accent & Call To Action: Safety Orange (HEX #F36C21) */
+  --color-accent: #F36C21;          /* Safety Orange */
+  --color-accent-hover: #D95914;    /* Deeper Safety Orange hover */
+  --color-accent-subtle: #FEF0E8;   /* Light orange tint for tags/highlights */
+  --color-accent-light: #FFF5F0;
 
   /* Status Colors */
-  --color-success: #1D6B3B;
-  --color-success-bg: #E5F1E8;
-  --color-warning: #7E4D00;
-  --color-warning-bg: #FAEFD9;
-  --color-danger: #A3201C;
-  --color-danger-bg: #FBE8E6;
-  --color-highlight: #1C2430;       /* Highlighter text */
-  --color-highlight-bg: #FFE27A;    /* Highlighter yellow for "New" tags */
+  --color-success: #15803D;
+  --color-success-bg: #ECFDF5;
+  --color-warning: #F36C21;         /* Safety Orange warning tone */
+  --color-warning-bg: #FEF0E8;
+  --color-danger: #DC2626;
+  --color-danger-bg: #FEF2F2;
+  --color-highlight: #0F172A;
+  --color-highlight-bg: #FEF0E8;
 
-  /* Remark Ledger Roles (UI Brief 3.1) */
-  --color-remark-clinic: #7A3B69;      /* Plum rule & tag for Clinic User */
-  --color-remark-clinic-bg: #F6EDF3;
-  --color-remark-spec: #0D5C63;        /* Teal rule & tag for US24 Specialist */
-  --color-remark-spec-bg: #EAF4F5;
-  --color-remark-ins: #2E4C8C;         /* Royal blue for Insurance remarks */
-  --color-remark-ins-bg: #EBF0F8;
+  /* Remark Ledger Roles */
+  --color-remark-clinic: #F36C21;      /* Safety Orange for Clinic User */
+  --color-remark-clinic-bg: #FEF0E8;
+  --color-remark-spec: #253B80;        /* Royal Navy Blue for Specialist */
+  --color-remark-spec-bg: #EDF2FC;
+  --color-remark-ins: #253B80;         /* Royal Navy Blue for Insurance remarks */
+  --color-remark-ins-bg: #EDF2FC;
 
   /* Font Families */
   --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -52,10 +58,10 @@
   --font-serif: 'Source Serif 4', Georgia, "Times New Roman", serif;
 
   /* Elevation & Shadows */
-  --shadow-sm: 0 1px 3px rgba(28, 36, 48, 0.05);
-  --shadow-md: 0 4px 12px rgba(28, 36, 48, 0.08);
-  --shadow-lg: 0 10px 25px rgba(28, 36, 48, 0.12);
-  --shadow-overlay: 0 12px 32px rgba(28, 36, 48, 0.22);
+  --shadow-sm: 0 1px 3px rgba(37, 59, 128, 0.05);
+  --shadow-md: 0 4px 12px rgba(37, 59, 128, 0.08);
+  --shadow-lg: 0 10px 25px rgba(37, 59, 128, 0.12);
+  --shadow-overlay: 0 12px 32px rgba(37, 59, 128, 0.22);
 
   /* Layout Constants */
   --header-height: 68px;
@@ -132,11 +138,11 @@ body {
 .site-header {
   height: var(--header-height);
   background-color: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 2px solid var(--color-primary);
   position: sticky;
   top: 0;
   z-index: 40;
-  box-shadow: 0 1px 2px rgba(28, 36, 48, 0.03);
+  box-shadow: 0 2px 8px rgba(37, 59, 128, 0.06);
 }
 
 .site-header .container {
@@ -290,23 +296,25 @@ body {
 }
 
 .btn-primary {
-  background-color: var(--color-primary);
-  color: var(--color-text-on-primary);
-  border-color: var(--color-primary);
-  box-shadow: 0 1px 2px rgba(13, 92, 99, 0.2);
+  background-color: var(--color-accent);
+  color: #FFFFFF;
+  border-color: var(--color-accent);
+  box-shadow: 0 2px 6px rgba(243, 108, 33, 0.28);
 }
 .btn-primary:hover {
-  background-color: var(--color-primary-hover);
-  border-color: var(--color-primary-hover);
+  background-color: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+  color: #FFFFFF;
 }
 
 .btn-secondary {
   background-color: var(--color-surface);
-  color: var(--color-text);
-  border-color: var(--color-border-control);
+  color: var(--color-primary);
+  border-color: var(--color-primary);
 }
 .btn-secondary:hover {
-  background-color: var(--color-surface-sunken);
+  background-color: var(--color-primary-subtle);
+  color: var(--color-primary-hover);
 }
 
 .btn-tertiary {
@@ -317,7 +325,19 @@ body {
 }
 .btn-tertiary:hover {
   text-decoration: underline;
-  background: rgba(13, 92, 99, 0.05);
+  background: rgba(37, 59, 128, 0.06);
+}
+
+.btn-navy {
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+  border-color: var(--color-primary);
+  box-shadow: 0 2px 6px rgba(37, 59, 128, 0.25);
+}
+.btn-navy:hover {
+  background-color: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+  color: #FFFFFF;
 }
 
 .btn-sm {
@@ -1513,11 +1533,11 @@ body {
 /* Footer */
 .site-footer {
   margin-top: auto;
-  border-top: 1px solid var(--color-border);
-  background-color: var(--color-surface);
+  border-top: 3px solid var(--color-accent);
+  background-color: var(--color-primary);
   padding: 20px 0;
-  font-size: 0.8rem;
-  color: var(--color-text-subtle);
+  font-size: 0.84rem;
+  color: #FFFFFF;
   text-align: center;
 }
 
