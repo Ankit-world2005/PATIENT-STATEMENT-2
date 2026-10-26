@@ -218,8 +218,6 @@ export function ImportTabContent({ clinics: initialClinics, recentImports = [] }
               )}
             </Field>
 
-            <TemplateLinks />
-
             {failure && (
               <Alert tone="error" title="This file can't be imported">
                 {failure} Nothing was published. Fix the file errors and check it again.

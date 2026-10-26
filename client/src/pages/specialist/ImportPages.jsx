@@ -21,26 +21,7 @@ export function useDownload() {
 }
 
 export function TemplateLinks() {
-  const download = useDownload();
-  return (
-    <div className="template-box">
-      <div>
-        <strong>Import template</strong>
-        <p className="form-hint">
-          Required columns: patient_name, account_number, statement_date, balance_due. Optional: patient_dob, service dates,
-          cpt_codes, amounts and insurance_name. Dates as YYYY-MM-DD or MM/DD/YYYY.
-        </p>
-      </div>
-      <div className="template-actions">
-        <button type="button" className="btn btn-secondary btn-sm" onClick={() => download('/imports/template.xlsx', 'statement-import-template.xlsx')}>
-          <IconDownload size={14} /> Excel template
-        </button>
-        <button type="button" className="btn btn-secondary btn-sm" onClick={() => download('/imports/template.csv', 'statement-import-template.csv')}>
-          <IconDownload size={14} /> CSV template
-        </button>
-      </div>
-    </div>
-  );
+  return null;
 }
 
 // --- S4: choose clinic and file (FR-7.1, 7.2) -----------------------------------
@@ -160,8 +141,6 @@ export function ImportNewPage() {
             </div>
           )}
         </Field>
-
-        <TemplateLinks />
 
         {failure && (
           <Alert tone="error" title="This file can't be imported">
