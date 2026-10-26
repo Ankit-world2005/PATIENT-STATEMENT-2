@@ -593,21 +593,21 @@ input[type="date"].form-input {
   display: flex;
   justify-content: center;
   align-items: center;
-  margin: 0 auto 6px;
+  margin: 0 auto 16px;
 }
 .auth-hallmark-img {
-  width: 84px;
-  height: 84px;
+  width: 150px;
+  height: 150px;
   border-radius: 50%;
   object-fit: cover;
-  box-shadow: 0 4px 14px -2px rgba(37, 59, 128, 0.22), 0 2px 6px -1px rgba(0, 0, 0, 0.06);
-  border: 2px solid rgba(37, 59, 128, 0.15);
+  box-shadow: 0 8px 24px -4px rgba(13, 92, 99, 0.18), 0 2px 6px -1px rgba(0, 0, 0, 0.08);
+  border: 3px solid rgba(13, 92, 99, 0.12);
   background-color: #faf9f5;
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 .auth-hallmark-img:hover {
   transform: scale(1.03);
-  box-shadow: 0 8px 20px -2px rgba(37, 59, 128, 0.3), 0 3px 8px -2px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 12px 30px -4px rgba(13, 92, 99, 0.26), 0 4px 10px -2px rgba(0, 0, 0, 0.1);
 }
 
 @media (max-width: 600px) {

@@ -23,13 +23,6 @@ export function VerifyPage() {
   const verified = useRef(false);
 
   useEffect(() => {
-    document.body.classList.add('auth-view-active');
-    return () => {
-      document.body.classList.remove('auth-view-active');
-    };
-  }, []);
-
-  useEffect(() => {
     if (cooldown <= 0) return undefined;
     const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
     return () => clearTimeout(t);

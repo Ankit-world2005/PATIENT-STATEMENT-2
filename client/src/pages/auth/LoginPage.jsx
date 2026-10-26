@@ -17,13 +17,6 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    document.body.classList.add('auth-view-active');
-    return () => {
-      document.body.classList.remove('auth-view-active');
-    };
-  }, []);
-
   if (user) return <Navigate to={landingPath(user)} replace />;
   if (pending) return <Navigate to="/login/verify" replace />;
 

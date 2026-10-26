@@ -508,151 +508,76 @@ body {
 }
 
 /* ==========================================================================
-   AUTH SCREENS (A1 Login, A2 Two-Step) - Zero Scrolling Design
+   AUTH SCREENS (A1 Login, A2 Two-Step)
    ========================================================================== */
-@media (min-height: 520px) {
-  html.auth-view-active,
-  body.auth-view-active,
-  html:has(.auth-wrapper),
-  body:has(.auth-wrapper) {
-    height: 100vh;
-    max-height: 100vh;
-    overflow: hidden !important;
-  }
-
-  body.auth-view-active #root,
-  body:has(.auth-wrapper) #root {
-    height: 100vh;
-    max-height: 100vh;
-    overflow: hidden !important;
-    display: flex;
-    flex-direction: column;
-  }
-
-  body.auth-view-active main,
-  body:has(.auth-wrapper) main {
-    flex: 1 1 auto;
-    min-height: 0;
-    padding-bottom: 0 !important;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden !important;
-  }
-
-  body.auth-view-active .site-header,
-  body:has(.auth-wrapper) .site-header {
-    height: 52px;
-    flex-shrink: 0;
-  }
-
-  body.auth-view-active .site-footer,
-  body:has(.auth-wrapper) .site-footer {
-    flex-shrink: 0;
-    padding: 8px 16px;
-    font-size: 0.75rem;
-    border-top: 2px solid var(--color-accent);
-  }
-}
-
 .auth-wrapper {
-  flex: 1 1 auto;
-  min-height: 0;
+  min-height: calc(100vh - var(--header-height) - 60px);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 10px 16px;
-  box-sizing: border-box;
+  padding: 40px 16px;
 }
 
 .auth-card {
   width: 100%;
-  max-width: 410px;
+  max-width: 440px;
   background: var(--color-surface);
-  border: 1px solid rgba(37, 59, 128, 0.14);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  padding: 18px 24px;
-  box-shadow: 0 10px 25px -4px rgba(37, 59, 128, 0.12), 0 3px 8px -2px rgba(0, 0, 0, 0.04);
+  padding: 36px 32px;
+  box-shadow: var(--shadow-md);
 }
 
 .auth-header {
   text-align: center;
-  margin-bottom: 8px;
+  margin-bottom: 28px;
 }
 
 .auth-title {
   font-family: var(--font-serif);
-  font-size: 1.5rem;
+  font-size: 1.85rem;
   font-weight: 700;
   color: var(--color-text);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .auth-subtitle {
   color: var(--color-text-muted);
-  font-size: 0.82rem;
-  line-height: 1.35;
-  margin-bottom: 0;
+  font-size: 0.9rem;
 }
 
 .auth-clinic-notice {
   background: var(--color-primary-subtle);
   border-left: 3px solid var(--color-primary);
-  padding: 6px 10px;
-  font-size: 0.75rem;
-  line-height: 1.35;
+  padding: 10px 14px;
+  font-size: 0.82rem;
   color: var(--color-primary);
-  margin-bottom: 10px;
+  margin-bottom: 20px;
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-}
-
-.auth-card .form-group {
-  margin-bottom: 10px;
-}
-
-.auth-card .form-label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  margin-bottom: 3px;
-}
-
-.auth-card .form-input {
-  height: 36px;
-  min-height: 36px;
-  padding: 6px 12px;
-  font-size: 0.88rem;
-}
-
-.auth-card .btn-primary.btn-block {
-  height: 38px;
-  min-height: 38px;
-  padding: 6px 14px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  margin-top: 4px;
 }
 
 .auth-otp-display {
   background: var(--color-surface-sunken);
   border: 1px dashed var(--color-border-control);
-  padding: 12px;
+  padding: 16px;
   border-radius: var(--radius-sm);
   text-align: center;
-  margin-bottom: 14px;
+  margin-bottom: 20px;
 }
 
 .otp-inputs-wrapper {
   display: flex;
   justify-content: center;
   gap: 8px;
-  margin: 12px 0;
+  margin: 16px 0;
 }
 
 .otp-digit-input {
-  width: 44px;
-  height: 48px;
+  width: 46px;
+  height: 52px;
   text-align: center;
   font-family: var(--font-mono);
-  font-size: 1.4rem;
+  font-size: 1.5rem;
   font-weight: 600;
   border: 1px solid var(--color-border-control);
   border-radius: var(--radius-sm);
@@ -660,20 +585,16 @@ body {
 }
 .otp-digit-input:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(37, 59, 128, 0.2);
+  box-shadow: 0 0 0 3px rgba(13, 92, 99, 0.2);
   outline: none;
 }
 
 .auth-actions-footer {
-  margin-top: 8px;
+  margin-top: 24px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 12px;
   text-align: center;
-}
-.auth-actions-footer .btn-tertiary {
-  font-size: 0.82rem;
-  padding: 2px 4px;
 }
 
 .demo-credentials-pill {
