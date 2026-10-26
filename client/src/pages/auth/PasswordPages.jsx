@@ -46,6 +46,13 @@ function PasswordForm({ submitLabel, onSubmit }) {
 }
 
 function AuthCard({ title, subtitle, children }) {
+  useEffect(() => {
+    document.body.classList.add('auth-view-active');
+    return () => {
+      document.body.classList.remove('auth-view-active');
+    };
+  }, []);
+
   return (
     <div className="auth-wrapper">
       <div className="auth-card">
