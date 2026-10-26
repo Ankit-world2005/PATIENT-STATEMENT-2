@@ -639,11 +639,6 @@ a.hub-card { text-decoration: none; color: inherit; }
 .detail-hero-tabs {
   display: inline-flex;
   align-items: center;
-  background: #f1f5f9;
-  padding: 4px;
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
-  gap: 4px;
   margin-left: auto;
   align-self: flex-start;
 }
@@ -654,37 +649,22 @@ a.hub-card { text-decoration: none; color: inherit; }
   padding: 6px 14px;
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--color-text-muted);
-  background: transparent;
-  border: none;
-  border-radius: 6px;
+  color: var(--color-primary, #253B80);
+  background: #ffffff;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
   font-family: inherit;
+  text-decoration: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 .pdf-stat-tab-btn:hover {
-  color: var(--color-text);
-  background: rgba(255, 255, 255, 0.6);
-}
-.pdf-stat-tab-btn.active {
-  color: var(--color-primary);
-  background: #ffffff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-}
-.pdf-stat-popout-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px 8px;
-  color: var(--color-text-muted);
-  border-radius: 6px;
-  transition: all 0.15s ease;
-  text-decoration: none;
-}
-.pdf-stat-popout-btn:hover {
-  color: var(--color-primary);
-  background: rgba(255, 255, 255, 0.8);
+  color: var(--color-primary, #253B80);
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 .detail-actions-bar { flex-wrap: wrap; gap: 16px; }
 .detail-buttons { display: flex; gap: 10px; flex-wrap: wrap; }

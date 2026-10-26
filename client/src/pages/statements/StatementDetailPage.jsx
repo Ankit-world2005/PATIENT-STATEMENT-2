@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useLocation, useParams, useSearchParams } from 'react-router';
+import { Link, useLocation, useParams } from 'react-router';
 import { IconDownload, IconExternalLink, IconFileText, IconPrint } from '../../components/Icons.jsx';
 import { RemarksLedger } from '../../components/RemarksLedger.jsx';
 import { StatementDocument } from '../../components/StatementDocument.jsx';
@@ -78,14 +78,12 @@ export function StatementDetailPage() {
   const { id } = useParams();
   const { user } = useAuth();
   const location = useLocation();
-  const [searchParams] = useSearchParams();
   const toast = useToast();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [dialog, setDialog] = useState(null);
   const [downloading, setDownloading] = useState(false);
   const [published, setPublished] = useState(location.state?.published ?? null);
-  const [docTab, setDocTab] = useState(searchParams.get('tab') === 'pdf' ? 'pdf' : 'statement'); // 'statement' | 'pdf'
 
   const load = useCallback(() => {
     setError(null);
@@ -159,35 +157,21 @@ export function StatementDetailPage() {
           </div>
 
           <div className="detail-hero-tabs">
-            <button
-              type="button"
-              className={`pdf-stat-tab-btn ${docTab === 'statement' ? 'active' : ''}`}
-              onClick={() => setDocTab('statement')}
-              title="View Statement Details & Ledger"
+            <a
+              href={`/api/statements/${s.id}/file`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="pdf-stat-tab-btn"
+              title={s.file ? `Open Extracted PDF Statement (${s.file.name})` : 'Open PDF Statement in a new tab'}
             >
-              Statement
-            </button>
-            <button
-              type="button"
-              className={`pdf-stat-tab-btn ${docTab === 'pdf' ? 'active' : ''}`}
-              onClick={() => setDocTab('pdf')}
-              title={s.file ? `View Extracted PDF Statement (${s.file.name})` : 'View PDF Statement'}
-            >
-              <IconFileText size={15} /> PDF Stat.
+              <IconFileText size={15} />
+              <span>PDF Stat.</span>
               {s.file && (
                 <span className="badge badge-secondary" style={{ marginLeft: 6, fontSize: '0.68rem', padding: '1px 5px' }}>
                   PDF
                 </span>
               )}
-            </button>
-            <a
-              href={`/api/statements/${s.id}/file`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="pdf-stat-popout-btn"
-              title="Open PDF Statement in a new browser tab"
-            >
-              <IconExternalLink size={14} />
+              <IconExternalLink size={13} style={{ marginLeft: 3, opacity: 0.7 }} />
             </a>
           </div>
         </div>
@@ -211,38 +195,20 @@ export function StatementDetailPage() {
 
       <div className="detail-columns-grid">
         <div className="statement-document-card">
-          {docTab === 'pdf' ? (
-            <div className="pdf-panel">
-              <iframe
-                className="pdf-frame"
-                src={`/api/statements/${s.id}/file`}
-                title={`Statement PDF for ${s.patientName}`}
-              />
-              <div className="pdf-mobile">
-                <p>The statement is a PDF document.</p>
-                <a className="btn btn-secondary" href={`/api/statements/${s.id}/file`} target="_blank" rel="noopener">
-                  View PDF
-                </a>
-              </div>
-              <p className="form-hint" style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Viewing PDF Statement{s.file?.name ? `: ${s.file.name}` : ''}.</span>
-                <a href={`/api/statements/${s.id}/file`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                  <IconExternalLink size={13} /> Open in new window
-                </a>
+          {s.source === 'pdf_upload' && s.file && !s.lineItems?.length ? (
+            <div className="pdf-panel" style={{ padding: '32px 20px', textAlign: 'center' }}>
+              <p style={{ marginBottom: 14, fontWeight: 500 }}>
+                This statement was uploaded as a PDF document ({s.file.name}).
               </p>
-            </div>
-          ) : s.source === 'pdf_upload' && s.file ? (
-            <div className="pdf-panel">
-              <iframe className="pdf-frame" src={`/api/statements/${s.id}/file`} title={`Statement PDF for ${s.patientName}`} />
-              <div className="pdf-mobile">
-                <p>The statement is a PDF document.</p>
-                <a className="btn btn-secondary" href={`/api/statements/${s.id}/file`} target="_blank" rel="noopener">View PDF</a>
-              </div>
-              <p className="form-hint">Can't see the PDF? Use Download PDF.</p>
-              <details className="pdf-fields">
-                <summary>Statement details</summary>
-                <StatementDocument statement={s} clinic={clinic} />
-              </details>
+              <a
+                className="btn btn-primary"
+                href={`/api/statements/${s.id}/file`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <IconFileText size={16} /> Open PDF Statement <IconExternalLink size={14} />
+              </a>
             </div>
           ) : (
             <StatementDocument statement={s} clinic={clinic} />
