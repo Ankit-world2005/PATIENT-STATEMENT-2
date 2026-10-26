@@ -75,19 +75,34 @@ export async function checkImport(req, { clinicId, file, zipFile }) {
     rows = validateRows(parsed.rows);
     await markDuplicates(pool, clinic.id, rows);
 
-    // Match extracted PDFs to rows
+    // Match extracted PDFs to rows (supporting multi-cycle: 1st, 2nd, 3rd)
     const matchResult = matchPdfsToRows(pdfEntries, rows);
-    for (const [rIdx, pIdx] of matchResult.assignments.entries()) {
+    for (let rIdx = 0; rIdx < rows.length; rIdx++) {
       const row = rows[rIdx];
-      const pdf = pdfEntries[pIdx];
-      const storageKey = statementFileKey();
-      await storage.put(storageKey, pdf.buffer);
-      row.data.matched_pdf_storage_key = storageKey;
-      row.data.matched_pdf_name = pdf.originalFilename;
-      row.data.matched_pdf_size = pdf.sizeBytes;
-      row.data.matched_pdf_sha256 = pdf.sha256;
+      const pIndices = matchResult.rowPdfs?.get(rIdx) ||
+        (matchResult.assignments?.has(rIdx) ? [matchResult.assignments.get(rIdx)] : []);
+
+      if (pIndices.length > 0) {
+        row.data.matched_pdfs = [];
+        for (const pIdx of pIndices) {
+          const pdf = pdfEntries[pIdx];
+          const storageKey = statementFileKey();
+          await storage.put(storageKey, pdf.buffer);
+          row.data.matched_pdfs.push({
+            storage_key: storageKey,
+            original_filename: pdf.originalFilename,
+            size_bytes: pdf.sizeBytes,
+            sha256: pdf.sha256,
+          });
+        }
+        const primary = row.data.matched_pdfs[0];
+        row.data.matched_pdf_storage_key = primary.storage_key;
+        row.data.matched_pdf_name = primary.original_filename;
+        row.data.matched_pdf_size = primary.size_bytes;
+        row.data.matched_pdf_sha256 = primary.sha256;
+      }
     }
-    matchedPdfCount = matchResult.matchedCount;
+    matchedPdfCount = matchResult.matchedPdfsCount || matchResult.matchedCount;
   }
   const counts = {
     total: rows.length,
@@ -287,12 +302,23 @@ export async function publishImport(req, batchId) {
           [created.id],
         );
       }
-      if (it.matched_pdf_storage_key && created?.id) {
-        await db.query(
-          `INSERT INTO statement_file (statement_id, storage_key, original_filename, size_bytes, sha256)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [created.id, it.matched_pdf_storage_key, it.matched_pdf_name, it.matched_pdf_size, it.matched_pdf_sha256],
-        );
+      if (created?.id) {
+        const pdfsToInsert = it.matched_pdfs && Array.isArray(it.matched_pdfs) && it.matched_pdfs.length > 0
+          ? it.matched_pdfs
+          : (it.matched_pdf_storage_key ? [{
+              storage_key: it.matched_pdf_storage_key,
+              original_filename: it.matched_pdf_name,
+              size_bytes: it.matched_pdf_size,
+              sha256: it.matched_pdf_sha256,
+            }] : []);
+
+        for (const pdf of pdfsToInsert) {
+          await db.query(
+            `INSERT INTO statement_file (statement_id, storage_key, original_filename, size_bytes, sha256)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [created.id, pdf.storage_key, pdf.original_filename, pdf.size_bytes, pdf.sha256],
+          );
+        }
       }
     }
 

@@ -58,21 +58,91 @@ export async function extractPdfsFromZip(zipBuffer) {
 /**
  * Normalizes a string for matching (lowercase, alphanumeric only).
  */
-function cleanStr(s) {
+export function cleanStr(s) {
   return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 /**
+ * Parses the specialist PDF naming syntax:
+ *   Patient Name_$00.00_West AZ_1st or 2nd or 3rd.pdf
+ * (e.g. "Dolores Beatty_$538.91_West AZ_1st.pdf" or "John Doe_$00.00_West AZ_2nd.pdf")
+ */
+export function parsePatientStatementPdfSyntax(filename) {
+  const base = filename.replace(/\.pdf$/i, '').trim();
+  const segments = base.split('_').map((s) => s.trim()).filter(Boolean);
+
+  if (segments.length >= 2) {
+    const rawPatientName = segments[0];
+
+    // Find amount segment (e.g. "$538.91", "$00.00", "538.91", "$1,200.50")
+    let amountStr = null;
+    let amountNum = null;
+    let amountIdx = -1;
+    for (let i = 1; i < segments.length; i++) {
+      const match = segments[i].match(/^\$?(-?[\d,]+(?:\.\d{1,2})?)$/);
+      if (match) {
+        amountStr = match[1].replace(/,/g, '');
+        amountNum = parseFloat(amountStr);
+        amountIdx = i;
+        break;
+      }
+    }
+
+    // Find cycle segment (e.g. "1st", "2nd", "3rd", "1st Electronic Statement", "cycle 1", etc.)
+    let cycleStr = null;
+    let cycleNum = null;
+    let cycleIdx = -1;
+    for (let i = 1; i < segments.length; i++) {
+      if (i === amountIdx) continue;
+      const cMatch = segments[i].match(/^(1st|2nd|3rd|1|2|3)\b/i);
+      if (cMatch) {
+        cycleStr = cMatch[1].toLowerCase();
+        cycleNum = cycleStr.startsWith('1') ? 1 : cycleStr.startsWith('2') ? 2 : 3;
+        cycleIdx = i;
+        break;
+      }
+    }
+
+    // Remaining segments can represent location / clinic (e.g. "West AZ")
+    const locationSegments = segments.filter((_, idx) => idx !== 0 && idx !== amountIdx && idx !== cycleIdx);
+    const locationStr = locationSegments.join(' ');
+
+    return {
+      isSyntaxMatch: true,
+      patientName: rawPatientName,
+      cleanPatientName: cleanStr(rawPatientName),
+      amountStr,
+      amountNum,
+      cycleStr,
+      cycleNum,
+      locationStr,
+      cleanLocation: cleanStr(locationStr),
+    };
+  }
+
+  return {
+    isSyntaxMatch: false,
+    patientName: null,
+    cleanPatientName: '',
+    amountStr: null,
+    amountNum: null,
+    cycleStr: null,
+    cycleNum: null,
+    locationStr: '',
+    cleanLocation: '',
+  };
+}
+
+/**
  * Matches extracted PDFs to validated statement rows.
- * Uses a multi-heuristic scoring approach:
- *   1. Exact account number
- *   2. Account number + patient name in filename
- *   3. Exact patient name
- *   4. Account number as distinct token (e.g. stmt_12345.pdf)
- *   5. Normalized account number without leading zeros
- *   6. Patient name parts reversed (e.g. Doe, John vs John Doe)
- *   7. Row index match (e.g. row_1.pdf, 1.pdf)
- *   8. Sequential 1-to-1 fallback if counts match exactly
+ * Supports:
+ *   1. Specialist Syntax: Patient Name_$00.00_West AZ_1st or 2nd or 3rd (Scores 105 - 125)
+ *   2. Exact account number (Score 100)
+ *   3. Account number + patient name in filename (Score 98)
+ *   4. Exact patient name (Score 95)
+ *   5. Stripped account prefix / digits match (Score 91 - 93)
+ *   6. Reversed patient name (Score 88)
+ *   7. Sequential 1-to-1 fallback if counts match exactly
  */
 export function matchPdfsToRows(pdfEntries, rows) {
   const scoredPairs = [];
@@ -84,8 +154,17 @@ export function matchPdfsToRows(pdfEntries, rows) {
     const cleanAcct = cleanStr(acct);
     const patName = String(data.patient_name || '').trim();
     const cleanPat = cleanStr(patName);
-
     const patParts = patName.toLowerCase().split(/[\s,._-]+/).filter((p) => p.length >= 2);
+    const rowBalances = [
+      data.balance_due,
+      data.current_balance,
+      data.cycle1_balance,
+      data.cycle2_balance,
+      data.cycle3_balance,
+    ]
+      .filter((v) => v !== undefined && v !== null && v !== '')
+      .map(Number);
+    const rowLoc = cleanStr(data.location_name || data.location);
 
     for (let pIdx = 0; pIdx < pdfEntries.length; pIdx++) {
       const pdf = pdfEntries[pIdx];
@@ -94,17 +173,50 @@ export function matchPdfsToRows(pdfEntries, rows) {
 
       let score = 0;
 
+      // Check specialist syntax: Patient Name_$00.00_West AZ_1st or 2nd or 3rd
+      const syntax = parsePatientStatementPdfSyntax(pdf.originalFilename);
+      if (syntax.isSyntaxMatch && syntax.cleanPatientName && cleanPat) {
+        const sPat = syntax.cleanPatientName;
+        const isNameMatch =
+          cleanPat === sPat ||
+          (patParts.length >= 2 && patParts.slice().reverse().join('') === sPat) ||
+          (cleanPat.length >= 5 && sPat.includes(cleanPat)) ||
+          (sPat.length >= 5 && cleanPat.includes(sPat));
+
+        if (isNameMatch) {
+          let syntaxScore = 110;
+
+          // Balance verification
+          if (syntax.amountNum !== null && rowBalances.some((b) => Math.abs(b - syntax.amountNum) < 0.01)) {
+            syntaxScore += 10;
+          }
+
+          // Location verification (e.g. "West AZ")
+          if (syntax.cleanLocation && rowLoc && (rowLoc.includes(syntax.cleanLocation) || syntax.cleanLocation.includes(rowLoc))) {
+            syntaxScore += 5;
+          }
+
+          // Cycle verification
+          if (syntax.cycleNum) {
+            syntaxScore += 2;
+          }
+
+          score = Math.max(score, syntaxScore);
+        }
+      }
+
+      // Standard account number & name heuristics
       // 1. Exact match on clean account number
       if (cleanAcct && cleanName === cleanAcct) {
-        score = 100;
+        score = Math.max(score, 100);
       }
       // 2. Both account number and patient name in filename
       else if (cleanAcct && cleanPat && cleanName.includes(cleanAcct) && cleanName.includes(cleanPat)) {
-        score = 98;
+        score = Math.max(score, 98);
       }
       // 3. Exact match on clean patient name
       else if (cleanPat && cleanName === cleanPat) {
-        score = 95;
+        score = Math.max(score, 95);
       }
       // 4. Stripped account prefix matches (e.g. ACC-1001 vs 1001.pdf)
       else if (
@@ -113,7 +225,7 @@ export function matchPdfsToRows(pdfEntries, rows) {
         (cleanAcct.replace(/^[a-z]+/, '') === cleanName ||
           cleanAcct.replace(/^[a-z]+/, '') === cleanName.replace(/^[a-z]+/, ''))
       ) {
-        score = 93;
+        score = Math.max(score, 93);
       }
       // 5. Exact account number delimited by non-alphanumeric chars or start/end
       else if (
@@ -121,14 +233,14 @@ export function matchPdfsToRows(pdfEntries, rows) {
         cleanAcct.length >= 3 &&
         new RegExp(`(^|[^a-z0-9])${cleanAcct}([^a-z0-9]|$)`, 'i').test(nameWithoutExt)
       ) {
-        score = 92;
+        score = Math.max(score, 92);
       }
       // 6. Digits-only match (e.g. ACC-1001 vs statement_1001.pdf)
       else if (
         cleanAcct.replace(/\D/g, '').length >= 3 &&
         cleanAcct.replace(/\D/g, '') === cleanName.replace(/\D/g, '')
       ) {
-        score = 91;
+        score = Math.max(score, 91);
       }
       // 7. Account number without leading zeros matches
       else if (
@@ -136,27 +248,27 @@ export function matchPdfsToRows(pdfEntries, rows) {
         cleanAcct.replace(/^0+/, '') &&
         cleanAcct.replace(/^0+/, '') === cleanName.replace(/^0+/, '')
       ) {
-        score = 90;
+        score = Math.max(score, 90);
       }
-      // 6. Patient reversed name matches (e.g. "doe john" vs "john doe")
+      // 8. Patient reversed name matches (e.g. "doe john" vs "john doe")
       else if (patParts.length >= 2 && patParts.slice().reverse().join('') === cleanName) {
-        score = 88;
+        score = Math.max(score, 88);
       }
-      // 7. All patient name parts appear in filename
+      // 9. All patient name parts appear in filename
       else if (patParts.length >= 2 && patParts.every((part) => nameWithoutExt.toLowerCase().includes(part))) {
-        score = 85;
+        score = Math.max(score, 85);
       }
-      // 8. Filename contains account number (at least 4 chars)
+      // 10. Filename contains account number (at least 4 chars)
       else if (cleanAcct && cleanAcct.length >= 4 && cleanName.includes(cleanAcct)) {
-        score = 80;
+        score = Math.max(score, 80);
       }
-      // 9. Row number match (e.g. "1.pdf", "row_1.pdf")
+      // 11. Row number match (e.g. "1.pdf", "row_1.pdf")
       else if (
         cleanName === String(row.rowNumber) ||
         cleanName === `row${row.rowNumber}` ||
         cleanName === `statement${row.rowNumber}`
       ) {
-        score = 75;
+        score = Math.max(score, 75);
       }
 
       if (score > 0) {
@@ -165,18 +277,27 @@ export function matchPdfsToRows(pdfEntries, rows) {
     }
   }
 
-  // Greedy highest-score 1-to-1 matching
+  // Sort highest scores first
   scoredPairs.sort((a, b) => b.score - a.score);
 
   const matchedRows = new Set();
   const matchedPdfs = new Set();
-  const assignments = new Map();
+  const assignments = new Map(); // rIdx -> primary pIdx
+  const rowPdfs = new Map();     // rIdx -> number[]
 
   for (const pair of scoredPairs) {
-    if (!matchedRows.has(pair.rIdx) && !matchedPdfs.has(pair.pIdx)) {
-      matchedRows.add(pair.rIdx);
+    if (!matchedPdfs.has(pair.pIdx)) {
       matchedPdfs.add(pair.pIdx);
-      assignments.set(pair.rIdx, pair.pIdx);
+      matchedRows.add(pair.rIdx);
+
+      if (!rowPdfs.has(pair.rIdx)) {
+        rowPdfs.set(pair.rIdx, []);
+      }
+      rowPdfs.get(pair.rIdx).push(pair.pIdx);
+
+      if (!assignments.has(pair.rIdx)) {
+        assignments.set(pair.rIdx, pair.pIdx);
+      }
     }
   }
 
@@ -184,6 +305,7 @@ export function matchPdfsToRows(pdfEntries, rows) {
   if (matchedRows.size === 0 && pdfEntries.length === rows.length) {
     for (let i = 0; i < rows.length; i++) {
       assignments.set(i, i);
+      rowPdfs.set(i, [i]);
       matchedRows.add(i);
       matchedPdfs.add(i);
     }
@@ -191,7 +313,9 @@ export function matchPdfsToRows(pdfEntries, rows) {
 
   return {
     assignments,
+    rowPdfs,
     matchedCount: matchedRows.size,
+    matchedPdfsCount: matchedPdfs.size,
     unmatchedRowsCount: rows.length - matchedRows.size,
     unmatchedPdfsCount: pdfEntries.length - matchedPdfs.size,
   };

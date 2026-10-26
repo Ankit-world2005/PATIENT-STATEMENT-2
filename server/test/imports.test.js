@@ -5,7 +5,7 @@ import { buildErrorReportCsv } from '../src/services/imports/report.js';
 import { templateCsv, templateXlsx } from '../src/services/imports/template.js';
 import { validateRows } from '../src/services/imports/validate.js';
 import JSZip from 'jszip';
-import { extractPdfsFromZip, matchPdfsToRows } from '../src/services/imports/zip.js';
+import { extractPdfsFromZip, matchPdfsToRows, parsePatientStatementPdfSyntax } from '../src/services/imports/zip.js';
 
 const csv = (text) => Buffer.from(text, 'utf8');
 
@@ -161,4 +161,59 @@ test('matchPdfsToRows matches PDFs by account number, patient name, and row inde
   assert.equal(p0.originalFilename, '1001.pdf');
   assert.equal(p1.originalFilename, 'Smith_Jane.pdf');
 });
+
+test('parsePatientStatementPdfSyntax parses Patient Name_$00.00_West AZ_1st or 2nd or 3rd', () => {
+  const p1 = parsePatientStatementPdfSyntax('Dolores Beatty_$538.91_West AZ_1st.pdf');
+  assert.ok(p1);
+  assert.equal(p1.patientName, 'Dolores Beatty');
+  assert.equal(p1.amountNum, 538.91);
+  assert.equal(p1.locationStr, 'West AZ');
+  assert.equal(p1.cycleNum, 1);
+
+  const p2 = parsePatientStatementPdfSyntax('John Doe_$00.00_West AZ_2nd.pdf');
+  assert.ok(p2);
+  assert.equal(p2.patientName, 'John Doe');
+  assert.equal(p2.amountNum, 0);
+  assert.equal(p2.locationStr, 'West AZ');
+  assert.equal(p2.cycleNum, 2);
+
+  const p3 = parsePatientStatementPdfSyntax('Jane Smith_$1,250.75_Downtown_3rd.pdf');
+  assert.ok(p3);
+  assert.equal(p3.patientName, 'Jane Smith');
+  assert.equal(p3.amountNum, 1250.75);
+  assert.equal(p3.locationStr, 'Downtown');
+  assert.equal(p3.cycleNum, 3);
+});
+
+test('matchPdfsToRows matches multi-cycle PDFs for the same patient into rowPdfs', async () => {
+  const zip = new JSZip();
+  zip.file('Dolores Beatty_$538.91_West AZ_1st.pdf', Buffer.from('%PDF-1.4 cycle1'));
+  zip.file('Dolores Beatty_$538.91_West AZ_2nd.pdf', Buffer.from('%PDF-1.4 cycle2'));
+  zip.file('Dolores Beatty_$538.91_West AZ_3rd.pdf', Buffer.from('%PDF-1.4 cycle3'));
+  zip.file('John Doe_$00.00_West AZ_1st.pdf', Buffer.from('%PDF-1.4 cycle1'));
+  const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+  const pdfs = await extractPdfsFromZip(zipBuffer);
+
+  const rows = [
+    { rowNumber: 1, data: { patient_name: 'Dolores Beatty', balance_due: '538.91', location_name: 'West AZ' } },
+    { rowNumber: 2, data: { patient_name: 'John Doe', balance_due: '0.00', location_name: 'West AZ' } },
+  ];
+
+  const matched = matchPdfsToRows(pdfs, rows);
+  assert.equal(matched.matchedCount, 2); // 2 rows matched
+  assert.equal(matched.matchedPdfsCount, 4); // all 4 PDFs matched!
+
+  // Dolores Beatty has 3 PDFs attached
+  const doloresPdfs = matched.rowPdfs.get(0).map((idx) => pdfs[idx].originalFilename);
+  assert.equal(doloresPdfs.length, 3);
+  assert.ok(doloresPdfs.includes('Dolores Beatty_$538.91_West AZ_1st.pdf'));
+  assert.ok(doloresPdfs.includes('Dolores Beatty_$538.91_West AZ_2nd.pdf'));
+  assert.ok(doloresPdfs.includes('Dolores Beatty_$538.91_West AZ_3rd.pdf'));
+
+  // John Doe has 1 PDF attached
+  const johnPdfs = matched.rowPdfs.get(1).map((idx) => pdfs[idx].originalFilename);
+  assert.equal(johnPdfs.length, 1);
+  assert.equal(johnPdfs[0], 'John Doe_$00.00_West AZ_1st.pdf');
+});
+
 
