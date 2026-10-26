@@ -560,13 +560,68 @@ input[type="date"].form-input {
   word-break: break-all;
 }
 
-/* --- Header -------------------------------------------------------------- */
+/* --- Header & Hallmark --------------------------------------------------- */
+.header-brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brand-pipe {
+  color: var(--color-border);
+  font-size: 1.15rem;
+  font-weight: 300;
+  user-select: none;
+}
+.header-hallmark-seal {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(13, 92, 99, 0.15);
+  background-color: #faf9f5;
+}
+.header-portal-title {
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  letter-spacing: -0.01em;
+}
+
+.auth-hallmark-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0 auto 16px;
+}
+.auth-hallmark-img {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 8px 24px -4px rgba(13, 92, 99, 0.18), 0 2px 6px -1px rgba(0, 0, 0, 0.08);
+  border: 3px solid rgba(13, 92, 99, 0.12);
+  background-color: #faf9f5;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.auth-hallmark-img:hover {
+  transform: scale(1.03);
+  box-shadow: 0 12px 30px -4px rgba(13, 92, 99, 0.26), 0 4px 10px -2px rgba(0, 0, 0, 0.1);
+}
+
+@media (max-width: 600px) {
+  .header-portal-title { display: none; }
+  .brand-pipe { display: none; }
+}
+
 @media (max-width: 520px) {
   .site-header .container { gap: 10px; }
   .user-clinic-affiliation { display: none; }
   .user-avatar-circle { width: 32px; height: 32px; font-size: 0.8rem; }
   .user-full-name { font-size: 0.9rem; }
   .brand-logo-img { height: 28px; max-width: 110px; }
+  .header-hallmark-seal { width: 28px; height: 28px; }
   .header-user-actions,
   .header-brand-actions { gap: 10px; }
   .signout-label { display: none; }

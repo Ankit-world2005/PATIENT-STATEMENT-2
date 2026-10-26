@@ -27,8 +27,13 @@ function Header() {
     <header className="site-header">
       <div className="container">
         <div className="header-brand">
-          <Link to={landingPath(user)} className="company-brand-link" aria-label="US24 Solutions — go to portal home">
-            <Logo />
+          <Link to={landingPath(user)} className="company-brand-link" aria-label="US24 Solutions — My Patient">
+            <div className="header-brand-lockup">
+              <Logo />
+              <span className="brand-pipe" aria-hidden="true">|</span>
+              <img src="/my-patient-hallmark.png" alt="My Patient" className="header-hallmark-seal" />
+              <span className="header-portal-title">My Patient</span>
+            </div>
           </Link>
         </div>
         {user ? (
