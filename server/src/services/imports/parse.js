@@ -14,6 +14,15 @@ export function detectFormat(filename, buffer) {
   if (ext === '.xlsx') {
     // .xlsx files are zip archives (must start with 'PK' -> 0x50 0x4b).
     if (buffer[0] === 0x50 && buffer[1] === 0x4b) return 'xlsx';
+
+    // Detect if this is an HTML redirect/login page from SharePoint or OneDrive
+    const textStart = buffer.slice(0, 500).toString('utf8').toLowerCase();
+    if (textStart.includes('<html') || textStart.includes('<!doctype') || textStart.includes('sharepoint')) {
+      throw new ImportFileError(
+        'This file is a SharePoint/OneDrive web login page, not the actual Excel file. Please open the link in SharePoint or your browser and click the Download button to download the real .xlsx file.'
+      );
+    }
+
     // Older binary .xls file (OLE compound format starting with 0xD0 0xCF)
     if (buffer[0] === 0xd0 && buffer[1] === 0xcf) {
       throw new ImportFileError(
