@@ -11,7 +11,7 @@ export function VerifyPage() {
   const { user, pending, verify, cancelPending } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState(pending?.devOtp || '');
   const [method, setMethod] = useState('email');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -24,6 +24,21 @@ export function VerifyPage() {
     const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
     return () => clearTimeout(t);
   }, [cooldown]);
+
+  // Auto-fill OTP on login
+  useEffect(() => {
+    if (pending?.devOtp) {
+      setCode((c) => (c ? c : pending.devOtp));
+    } else {
+      api('/auth/dev-otp')
+        .then((d) => {
+          if (d?.code) {
+            setCode((prev) => (prev ? prev : d.code));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [pending]);
 
   if (user && verified.current) return null;
   if (user) return <Navigate to={landingPath(user)} replace />;
@@ -63,9 +78,14 @@ export function VerifyPage() {
   const resend = async () => {
     setError('');
     try {
-      await api('/auth/resend', { method: 'POST' });
+      const res = await api('/auth/resend', { method: 'POST' });
       setCooldown(60);
-      toast(`A new code was sent to ${pending.maskedEmail}.`);
+      if (res?.devOtp) {
+        setCode(res.devOtp);
+        toast(`A new code was sent to ${pending.maskedEmail} and auto-filled.`);
+      } else {
+        toast(`A new code was sent to ${pending.maskedEmail}.`);
+      }
     } catch (err) {
       if (err.status === 401) {
         await cancelPending();

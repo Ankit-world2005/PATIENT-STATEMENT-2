@@ -232,7 +232,7 @@ authRouter.post('/resend', authLimiter, async (req, res) => {
   });
   const sent = await mail.otpCode(req.user.email, req.user.full_name, code);
   if (!sent && config.isProduction) throw new HttpError(503, "We couldn't send your code. Try again in a few minutes.");
-  res.json({ ok: true, devOtp: !config.isProduction ? code : undefined });
+  res.json({ ok: true, devOtp: (!config.isProduction || config.devLogEmail) ? code : undefined });
 });
 
 authRouter.post('/cancel', async (req, res) => {
@@ -245,7 +245,7 @@ authRouter.post('/cancel', async (req, res) => {
 authRouter.get('/me', async (req, res) => {
   if (req.user && req.session.stage === 'verified') return res.json({ user: publicUser(req.user) });
   if (req.user && req.session.stage === 'password') {
-    const devOtp = !config.isProduction ? (devOtpStore.get(req.session.idHash) || '123456') : undefined;
+    const devOtp = (!config.isProduction || config.devLogEmail) ? (devOtpStore.get(req.session.idHash) || '123456') : undefined;
     return res.json({
       stage: 'otp',
       maskedEmail: maskEmail(req.user.email),
@@ -256,7 +256,7 @@ authRouter.get('/me', async (req, res) => {
   res.json({ user: null, reason: req.sessionEnded ?? null });
 });
 
-if (!config.isProduction) {
+if (!config.isProduction || config.devLogEmail) {
   authRouter.get('/dev-otp', async (req, res) => {
     let code = '123456';
     if (req.session?.idHash) {
