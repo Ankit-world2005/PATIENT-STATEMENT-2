@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router';
-import { IconDownload, IconPrint } from '../../components/Icons.jsx';
+import { IconDownload, IconExternalLink, IconFileText, IconPrint } from '../../components/Icons.jsx';
 import { RemarksLedger } from '../../components/RemarksLedger.jsx';
 import { StatementDocument } from '../../components/StatementDocument.jsx';
 import { Alert, BackBar, Field, Modal, Spinner, StatusBadge } from '../../components/ui.jsx';
@@ -84,6 +84,7 @@ export function StatementDetailPage() {
   const [dialog, setDialog] = useState(null);
   const [downloading, setDownloading] = useState(false);
   const [published, setPublished] = useState(location.state?.published ?? null);
+  const [docTab, setDocTab] = useState('statement'); // 'statement' | 'pdf'
 
   const load = useCallback(() => {
     setError(null);
@@ -131,29 +132,60 @@ export function StatementDetailPage() {
       )}
 
       <div className="detail-hero-band">
-        <div className="detail-patient-meta">
-          <h1 className="detail-patient-name">
-            {s.patientName}
-            {s.locationName && <span className="badge badge-secondary" style={{ marginLeft: 8, fontSize: '0.8rem', verticalAlign: 'middle' }}>{s.locationName}</span>}
-            {s.prType && <span className={`badge-pr pr-${s.prType.toLowerCase().replace(/[^a-z0-9]/g, '-')}`} style={{ marginLeft: 8, fontSize: '0.8rem', verticalAlign: 'middle' }}>{s.prType}</span>}
-            {s.ledgerStatus && <span className={`badge-ledger-status status-${s.ledgerStatus.toLowerCase().replace(/[^a-z0-9]/g, '-')}`} style={{ marginLeft: 8, fontSize: '0.8rem', verticalAlign: 'middle' }}>{s.ledgerStatus}</span>}
-            {s.wasNew && <span className="badge badge-new">New</span>}
-            {s.status?.toLowerCase() === 'withdrawn' && <StatusBadge status="withdrawn" />}
-          </h1>
-          <div className="detail-sub-meta">
-            <span>Account <strong className="col-mono">{s.accountNumber}</strong></span>
-            <span aria-hidden="true">·</span>
-            <span>Statement date <strong>{date(s.statementDate)}</strong></span>
-            {isStaff && <><span aria-hidden="true">·</span><span>{clinic.name}</span></>}
-            {s.version > 1 && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span>Version {s.version}{s.earlierVersionId && <> (<Link to={`/statements/${s.earlierVersionId}`}>earlier version</Link>)</>}</span>
-              </>
-            )}
+        <div className="detail-hero-top">
+          <div className="detail-patient-meta">
+            <h1 className="detail-patient-name">
+              {s.patientName}
+              {s.locationName && <span className="badge badge-secondary" style={{ marginLeft: 8, fontSize: '0.8rem', verticalAlign: 'middle' }}>{s.locationName}</span>}
+              {s.prType && <span className={`badge-pr pr-${s.prType.toLowerCase().replace(/[^a-z0-9]/g, '-')}`} style={{ marginLeft: 8, fontSize: '0.8rem', verticalAlign: 'middle' }}>{s.prType}</span>}
+              {s.ledgerStatus && <span className={`badge-ledger-status status-${s.ledgerStatus.toLowerCase().replace(/[^a-z0-9]/g, '-')}`} style={{ marginLeft: 8, fontSize: '0.8rem', verticalAlign: 'middle' }}>{s.ledgerStatus}</span>}
+              {s.wasNew && <span className="badge badge-new">New</span>}
+              {s.status?.toLowerCase() === 'withdrawn' && <StatusBadge status="withdrawn" />}
+            </h1>
+            <div className="detail-sub-meta">
+              <span>Account <strong className="col-mono">{s.accountNumber}</strong></span>
+              <span aria-hidden="true">·</span>
+              <span>Statement date <strong>{date(s.statementDate)}</strong></span>
+              {isStaff && <><span aria-hidden="true">·</span><span>{clinic.name}</span></>}
+              {s.version > 1 && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>Version {s.version}{s.earlierVersionId && <> (<Link to={`/statements/${s.earlierVersionId}`}>earlier version</Link>)</>}</span>
+                </>
+              )}
+            </div>
+            <div className="detail-published">Published {dateTime(s.uploadedAt)} by {s.uploadedByName}, US24 Solutions</div>
           </div>
-          <div className="detail-published">Published {dateTime(s.uploadedAt)} by {s.uploadedByName}, US24 Solutions</div>
+
+          <div className="detail-hero-tabs">
+            <button
+              type="button"
+              className={`pdf-stat-tab-btn ${docTab === 'statement' ? 'active' : ''}`}
+              onClick={() => setDocTab('statement')}
+              title="View Statement Details & Ledger"
+            >
+              Statement
+            </button>
+            <button
+              type="button"
+              className={`pdf-stat-tab-btn ${docTab === 'pdf' ? 'active' : ''}`}
+              onClick={() => setDocTab('pdf')}
+              title="View PDF Statement"
+            >
+              <IconFileText size={15} /> PDF Stat.
+            </button>
+            <a
+              href={`/api/statements/${s.id}/file`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="pdf-stat-popout-btn"
+              title="Open PDF Statement in a new browser tab"
+            >
+              <IconExternalLink size={14} />
+            </a>
+          </div>
         </div>
+
         <div className="detail-actions-bar">
           <div className="detail-balance-hero">
             <div className="balance-hero-label">Patient balance due</div>
@@ -173,7 +205,27 @@ export function StatementDetailPage() {
 
       <div className="detail-columns-grid">
         <div className="statement-document-card">
-          {s.source === 'pdf_upload' && s.file ? (
+          {docTab === 'pdf' ? (
+            <div className="pdf-panel">
+              <iframe
+                className="pdf-frame"
+                src={`/api/statements/${s.id}/file`}
+                title={`Statement PDF for ${s.patientName}`}
+              />
+              <div className="pdf-mobile">
+                <p>The statement is a PDF document.</p>
+                <a className="btn btn-secondary" href={`/api/statements/${s.id}/file`} target="_blank" rel="noopener">
+                  View PDF
+                </a>
+              </div>
+              <p className="form-hint" style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Viewing PDF Statement.</span>
+                <a href={`/api/statements/${s.id}/file`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <IconExternalLink size={13} /> Open in new window
+                </a>
+              </p>
+            </div>
+          ) : s.source === 'pdf_upload' && s.file ? (
             <div className="pdf-panel">
               <iframe className="pdf-frame" src={`/api/statements/${s.id}/file`} title={`Statement PDF for ${s.patientName}`} />
               <div className="pdf-mobile">

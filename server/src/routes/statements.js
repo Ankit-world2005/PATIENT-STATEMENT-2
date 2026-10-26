@@ -490,8 +490,12 @@ async function readStatementFile(s) {
 
 statementsRouter.get('/:id/file', async (req, res) => {
   const s = await loadForFile(req, 'statement.view', { part: 'pdf' });
-  const buffer = s.source === 'pdf_upload' ? await readStatementFile(s) : null;
-  if (!buffer) throw new HttpError(404, 'This statement has no uploaded PDF.');
+  let buffer = s.source === 'pdf_upload' ? await readStatementFile(s) : null;
+  if (!buffer) {
+    const { rows } = await query('SELECT * FROM clinic WHERE id = $1', [s.clinic_id]);
+    buffer = await renderStatementPdf(s, rows[0]);
+  }
+  if (!buffer) throw new HttpError(404, 'This statement has no PDF available.');
   // This one response may be shown inside the portal's own page (implementation plan C-2).
   res.set('X-Frame-Options', 'SAMEORIGIN');
   res.set('Content-Security-Policy', "default-src 'none'; frame-ancestors 'self'");
