@@ -2,13 +2,14 @@ import crypto from 'node:crypto';
 import { pool, withTransaction } from '../../db/pool.js';
 import { audit } from '../../lib/audit.js';
 import { badRequest, conflict } from '../../lib/errors.js';
-import { storage, sha256Hex } from '../../lib/storage.js';
+import { storage, sha256Hex, statementFileKey } from '../../lib/storage.js';
 import { getOwnImportBatch, getPublishableClinic } from '../access.js';
 import { runCleanup } from '../cleanup.js';
 import { insertStatements, lockChainHead } from '../statements.js';
 import { ImportFileError, detectFormat, parseImportFile } from './parse.js';
 import { buildErrorReportCsv } from './report.js';
 import { markDuplicates, validateRows } from './validate.js';
+import { extractPdfsFromZip, matchPdfsToRows } from './zip.js';
 
 // Bulk statement import (F8), following schema transactions T4-T6:
 //   check   -> batch 'previewed' (or 'failed') with staged import_row records
@@ -36,11 +37,16 @@ async function insertImportRows(db, batchId, rows) {
   }
 }
 
-/** S4 "Check file": validates the whole file and stages the rows. Nothing is published. */
-export async function checkImport(req, { clinicId, file }) {
+/** S4 "Check file": validates the spreadsheet and extracts/matches PDFs from zip. Nothing is published. */
+export async function checkImport(req, { clinicId, file, zipFile }) {
   await runCleanup();
   const clinic = await getPublishableClinic(pool, req, clinicId);
   if (!file) throw badRequest('Choose a file to import.', { file: 'Choose an .xlsx or .csv file.' });
+  if (!zipFile) {
+    throw badRequest('Upload the ZIP file containing patient statement PDFs.', {
+      zip: 'Upload a .zip file containing patient statement PDFs.',
+    });
+  }
 
   let format;
   try {
@@ -50,6 +56,9 @@ export async function checkImport(req, { clinicId, file }) {
     throw err;
   }
   if (!format) throw badRequest('Upload an .xlsx or .csv file.', { file: 'Upload an .xlsx or .csv file.' });
+
+  // Extract statement PDFs from ZIP
+  const pdfEntries = await extractPdfsFromZip(zipFile.buffer);
 
   let parsed = null;
   let failureReason = null;
@@ -61,9 +70,24 @@ export async function checkImport(req, { clinicId, file }) {
   }
 
   let rows = [];
+  let matchedPdfCount = 0;
   if (parsed) {
     rows = validateRows(parsed.rows);
     await markDuplicates(pool, clinic.id, rows);
+
+    // Match extracted PDFs to rows
+    const matchResult = matchPdfsToRows(pdfEntries, rows);
+    for (const [rIdx, pIdx] of matchResult.assignments.entries()) {
+      const row = rows[rIdx];
+      const pdf = pdfEntries[pIdx];
+      const storageKey = statementFileKey();
+      await storage.put(storageKey, pdf.buffer);
+      row.data.matched_pdf_storage_key = storageKey;
+      row.data.matched_pdf_name = pdf.originalFilename;
+      row.data.matched_pdf_size = pdf.sizeBytes;
+      row.data.matched_pdf_sha256 = pdf.sha256;
+    }
+    matchedPdfCount = matchResult.matchedCount;
   }
   const counts = {
     total: rows.length,
@@ -98,12 +122,28 @@ export async function checkImport(req, { clinicId, file }) {
       targetId: batchId,
       clinicId: clinic.id,
       details: {
-        rows_total: counts.total, rows_valid: counts.valid, rows_invalid: counts.invalid, rows_duplicate: counts.duplicate,
+        rows_total: counts.total,
+        rows_valid: counts.valid,
+        rows_invalid: counts.invalid,
+        rows_duplicate: counts.duplicate,
+        pdfs_total: pdfEntries.length,
+        pdfs_matched: matchedPdfCount,
+        zip_name: zipFile.originalname,
       },
     });
   });
 
-  return { id: batchId, status: failureReason ? 'failed' : 'previewed', failureReason, ignoredColumns: parsed?.ignoredColumns ?? [] };
+  return {
+    id: batchId,
+    status: failureReason ? 'failed' : 'previewed',
+    failureReason,
+    ignoredColumns: parsed?.ignoredColumns ?? [],
+    zipSummary: {
+      totalPdfs: pdfEntries.length,
+      matchedPdfs: matchedPdfCount,
+      zipFilename: zipFile.originalname,
+    },
+  };
 }
 
 function publicBatch(b) {
@@ -160,6 +200,11 @@ export async function getImportDetail(req, batchId) {
       `SELECT row_number, data FROM import_row WHERE batch_id = $1 AND outcome = 'valid' ORDER BY row_number LIMIT 10`,
       [batch.id],
     );
+    const matchedCountRes = await pool.query(
+      `SELECT count(*)::int AS count FROM import_row WHERE batch_id = $1 AND data ? 'matched_pdf_storage_key'`,
+      [batch.id],
+    );
+    result.matchedPdfsCount = matchedCountRes.rows[0]?.count || 0;
     result.invalidRows = invalid.rows.map((r) => ({ rowNumber: r.row_number, data: r.data, errors: r.errors }));
     result.duplicates = duplicates.rows.map((r) => ({
       rowNumber: r.row_number,
@@ -240,6 +285,13 @@ export async function publishImport(req, batchId) {
         await db.query(
           `UPDATE statement SET last_remark_at = now() WHERE id = $1`,
           [created.id],
+        );
+      }
+      if (it.matched_pdf_storage_key && created?.id) {
+        await db.query(
+          `INSERT INTO statement_file (statement_id, storage_key, original_filename, size_bytes, sha256)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [created.id, it.matched_pdf_storage_key, it.matched_pdf_name, it.matched_pdf_size, it.matched_pdf_sha256],
         );
       }
     }

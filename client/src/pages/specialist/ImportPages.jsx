@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
-import { IconDownload, IconTable } from '../../components/Icons.jsx';
+import { IconDownload, IconFileText, IconTable } from '../../components/Icons.jsx';
 import { Alert, BackBar, ConfirmDialog, Field, PageHeader, Spinner, StatusBadge } from '../../components/ui.jsx';
 import { api, downloadFile } from '../../lib/api.js';
 import { date, dateTime, fileSize, money, shortDate } from '../../lib/format.js';
@@ -31,11 +31,13 @@ export function ImportNewPage() {
   const [clinics, setClinics] = useState(null);
   const [clinicId, setClinicId] = useState(params.get('clinicId') ?? '');
   const [file, setFile] = useState(null);
+  const [zipFile, setZipFile] = useState(null);
   const [errors, setErrors] = useState({});
   const [failure, setFailure] = useState('');
   const [busy, setBusy] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const fileInput = useRef(null);
+  const zipInput = useRef(null);
 
   useEffect(() => {
     api('/publishable-clinics')
@@ -70,11 +72,27 @@ export function ImportNewPage() {
     setFile(f);
   };
 
+  const chooseZip = (f) => {
+    setFailure('');
+    setErrors((e) => ({ ...e, zip: undefined }));
+    if (!f) return setZipFile(null);
+    if (!/\.zip$/i.test(f.name)) {
+      setErrors((e) => ({ ...e, zip: 'Upload a .zip file containing statement PDFs.' }));
+      return setZipFile(null);
+    }
+    if (f.size > 100 * 1024 * 1024) {
+      setErrors((e) => ({ ...e, zip: 'The ZIP file is larger than 100 MB.' }));
+      return setZipFile(null);
+    }
+    setZipFile(f);
+  };
+
   const check = async (e) => {
     e.preventDefault();
     const fe = {};
     if (!clinicId) fe.clinicId = 'Choose the clinic.';
     if (!file) fe.file = errors.file || 'Choose an .xlsx or .csv file.';
+    if (!zipFile) fe.zip = errors.zip || 'Choose the .zip file containing patient statement PDFs.';
     setErrors(fe);
     setFailure('');
     if (Object.keys(fe).length) return;
@@ -83,14 +101,15 @@ export function ImportNewPage() {
       const form = new FormData();
       form.set('clinicId', clinicId);
       form.set('file', file, file.name);
+      form.set('zip', zipFile, zipFile.name);
       const result = await api('/imports', { method: 'POST', form });
       if (result.status === 'failed') {
         setFailure(result.failureReason);
       } else {
-        navigate(`/imports/${result.id}/preview`, { state: { ignoredColumns: result.ignoredColumns } });
+        navigate(`/imports/${result.id}/preview`, { state: { ignoredColumns: result.ignoredColumns, zipSummary: result.zipSummary } });
       }
     } catch (err) {
-      setErrors(err.fieldErrors);
+      setErrors(err.fieldErrors || {});
       setFailure(err.status === 0 ? "The check didn't finish. Try again." : err.message);
     } finally {
       setBusy(false);
@@ -137,6 +156,26 @@ export function ImportNewPage() {
               )}
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => fileInput.current.click()} disabled={busy}>
                 {file ? 'Choose a different file' : 'Choose file'}
+              </button>
+            </div>
+          )}
+        </Field>
+
+        <Field label="Patient Statement PDFs (.zip)" error={errors.zip} required hint="ZIP archive containing statement PDFs for the patients in this spreadsheet (up to 100 MB).">
+          {(p) => (
+            <div className={`dropzone ${zipFile ? 'has-file' : ''}`}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => { e.preventDefault(); if (!busy) chooseZip(e.dataTransfer.files[0]); }}>
+              <input {...p} ref={zipInput} type="file" className="sr-only-input" disabled={busy}
+                accept=".zip,application/zip,application/x-zip-compressed,multipart/x-zip"
+                onChange={(e) => chooseZip(e.target.files[0])} />
+              {zipFile ? (
+                <span><IconFileText size={16} /> <strong>{zipFile.name}</strong> <span className="form-hint">({fileSize(zipFile.size)})</span></span>
+              ) : (
+                <span>Drag patient PDFs ZIP archive here, or</span>
+              )}
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => zipInput.current.click()} disabled={busy}>
+                {zipFile ? 'Choose a different ZIP' : 'Choose ZIP file'}
               </button>
             </div>
           )}
@@ -338,6 +377,13 @@ export function ImportPreviewPage() {
             }
           }}
         />
+        <StatTile
+          label="PDFs in ZIP"
+          value={data.matchedPdfsCount !== undefined ? `${data.matchedPdfsCount} matched` : 'Extracted'}
+          tone={data.matchedPdfsCount > 0 ? 'success' : undefined}
+          actionHint="Extracted from ZIP"
+          title="Number of patient statement PDFs matched and extracted from ZIP archive"
+        />
       </div>
 
       {ignored.length > 0 && (
@@ -404,7 +450,14 @@ export function ImportPreviewPage() {
                 {duplicates.map((d) => (
                   <tr key={d.rowNumber} className={`row-static ${d.decision ? '' : 'row-attention'}`}>
                     <td className="col-mono">{d.rowNumber}</td>
-                    <td>{d.data.patient_name}</td>
+                    <td>
+                      {d.data.patient_name}
+                      {d.data.matched_pdf_name && (
+                        <span className="badge badge-secondary" style={{ marginLeft: 6, fontSize: '0.7rem' }} title={`PDF: ${d.data.matched_pdf_name}`}>
+                          PDF
+                        </span>
+                      )}
+                    </td>
                     <td className="col-mono">{d.data.account_number}</td>
                     <td className="col-date">{date(d.data.statement_date)}</td>
                     <td className="col-amount">{money(d.data.balance_due)}</td>
@@ -450,7 +503,14 @@ export function ImportPreviewPage() {
                 {sampleRows.map((r) => (
                   <tr key={r.rowNumber} className="row-static">
                     <td className="col-mono">{r.rowNumber}</td>
-                    <td>{r.data.patient_name}</td>
+                    <td>
+                      {r.data.patient_name}
+                      {r.data.matched_pdf_name && (
+                        <span className="badge badge-secondary" style={{ marginLeft: 6, fontSize: '0.7rem' }} title={`PDF: ${r.data.matched_pdf_name}`}>
+                          PDF
+                        </span>
+                      )}
+                    </td>
                     <td className="col-mono">{r.data.account_number}</td>
                     <td className="col-date">{date(r.data.statement_date)}</td>
                     <td className="col-amount">{money(r.data.balance_due)}</td>

@@ -374,6 +374,11 @@ export function StatementListPage() {
                       <td className="sticky-col-patient">
                         <div className="cell-patient">
                           <Highlight text={s.patientName} query={q} />
+                          {s.hasFile && (
+                            <span className="badge badge-secondary" style={{ fontSize: '0.68rem', padding: '1px 5px' }} title="Attached PDF statement">
+                              PDF
+                            </span>
+                          )}
                           {s.isNew && <span className="badge badge-new">New</span>}
                           {s.hasNewerVersion && <span className="badge badge-muted">Earlier</span>}
                           {s.awaitingReply && <span className="badge badge-plum">Awaiting reply</span>}

@@ -108,7 +108,8 @@ statementsRouter.get('/', async (req, res) => {
             s.last_remark_at, s.version,
             s.first_opened_by_clinic_at IS NULL AS is_new,
             s.awaiting_reply_since IS NOT NULL AS awaiting_reply,
-            EXISTS (SELECT 1 FROM statement n WHERE n.supersedes_id = s.id) AS has_newer_version
+            EXISTS (SELECT 1 FROM statement n WHERE n.supersedes_id = s.id) AS has_newer_version,
+            EXISTS (SELECT 1 FROM statement_file sf WHERE sf.statement_id = s.id) AS has_file
        FROM statement s
        JOIN clinic c ON c.id = s.clinic_id
       WHERE ${whereSql}
@@ -121,6 +122,7 @@ statementsRouter.get('/', async (req, res) => {
     clinic: { id: clinic.id, name: clinic.name, code: clinic.clinic_code, isActive: clinic.is_active },
     items: rows.map((r) => ({
       id: r.id,
+      hasFile: Boolean(r.has_file),
       location: r.location_name,
       patientName: r.patient_name,
       accountNumber: r.account_number,
@@ -490,7 +492,7 @@ async function readStatementFile(s) {
 
 statementsRouter.get('/:id/file', async (req, res) => {
   const s = await loadForFile(req, 'statement.view', { part: 'pdf' });
-  let buffer = s.source === 'pdf_upload' ? await readStatementFile(s) : null;
+  let buffer = await readStatementFile(s);
   if (!buffer) {
     const { rows } = await query('SELECT * FROM clinic WHERE id = $1', [s.clinic_id]);
     buffer = await renderStatementPdf(s, rows[0]);
@@ -504,7 +506,7 @@ statementsRouter.get('/:id/file', async (req, res) => {
 
 statementsRouter.get('/:id/download', async (req, res) => {
   const s = await loadForFile(req, 'statement.download');
-  let buffer = s.source === 'pdf_upload' ? await readStatementFile(s) : null;
+  let buffer = await readStatementFile(s);
   if (!buffer) {
     const { rows } = await query('SELECT * FROM clinic WHERE id = $1', [s.clinic_id]);
     buffer = await renderStatementPdf(s, rows[0]);

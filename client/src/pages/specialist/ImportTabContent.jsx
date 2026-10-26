@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { IconDownload, IconTable, IconUpload } from '../../components/Icons.jsx';
+import { IconDownload, IconFileText, IconTable, IconUpload } from '../../components/Icons.jsx';
 import { Alert, EmptyState, Field, Spinner, StatusBadge } from '../../components/ui.jsx';
 import { api } from '../../lib/api.js';
 import { fileSize, shortDate } from '../../lib/format.js';
@@ -13,12 +13,15 @@ export function ImportTabContent({ clinics: initialClinics, recentImports = [] }
   const [clinics, setClinics] = useState(initialClinics?.filter((c) => c.isActive) || null);
   const [clinicId, setClinicId] = useState('');
   const [file, setFile] = useState(null);
+  const [zipFile, setZipFile] = useState(null);
   const [errors, setErrors] = useState({});
   const [failure, setFailure] = useState('');
   const [busy, setBusy] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isZipDragOver, setIsZipDragOver] = useState(false);
   const fileInput = useRef(null);
+  const zipInput = useRef(null);
 
   // If clinics were not provided or need fresh publishable list
   useEffect(() => {
@@ -56,11 +59,28 @@ export function ImportTabContent({ clinics: initialClinics, recentImports = [] }
     setFile(f);
   };
 
+  const chooseZip = (f) => {
+    setFailure('');
+    setErrors((e) => ({ ...e, zip: undefined }));
+    if (!f) return setZipFile(null);
+    if (!/\.zip$/i.test(f.name)) {
+      setErrors((e) => ({ ...e, zip: 'Upload a .zip file containing statement PDFs.' }));
+      return setZipFile(null);
+    }
+    if (f.size > 100 * 1024 * 1024) {
+      setErrors((e) => ({ ...e, zip: 'The ZIP file is larger than 100 MB.' }));
+      return setZipFile(null);
+    }
+    setZipFile(f);
+  };
+
   const handleClear = () => {
     setFile(null);
+    setZipFile(null);
     setErrors({});
     setFailure('');
     if (fileInput.current) fileInput.current.value = '';
+    if (zipInput.current) zipInput.current.value = '';
   };
 
   const check = async (e) => {
@@ -68,6 +88,7 @@ export function ImportTabContent({ clinics: initialClinics, recentImports = [] }
     const fe = {};
     if (!clinicId) fe.clinicId = 'Choose a clinic.';
     if (!file) fe.file = errors.file || 'Choose an .xlsx or .csv file.';
+    if (!zipFile) fe.zip = errors.zip || 'Choose the .zip file containing patient statement PDFs.';
     setErrors(fe);
     setFailure('');
     if (Object.keys(fe).length) return;
@@ -77,11 +98,12 @@ export function ImportTabContent({ clinics: initialClinics, recentImports = [] }
       const form = new FormData();
       form.set('clinicId', clinicId);
       form.set('file', file, file.name);
+      form.set('zip', zipFile, zipFile.name);
       const result = await api('/imports', { method: 'POST', form });
       if (result.status === 'failed') {
         setFailure(result.failureReason);
       } else {
-        navigate(`/imports/${result.id}/preview`, { state: { ignoredColumns: result.ignoredColumns } });
+        navigate(`/imports/${result.id}/preview`, { state: { ignoredColumns: result.ignoredColumns, zipSummary: result.zipSummary } });
       }
     } catch (err) {
       setErrors(err.fieldErrors || {});
@@ -211,6 +233,85 @@ export function ImportTabContent({ clinics: initialClinics, recentImports = [] }
                         disabled={busy}
                       >
                         Browse file
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </Field>
+
+            <Field
+              label="Patient Statement PDFs (.zip)"
+              error={errors.zip}
+              required
+              hint="ZIP archive containing statement PDFs for the patients in this spreadsheet (up to 100 MB)."
+            >
+              {(p) => (
+                <div
+                  className={`dropzone ${zipFile ? 'has-file' : ''} ${isZipDragOver ? 'drag-over' : ''}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsZipDragOver(true);
+                  }}
+                  onDragLeave={() => setIsZipDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsZipDragOver(false);
+                    if (!busy) chooseZip(e.dataTransfer.files[0]);
+                  }}
+                >
+                  <input
+                    {...p}
+                    ref={zipInput}
+                    type="file"
+                    className="sr-only-input"
+                    disabled={busy}
+                    accept=".zip,application/zip,application/x-zip-compressed,multipart/x-zip"
+                    onChange={(e) => chooseZip(e.target.files[0])}
+                  />
+
+                  {zipFile ? (
+                    <div className="dropzone-file-selected">
+                      <div className="file-info-badge">
+                        <IconFileText size={20} />
+                        <div>
+                          <strong>{zipFile.name}</strong>
+                          <span className="form-hint" style={{ display: 'block' }}>{fileSize(zipFile.size)}</span>
+                        </div>
+                      </div>
+                      <div className="file-actions-row">
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => zipInput.current.click()}
+                          disabled={busy}
+                        >
+                          Change file
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => {
+                            setZipFile(null);
+                            if (zipInput.current) zipInput.current.value = '';
+                          }}
+                          disabled={busy}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <IconFileText size={24} style={{ opacity: 0.6 }} />
+                      <span>Drag and drop patient statement PDFs ZIP archive here, or</span>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => zipInput.current.click()}
+                        disabled={busy}
+                      >
+                        Browse ZIP
                       </button>
                     </>
                   )}

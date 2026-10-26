@@ -4,6 +4,8 @@ import { ImportFileError, parseImportFile } from '../src/services/imports/parse.
 import { buildErrorReportCsv } from '../src/services/imports/report.js';
 import { templateCsv, templateXlsx } from '../src/services/imports/template.js';
 import { validateRows } from '../src/services/imports/validate.js';
+import JSZip from 'jszip';
+import { extractPdfsFromZip, matchPdfsToRows } from '../src/services/imports/zip.js';
 
 const csv = (text) => Buffer.from(text, 'utf8');
 
@@ -126,3 +128,37 @@ test('parses Namaste Rehab Clinics LLC status sheet format with cycle-specific b
   assert.equal(validated[0].data.cycle1_payment, '3.29');
   assert.equal(validated[0].data.status, 'Payment Received');
 });
+
+test('extractPdfsFromZip extracts valid PDFs and ignores non-PDFs and metadata', async () => {
+  const zip = new JSZip();
+  zip.file('1001.pdf', Buffer.from('%PDF-1.4 patient sample statement'));
+  zip.file('Jane Smith.pdf', Buffer.from('%PDF-1.7 second patient statement'));
+  zip.file('readme.txt', 'Ignored text file');
+  zip.file('__MACOSX/._1001.pdf', Buffer.from('AppleDouble metadata'));
+  const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+
+  const pdfs = await extractPdfsFromZip(zipBuffer);
+  assert.equal(pdfs.length, 2);
+  assert.deepEqual(pdfs.map((p) => p.originalFilename).sort(), ['1001.pdf', 'Jane Smith.pdf']);
+});
+
+test('matchPdfsToRows matches PDFs by account number, patient name, and row index', async () => {
+  const zip = new JSZip();
+  zip.file('1001.pdf', Buffer.from('%PDF-1.4 statement'));
+  zip.file('Smith_Jane.pdf', Buffer.from('%PDF-1.4 statement'));
+  const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+  const pdfs = await extractPdfsFromZip(zipBuffer);
+
+  const rows = [
+    { rowNumber: 1, data: { patient_name: 'John Doe', account_number: 'ACC-1001' } },
+    { rowNumber: 2, data: { patient_name: 'Jane Smith', account_number: 'ACC-2002' } },
+  ];
+
+  const matched = matchPdfsToRows(pdfs, rows);
+  assert.equal(matched.matchedCount, 2);
+  const p0 = pdfs[matched.assignments.get(0)];
+  const p1 = pdfs[matched.assignments.get(1)];
+  assert.equal(p0.originalFilename, '1001.pdf');
+  assert.equal(p1.originalFilename, 'Smith_Jane.pdf');
+});
+

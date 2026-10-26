@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router';
 import { IconDownload, IconExternalLink, IconFileText, IconPrint } from '../../components/Icons.jsx';
 import { RemarksLedger } from '../../components/RemarksLedger.jsx';
 import { StatementDocument } from '../../components/StatementDocument.jsx';
@@ -78,13 +78,14 @@ export function StatementDetailPage() {
   const { id } = useParams();
   const { user } = useAuth();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const toast = useToast();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [dialog, setDialog] = useState(null);
   const [downloading, setDownloading] = useState(false);
   const [published, setPublished] = useState(location.state?.published ?? null);
-  const [docTab, setDocTab] = useState('statement'); // 'statement' | 'pdf'
+  const [docTab, setDocTab] = useState(searchParams.get('tab') === 'pdf' ? 'pdf' : 'statement'); // 'statement' | 'pdf'
 
   const load = useCallback(() => {
     setError(null);
@@ -170,9 +171,14 @@ export function StatementDetailPage() {
               type="button"
               className={`pdf-stat-tab-btn ${docTab === 'pdf' ? 'active' : ''}`}
               onClick={() => setDocTab('pdf')}
-              title="View PDF Statement"
+              title={s.file ? `View Extracted PDF Statement (${s.file.name})` : 'View PDF Statement'}
             >
               <IconFileText size={15} /> PDF Stat.
+              {s.file && (
+                <span className="badge badge-secondary" style={{ marginLeft: 6, fontSize: '0.68rem', padding: '1px 5px' }}>
+                  PDF
+                </span>
+              )}
             </button>
             <a
               href={`/api/statements/${s.id}/file`}
@@ -219,7 +225,7 @@ export function StatementDetailPage() {
                 </a>
               </div>
               <p className="form-hint" style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Viewing PDF Statement.</span>
+                <span>Viewing PDF Statement{s.file?.name ? `: ${s.file.name}` : ''}.</span>
                 <a href={`/api/statements/${s.id}/file`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                   <IconExternalLink size={13} /> Open in new window
                 </a>

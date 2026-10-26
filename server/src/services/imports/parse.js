@@ -29,8 +29,8 @@ export function detectFormat(filename, buffer) {
         'This file is in the older Excel 97-2003 (.xls) format. Open it in Microsoft Excel, click "Save As", and choose "Excel Workbook (*.xlsx)".'
       );
     }
-    // If someone renamed a CSV / text file to .xlsx, parse it as CSV
-    if (!buffer.includes(0)) return 'csv';
+    // If someone renamed a CSV / tabular text file to .xlsx, parse it as CSV
+    if (!buffer.includes(0) && (buffer.includes(0x2c) || buffer.includes(0x09))) return 'csv';
     throw new ImportFileError('This file is not a valid .xlsx workbook. Save it as Excel Workbook (.xlsx) and try again.');
   }
   if (ext === '.csv') {
