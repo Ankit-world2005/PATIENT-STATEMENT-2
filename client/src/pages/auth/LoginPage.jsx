@@ -53,9 +53,6 @@ export function LoginPage() {
           <p className="auth-subtitle">Secure statement portal for US24 Solutions clients</p>
         </div>
         {notice && <Alert tone="info">{notice}</Alert>}
-        <div className="auth-clinic-notice">
-          Clinic staff and US24 Solutions team members sign in here. Every sign-in is protected with a one-time code.
-        </div>
         <form onSubmit={submit} noValidate>
           <Field label="Email address" error={errors.email}>
             {(p) => (
