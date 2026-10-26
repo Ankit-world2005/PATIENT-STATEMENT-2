@@ -12,8 +12,16 @@ const isBlank = (v) => v === null || v === undefined || (typeof v === 'string' &
 export function detectFormat(filename, buffer) {
   const ext = path.extname(filename || '').toLowerCase();
   if (ext === '.xlsx') {
-    // .xlsx files are zip archives.
+    // .xlsx files are zip archives (must start with 'PK' -> 0x50 0x4b).
     if (buffer[0] === 0x50 && buffer[1] === 0x4b) return 'xlsx';
+    // Older binary .xls file (OLE compound format starting with 0xD0 0xCF)
+    if (buffer[0] === 0xd0 && buffer[1] === 0xcf) {
+      throw new ImportFileError(
+        'This file is in the older Excel 97-2003 (.xls) format. Open it in Microsoft Excel, click "Save As", and choose "Excel Workbook (*.xlsx)".'
+      );
+    }
+    // If someone renamed a CSV / text file to .xlsx, parse it as CSV
+    if (!buffer.includes(0)) return 'csv';
     throw new ImportFileError('This file is not a valid .xlsx workbook. Save it as Excel Workbook (.xlsx) and try again.');
   }
   if (ext === '.csv') {
