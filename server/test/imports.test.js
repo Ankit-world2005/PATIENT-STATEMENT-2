@@ -5,7 +5,9 @@ import { buildErrorReportCsv } from '../src/services/imports/report.js';
 import { templateCsv, templateXlsx } from '../src/services/imports/template.js';
 import { validateRows } from '../src/services/imports/validate.js';
 import JSZip from 'jszip';
+import { PDFDocument } from 'pdf-lib';
 import { extractPdfsFromZip, matchPdfsToRows, parsePatientStatementPdfSyntax } from '../src/services/imports/zip.js';
+import { checkUploadedPdf } from '../src/services/pdf.js';
 
 const csv = (text) => Buffer.from(text, 'utf8');
 
@@ -251,6 +253,19 @@ test('matchPdfsToRows matches lastname, Firstname PDF to both Firstname Lastname
   assert.equal(p0.originalFilename, 'SHARP, EMMA_$142.46_West AZ_1st.pdf');
   assert.equal(p1.originalFilename, 'STIERMAN, LINSEY_$258.06_West AZ_2nd.pdf');
 });
+
+test('checkUploadedPdf validates PDF magic bytes and valid pdf structure', async () => {
+  const notPdf = Buffer.from('Hello world non pdf content');
+  const err1 = await checkUploadedPdf(notPdf);
+  assert.equal(err1, 'Upload a PDF file up to 10 MB.');
+
+  const doc = await PDFDocument.create();
+  doc.addPage([200, 200]);
+  const pdfBytes = await doc.save();
+  const err2 = await checkUploadedPdf(Buffer.from(pdfBytes));
+  assert.equal(err2, null);
+});
+
 
 
 
