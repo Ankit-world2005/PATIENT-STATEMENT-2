@@ -237,9 +237,18 @@ function UploadPdfCard({ statement: s, onUploaded, onCancel }) {
   );
 }
 
-function PatientPdfStatTab({ statement: s, role, onUploaded, onSwitchToStatement }) {
+function PatientPdfStatTab({
+  statement: s,
+  role,
+  onUploaded,
+  onSwitchToStatement,
+  showUpload: extShowUpload,
+  setShowUpload: extSetShowUpload,
+}) {
   const [previewId, setPreviewId] = useState(null);
-  const [showUpload, setShowUpload] = useState(false);
+  const [internalShowUpload, setInternalShowUpload] = useState(false);
+  const showUpload = extShowUpload !== undefined ? extShowUpload : internalShowUpload;
+  const setShowUpload = extSetShowUpload || setInternalShowUpload;
   const files = s.patientFiles || [];
 
   return (
@@ -436,6 +445,7 @@ export function StatementDetailPage() {
   const [downloading, setDownloading] = useState(false);
   const [published, setPublished] = useState(location.state?.published ?? null);
   const [docTab, setDocTab] = useState('statement'); // 'statement' | 'pdf'
+  const [pdfUploadOpen, setPdfUploadOpen] = useState(false);
 
   const load = useCallback(() => {
     setError(null);
@@ -530,16 +540,6 @@ export function StatementDetailPage() {
                 </span>
               )}
             </button>
-            {user.role === 'specialist' && (
-              <button
-                type="button"
-                className={`pdf-stat-tab-btn ${docTab === 'upload' ? 'active' : ''}`}
-                onClick={() => setDocTab('upload')}
-                title="Upload a PDF statement for this patient"
-              >
-                <IconUpload size={14} /> Upload PDF
-              </button>
-            )}
           </div>
         </div>
 
@@ -549,20 +549,23 @@ export function StatementDetailPage() {
             <div className="balance-hero-amount">{money(s.balanceDue)}</div>
           </div>
           <div className="detail-buttons">
+            <button type="button" className="btn btn-primary" onClick={download} disabled={downloading}>
+              <IconDownload /> {downloading ? 'Preparing…' : 'Download PDF'}
+            </button>
             {user.role === 'specialist' && s.status?.toLowerCase() !== 'withdrawn' && (
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={() => setDocTab('upload')}
+                onClick={() => {
+                  setDocTab('pdf');
+                  setPdfUploadOpen(true);
+                }}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 title="Upload a new PDF statement for this patient"
               >
                 <IconUpload size={14} /> Upload PDF
               </button>
             )}
-            <button type="button" className="btn btn-primary" onClick={download} disabled={downloading}>
-              <IconDownload /> {downloading ? 'Preparing…' : 'Download PDF'}
-            </button>
             {user.role === 'specialist' && s.status?.toLowerCase() !== 'withdrawn' && (
               <button type="button" className="btn btn-danger-outline" onClick={() => setDialog('withdraw')}>Withdraw</button>
             )}
@@ -572,23 +575,14 @@ export function StatementDetailPage() {
 
       <div className="detail-columns-grid">
         <div className="statement-document-card">
-          {docTab === 'upload' ? (
-            <div className="pdf-stat-hub">
-              <UploadPdfCard
-                statement={s}
-                onUploaded={async () => {
-                  await load();
-                  setDocTab('pdf');
-                }}
-                onCancel={() => setDocTab('statement')}
-              />
-            </div>
-          ) : docTab === 'pdf' ? (
+          {docTab === 'pdf' ? (
             <PatientPdfStatTab
               statement={s}
               role={user.role}
               onUploaded={load}
               onSwitchToStatement={() => setDocTab('statement')}
+              showUpload={pdfUploadOpen}
+              setShowUpload={setPdfUploadOpen}
             />
           ) : s.source === 'pdf_upload' && s.file && !s.lineItems?.length ? (
             <div className="pdf-panel" style={{ padding: '32px 20px', textAlign: 'center' }}>
