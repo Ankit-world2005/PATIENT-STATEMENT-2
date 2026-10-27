@@ -4,7 +4,7 @@
 // details must never contain patient information; only these keys are kept.
 const ALLOWED_DETAIL_KEYS = new Set([
   'include_remarks', 'rows_total', 'rows_valid', 'rows_invalid', 'rows_duplicate', 'rows_published',
-  'rows_failed', 'new_versions', 'skipped', 'changed_fields', 'filters', 'remark_type', 'method',
+  'rows_failed', 'rows_updated', 'skipped', 'changed_fields', 'filters', 'remark_type', 'method',
   'part', 'reason_code', 'role', 'status',
 ]);
 

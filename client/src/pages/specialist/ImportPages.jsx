@@ -337,11 +337,11 @@ export function ImportPreviewPage() {
           }}
         />
         <StatTile
-          label="Ready to publish"
+          label="New patients"
           value={t.valid}
           tone="success"
           actionHint="Jump to publish ↓"
-          title="Valid records ready to be published to clinic"
+          title="New patient statements that will be created in this clinic"
           onClick={() => {
             const el = document.querySelector('.publish-bar');
             if (el) el.scrollIntoView({ behavior: 'smooth' });
@@ -598,7 +598,7 @@ export function ImportResultPage() {
   const b = data.batch;
   const t = b.totals;
   const done = ['published', 'partially_imported'].includes(b.status);
-  const created = (t.published ?? 0) + (t.newVersions ?? 0);
+  const total = (t.published ?? 0) + (t.updated ?? 0);
 
   return (
     <div className="container page-narrow">
@@ -606,7 +606,9 @@ export function ImportResultPage() {
       {done && <ol className="steps steps-page" aria-label="Import steps"><li className="done">Choose clinic and file</li><li className="done">Review preview</li><li className="done current">Upload complete</li></ol>}
       {location.state?.justPublished && done && (
         <Alert tone="success" title={`Excel report successfully uploaded to ${b.clinic.name}.`}>
-          {created.toLocaleString('en-US')} patient record{created === 1 ? '' : 's'} published. Clinic users can view them now in their portal ledger.
+          {total.toLocaleString('en-US')} patient record{total === 1 ? '' : 's'} published
+          ({(t.published ?? 0).toLocaleString('en-US')} new, {(t.updated ?? 0).toLocaleString('en-US')} updated).
+          Clinic users can view them now in their portal ledger.
         </Alert>
       )}
 
@@ -633,24 +635,24 @@ export function ImportResultPage() {
         <>
           <div className="stat-tiles">
             <StatTile
-              label="Uploaded to clinic"
+              label="New patients"
               value={t.published}
               tone="success"
               actionHint="View in ledger →"
-              title={`View published statements in ${b.clinic.name} ledger`}
+              title={`View new patient statements in ${b.clinic.name} ledger`}
               onClick={() => navigate(`/clinics/${b.clinic.id}/statements`)}
             />
             <StatTile
-              label="New versions"
-              value={t.newVersions}
-              tone={t.newVersions ? 'info' : undefined}
-              actionHint={t.newVersions > 0 ? 'View in ledger →' : 'All new records'}
-              title={t.newVersions > 0 ? `View ${t.newVersions} updated version(s)` : 'No previous statements were superseded'}
+              label="Updated existing"
+              value={t.updated}
+              tone={t.updated ? 'info' : undefined}
+              actionHint={t.updated > 0 ? 'View in ledger →' : 'No existing patients'}
+              title={t.updated > 0 ? `View ${t.updated} updated patient statement(s)` : 'No existing patient statements were updated'}
               onClick={() => {
-                if (t.newVersions > 0) {
+                if (t.updated > 0) {
                   navigate(`/clinics/${b.clinic.id}/statements`);
                 } else {
-                  toast(`No new versions updated. All ${t.published || 0} records were uploaded as fresh statements.`, 'info');
+                  toast(`No existing patients were updated. All ${t.published || 0} records were uploaded as new statements.`, 'info');
                 }
               }}
             />

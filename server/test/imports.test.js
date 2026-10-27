@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { ImportFileError, parseImportFile } from '../src/services/imports/parse.js';
 import { buildErrorReportCsv } from '../src/services/imports/report.js';
 import { templateCsv, templateXlsx } from '../src/services/imports/template.js';
-import { validateRows } from '../src/services/imports/validate.js';
+import { markDuplicates, validateRows } from '../src/services/imports/validate.js';
 import JSZip from 'jszip';
 import { PDFDocument } from 'pdf-lib';
 import { extractPdfsFromZip, matchPdfsToRows, parsePatientStatementPdfSyntax } from '../src/services/imports/zip.js';
@@ -46,6 +46,59 @@ test('flags in-file duplicates and invalid rows', () => {
   assert.deepEqual(rows.map((r) => r.outcome), ['valid', 'invalid', 'invalid']);
   assert.match(rows[1].errors[0].message, /row 2/);
   assert.equal(rows[2].data.statement_date, 'soon'); // raw text kept for the error report
+});
+
+test('a patient appears once per file: by account number, or by name when the file has none', () => {
+  const withAccounts = validateRows([
+    { rowNumber: 2, raw: { patient_name: 'A', account_number: 'X1', statement_date: '2026-10-01', balance_due: '5' } },
+    { rowNumber: 3, raw: { patient_name: 'B', account_number: 'X1', statement_date: '2026-10-02', balance_due: '6' } },
+    { rowNumber: 4, raw: { patient_name: 'A', account_number: 'X2', statement_date: '2026-10-01', balance_due: '7' } },
+  ]);
+  assert.deepEqual(withAccounts.map((r) => r.outcome), ['valid', 'invalid', 'valid']);
+  assert.equal(withAccounts[1].errors[0].message, 'Same patient as row 2 in this file.');
+
+  // Ledgers without an account column get a generated ACC-NAME-row number, so the name decides.
+  const ledger = validateRows([
+    { rowNumber: 2, raw: { _rowNumber: 2, patient_name: 'Smith John', cycle1_date: '10/01/2026', current_balance: '5' } },
+    { rowNumber: 3, raw: { _rowNumber: 3, patient_name: 'SMITH JOHN', cycle1_date: '10/15/2026', current_balance: '6' } },
+  ]);
+  assert.deepEqual(ledger.map((r) => r.outcome), ['valid', 'invalid']);
+  assert.equal(ledger[1].errors[0].field, 'patient_name');
+});
+
+test('markDuplicates finds existing patients by account number, or by name when the file has none', async () => {
+  const lookups = [];
+  const db = {
+    async query(_sql, params) {
+      lookups.push(params.slice(1));
+      return {
+        rows: [
+          { id: 'jane-a1', account_number: 'A-1', name_key: 'jane doe' },
+          { id: 'johnny', account_number: 'ACC-SMITHJ-0003', name_key: 'smith johnny' },
+          { id: 'john', account_number: 'ACC-SMITHJ-0009', name_key: 'smith john' },
+        ],
+      };
+    },
+  };
+
+  const withAccounts = validateRows([
+    { rowNumber: 2, raw: { patient_name: 'Jane Doe', account_number: 'A-1', statement_date: '2026-10-01', balance_due: '5' } },
+    { rowNumber: 3, raw: { patient_name: 'Jane Doe', account_number: 'Z-7', statement_date: '2026-10-01', balance_due: '5' } },
+  ]);
+  await markDuplicates(db, 'clinic', withAccounts);
+  // The same name under another account number is a different patient.
+  assert.deepEqual(withAccounts.map((r) => [r.outcome, r.duplicateOf]), [['duplicate', 'jane-a1'], ['valid', undefined]]);
+
+  const ledger = validateRows([
+    { rowNumber: 3, raw: { _rowNumber: 3, patient_name: 'Smith John', cycle1_date: '10/01/2026', current_balance: '5' } },
+  ]);
+  assert.equal(ledger[0].data.account_number, 'ACC-SMITHJ-0003'); // what Smith Johnny got on this row last time
+  await markDuplicates(db, 'clinic', ledger);
+  assert.equal(ledger[0].duplicateOf, 'john');
+  assert.equal(ledger[0].duplicateDecision, 'update');
+
+  // Generated account numbers are never looked up.
+  assert.deepEqual(lookups, [[['A-1', 'Z-7'], []], [[], ['smith john']]]);
 });
 
 test('the template parses, and its EXAMPLE rows are rejected', async () => {

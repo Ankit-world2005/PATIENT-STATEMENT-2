@@ -45,7 +45,7 @@ importsRouter.get('/:id', async (req, res) => {
 });
 
 const decisionSchema = z.object({
-  decision: z.enum(['skip', 'new_version']),
+  decision: z.enum(['update', 'skip']),
   rowNumbers: z.array(z.number().int().positive()).max(5000).optional(),
 });
 

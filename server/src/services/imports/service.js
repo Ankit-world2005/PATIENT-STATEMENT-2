@@ -4,15 +4,18 @@ import { audit } from '../../lib/audit.js';
 import { badRequest, conflict } from '../../lib/errors.js';
 import { storage, sha256Hex, statementFileKey } from '../../lib/storage.js';
 import { getOwnImportBatch, getPublishableClinic } from '../access.js';
+import { runCleanup } from '../cleanup.js';
 import { insertStatements, lockChainHead, updateStatement } from '../statements.js';
+import { ImportFileError, detectFormat, parseImportFile } from './parse.js';
 import { buildErrorReportCsv } from './report.js';
 import { markDuplicates, validateRows } from './validate.js';
 import { extractPdfsFromZip, matchPdfsToRows } from './zip.js';
 
 // Bulk statement import (F8), following schema transactions T4-T6:
 //   check   -> batch 'previewed' (or 'failed') with staged import_row records
-//   decide  -> Skip / Publish as new version for each possible duplicate
-//   publish -> statements created, error report saved, staged rows removed
+//   decide  -> Update existing / Skip for each row whose patient already has a statement
+//   publish -> statements created for new patients, existing ones updated in place,
+//              error report saved, staged rows removed
 //   cancel  -> nothing published, staged rows removed
 
 const PREVIEW_HOURS = 24;
@@ -29,7 +32,7 @@ async function insertImportRows(db, batchId, rows) {
         JSON.stringify(r.data),
         r.errors ? JSON.stringify(r.errors) : null,
         r.duplicateOf ?? null,
-        r.duplicateDecision ?? (r.outcome === 'duplicate' ? 'new_version' : null),
+        r.duplicateDecision ?? (r.outcome === 'duplicate' ? 'update' : null),
       );
       const n = params.length;
       return `($${n - 6}, $${n - 5}, $${n - 4}, $${n - 3}::jsonb, $${n - 2}::jsonb, $${n - 1}, $${n})`;
@@ -176,7 +179,7 @@ function publicBatch(b) {
     failureReason: b.failure_reason,
     totals: {
       total: b.total_rows, valid: b.valid_rows, invalid: b.invalid_rows, duplicate: b.duplicate_rows,
-      published: b.published_rows, newVersions: b.published_new_versions, skipped: b.skipped_duplicates,
+      published: b.published_rows, updated: b.published_new_versions, skipped: b.skipped_duplicates,
     },
     hasErrorReport: Boolean(b.error_report_storage_key) || (b.status === 'previewed' && b.invalid_rows > 0),
     specialistName: b.specialist_name,
@@ -260,9 +263,53 @@ export async function setDuplicateDecisions(req, batchId, { decision, rowNumbers
   });
 }
 
+/** The PDFs matched to an import row (older previews hold a single matched_pdf_* set). */
+function matchedPdfs(data) {
+  if (Array.isArray(data.matched_pdfs) && data.matched_pdfs.length) return data.matched_pdfs;
+  if (!data.matched_pdf_storage_key) return [];
+  return [{
+    storage_key: data.matched_pdf_storage_key,
+    original_filename: data.matched_pdf_name,
+    size_bytes: data.matched_pdf_size,
+    sha256: data.matched_pdf_sha256,
+  }];
+}
+
+/**
+ * Attaches an import row's PDFs to a statement, skipping any it already has (same
+ * file name or contents). Returns the storage keys of the staged copies not used.
+ */
+async function attachImportPdfs(db, statementId, data) {
+  const unused = [];
+  for (const pdf of matchedPdfs(data)) {
+    const { rowCount } = await db.query(
+      `INSERT INTO statement_file (statement_id, storage_key, original_filename, size_bytes, sha256)
+       SELECT $1::uuid, $2::varchar, $3::varchar, $4::integer, $5::char(64)
+        WHERE NOT EXISTS (SELECT 1 FROM statement_file
+                           WHERE statement_id = $1::uuid AND (original_filename = $3::varchar OR sha256 = $5::char(64)))`,
+      [statementId, pdf.storage_key, pdf.original_filename, pdf.size_bytes, pdf.sha256],
+    );
+    if (!rowCount) unused.push(pdf.storage_key);
+  }
+  return unused;
+}
+
+/** Adds an import row's notes as a specialist remark, unless the statement already has that remark. */
+async function addImportRemark(db, statementId, authorId, body) {
+  if (!body) return;
+  const { rowCount } = await db.query(
+    `INSERT INTO remark (statement_id, author_id, author_role, type, body)
+     SELECT $1::uuid, $2::uuid, 'specialist', 'specialist', $3::text
+      WHERE NOT EXISTS (SELECT 1 FROM remark WHERE statement_id = $1::uuid AND type = 'specialist' AND body = $3::text)`,
+    [statementId, authorId, body],
+  );
+  if (rowCount) await db.query('UPDATE statement SET last_remark_at = now() WHERE id = $1', [statementId]);
+}
+
 /** S5 "Publish valid rows" (schema T6). Safe against double-clicks: the batch row is locked and its status checked. */
 export async function publishImport(req, batchId) {
-  return withTransaction(async (db) => {
+  const unusedPdfKeys = [];
+  const result = await withTransaction(async (db) => {
     let batch = await getOwnImportBatch(db, req, batchId, { forUpdate: true });
     batch = await expireIfStale(db, batch);
     if (['published', 'partially_imported'].includes(batch.status)) return { id: batch.id, status: batch.status, alreadyPublished: true };
@@ -277,124 +324,45 @@ export async function publishImport(req, batchId) {
       [batch.id],
     );
     const duplicates = rows.filter((r) => r.outcome === 'duplicate');
-    // Default all undecided duplicates to 'update' existing patient statement
-    for (const d of duplicates) {
-      if (!d.duplicate_decision) d.duplicate_decision = 'update';
-    }
+    // Rows for existing patients update their statement unless skipped ('new_version' comes from older previews).
+    const skipped = duplicates.filter((r) => r.duplicate_decision === 'skip');
+    const matched = duplicates.filter((r) => r.duplicate_decision !== 'skip');
 
     const base = { clinic_id: batch.clinic_id, source: 'import', import_batch_id: batch.id, uploaded_by_id: req.user.id };
-    const items = rows
-      .filter((r) => r.outcome === 'valid')
-      .map((r) => ({ ...base, ...r.data, import_row_number: r.row_number, version: 1, supersedes_id: null }));
+    const newStatement = (r) => ({ ...base, ...r.data, import_row_number: r.row_number, version: 1, supersedes_id: null });
+    const items = rows.filter((r) => r.outcome === 'valid').map(newStatement);
 
-    // 1. Insert new statements for brand new patients
-    const createdStatements = await insertStatements(db, items);
+    // A matched statement may have been withdrawn or replaced by a newer version since the preview.
+    const { rows: current } = await db.query(
+      `SELECT s.id FROM statement s
+        WHERE s.id = ANY($1::uuid[]) AND s.status = 'active'
+          AND NOT EXISTS (SELECT 1 FROM statement n WHERE n.supersedes_id = s.id)
+        FOR UPDATE`,
+      [matched.map((r) => r.duplicate_of_statement_id)],
+    );
+    const currentIds = new Set(current.map((s) => s.id));
+    const updates = [];
+    for (const r of matched) {
+      const head = currentIds.has(r.duplicate_of_statement_id)
+        ? { id: r.duplicate_of_statement_id, status: 'active' }
+        : await lockChainHead(db, r.duplicate_of_statement_id);
+      if (head.status === 'active') updates.push({ statementId: head.id, data: r.data });
+      else items.push(newStatement(r));
+    }
+
+    const created = await insertStatements(db, items);
     for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-      const created = createdStatements[i];
-      const remarkBody = it.remarks || it.us24_notes;
-      if (remarkBody && created?.id) {
-        await db.query(
-          `INSERT INTO remark (statement_id, author_id, author_role, type, body)
-           VALUES ($1, $2, 'specialist', 'specialist', $3)`,
-          [created.id, req.user.id, remarkBody],
-        );
-        await db.query(
-          `UPDATE statement SET last_remark_at = now() WHERE id = $1`,
-          [created.id],
-        );
-      }
-      if (created?.id) {
-        const pdfsToInsert = it.matched_pdfs && Array.isArray(it.matched_pdfs) && it.matched_pdfs.length > 0
-          ? it.matched_pdfs
-          : (it.matched_pdf_storage_key ? [{
-              storage_key: it.matched_pdf_storage_key,
-              original_filename: it.matched_pdf_name,
-              size_bytes: it.matched_pdf_size,
-              sha256: it.matched_pdf_sha256,
-            }] : []);
-
-        for (const pdf of pdfsToInsert) {
-          await db.query(
-            `INSERT INTO statement_file (statement_id, storage_key, original_filename, size_bytes, sha256)
-             VALUES ($1, $2, $3, $4, $5)`,
-            [created.id, pdf.storage_key, pdf.original_filename, pdf.size_bytes, pdf.sha256],
-          );
-        }
-      }
+      await addImportRemark(db, created[i].id, req.user.id, items[i].remarks || items[i].us24_notes);
+      unusedPdfKeys.push(...(await attachImportPdfs(db, created[i].id, items[i])));
     }
-
-    // 2. Update existing statements in place with latest ledger data, cycle balances, remarks, and attached PDFs
-    const toUpdate = duplicates.filter((r) => r.duplicate_decision === 'update' || r.duplicate_decision === 'new_version');
-    for (const r of toUpdate) {
-      const targetStatementId = r.duplicate_of_statement_id;
-      if (targetStatementId) {
-        await updateStatement(db, targetStatementId, r.data);
-        const remarkBody = r.data.remarks || r.data.us24_notes;
-        if (remarkBody) {
-          await db.query(
-            `INSERT INTO remark (statement_id, author_id, author_role, type, body)
-             VALUES ($1, $2, 'specialist', 'specialist', $3)`,
-            [targetStatementId, req.user.id, remarkBody],
-          );
-          await db.query(
-            `UPDATE statement SET last_remark_at = now() WHERE id = $1`,
-            [targetStatementId],
-          );
-        }
-        const pdfsToInsert = r.data.matched_pdfs && Array.isArray(r.data.matched_pdfs) && r.data.matched_pdfs.length > 0
-          ? r.data.matched_pdfs
-          : (r.data.matched_pdf_storage_key ? [{
-              storage_key: r.data.matched_pdf_storage_key,
-              original_filename: r.data.matched_pdf_name,
-              size_bytes: r.data.matched_pdf_size,
-              sha256: r.data.matched_pdf_sha256,
-            }] : []);
-
-        for (const pdf of pdfsToInsert) {
-          const existingFile = await db.query(
-            `SELECT id FROM statement_file WHERE statement_id = $1 AND (storage_key = $2 OR original_filename = $3)`,
-            [targetStatementId, pdf.storage_key, pdf.original_filename],
-          );
-          if (!existingFile.rows.length) {
-            await db.query(
-              `INSERT INTO statement_file (statement_id, storage_key, original_filename, size_bytes, sha256)
-               VALUES ($1, $2, $3, $4, $5)`,
-              [targetStatementId, pdf.storage_key, pdf.original_filename, pdf.size_bytes, pdf.sha256],
-            );
-          }
-        }
-      }
+    for (const { statementId, data } of updates) {
+      await updateStatement(db, statementId, data);
+      await addImportRemark(db, statementId, req.user.id, data.remarks || data.us24_notes);
+      unusedPdfKeys.push(...(await attachImportPdfs(db, statementId, data)));
     }
-
-    // 3. Attach matched PDFs to existing statements even if a duplicate row was marked skip
-    const skipped = duplicates.filter((r) => r.duplicate_decision === 'skip');
-    for (const sRow of skipped) {
-      if (sRow.duplicate_of_statement_id) {
-        const it = sRow.data || {};
-        const pdfsToInsert = it.matched_pdfs && Array.isArray(it.matched_pdfs) && it.matched_pdfs.length > 0
-          ? it.matched_pdfs
-          : (it.matched_pdf_storage_key ? [{
-              storage_key: it.matched_pdf_storage_key,
-              original_filename: it.matched_pdf_name,
-              size_bytes: it.matched_pdf_size,
-              sha256: it.matched_pdf_sha256,
-            }] : []);
-
-        for (const pdf of pdfsToInsert) {
-          const existingFile = await db.query(
-            `SELECT id FROM statement_file WHERE statement_id = $1 AND (storage_key = $2 OR original_filename = $3)`,
-            [sRow.duplicate_of_statement_id, pdf.storage_key, pdf.original_filename],
-          );
-          if (!existingFile.rows.length) {
-            await db.query(
-              `INSERT INTO statement_file (statement_id, storage_key, original_filename, size_bytes, sha256)
-               VALUES ($1, $2, $3, $4, $5)`,
-              [sRow.duplicate_of_statement_id, pdf.storage_key, pdf.original_filename, pdf.size_bytes, pdf.sha256],
-            );
-          }
-        }
-      }
+    // Skipped rows leave the statement as it is but still attach PDFs it doesn't have yet.
+    for (const r of skipped) {
+      unusedPdfKeys.push(...(await attachImportPdfs(db, r.duplicate_of_statement_id, r.data)));
     }
 
     const failed = rows.filter((r) => r.outcome === 'invalid');
@@ -411,7 +379,7 @@ export async function publishImport(req, batchId) {
           SET status = $2, published_at = now(), published_rows = $3, published_new_versions = $4,
               skipped_duplicates = $5, error_report_storage_key = $6
         WHERE id = $1`,
-      [batch.id, status, items.length, toUpdate.length, skipped.length, reportKey],
+      [batch.id, status, items.length, updates.length, skipped.length, reportKey],
     );
     await db.query('DELETE FROM import_row WHERE batch_id = $1', [batch.id]);
     await audit(db, req, {
@@ -422,13 +390,16 @@ export async function publishImport(req, batchId) {
       details: {
         rows_total: rows.length,
         rows_published: items.length,
-        new_versions: newVersions.length,
+        rows_updated: updates.length,
         skipped: skipped.length,
         rows_failed: failed.length,
       },
     });
     return { id: batch.id, status };
   });
+  // Staged copies of PDFs the statements already had; removed only once the publish has committed.
+  await Promise.all(unusedPdfKeys.map((key) => storage.remove(key).catch(() => {})));
+  return result;
 }
 
 export async function cancelImport(req, batchId) {
