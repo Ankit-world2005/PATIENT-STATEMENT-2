@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router';
-import { IconDownload, IconExternalLink, IconFileText, IconPrint, IconUpload } from '../../components/Icons.jsx';
+import { IconDownload, IconExternalLink, IconFileText, IconPrint } from '../../components/Icons.jsx';
 import { RemarksLedger } from '../../components/RemarksLedger.jsx';
 import { StatementDocument } from '../../components/StatementDocument.jsx';
 import { Alert, BackBar, Field, Modal, Spinner, StatusBadge } from '../../components/ui.jsx';
@@ -80,43 +80,9 @@ function formatBytes(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function PatientPdfStatTab({ statement: s, role, onUploaded, onSwitchToStatement }) {
+function PatientPdfStatTab({ statement: s, onSwitchToStatement }) {
   const [previewId, setPreviewId] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef(null);
-  const toast = useToast();
   const files = s.patientFiles || [];
-
-  const handleUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
-      toast('Please select a valid PDF file.', 'error');
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) {
-      toast('Upload a PDF file up to 10 MB.', 'error');
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
-
-    setUploading(true);
-    try {
-      const form = new FormData();
-      form.append('pdf', file);
-      await api(`/statements/${s.id}/files`, { method: 'POST', form });
-      toast('PDF statement uploaded successfully.', 'success');
-      if (onUploaded) await onUploaded();
-    } catch (err) {
-      toast(err.message || 'Failed to upload PDF.', 'error');
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
 
   return (
     <div className="pdf-stat-hub">
@@ -127,51 +93,28 @@ function PatientPdfStatTab({ statement: s, role, onUploaded, onSwitchToStatement
             PDF Statements for {s.patientName}
             {files.length > 0 && (
               <span className="badge badge-secondary" style={{ fontSize: '0.75rem', fontWeight: 600 }}>
-                {files.length} {files.length === 1 ? 'file' : 'files'}
+                {files.length} {files.length === 1 ? 'file' : 'files'} from ZIP
               </span>
             )}
           </h2>
           <p className="pdf-stat-header-subtitle">
-            All statement PDFs for Account <strong className="col-mono">{s.accountNumber}</strong>
+            All updated statement PDFs extracted from ZIP archives for Account <strong className="col-mono">{s.accountNumber}</strong>
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {role === 'specialist' && (
-            <>
-              <input
-                type="file"
-                ref={fileInputRef}
-                accept="application/pdf,.pdf"
-                style={{ display: 'none' }}
-                onChange={handleUpload}
-              />
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading || s.status?.toLowerCase() === 'withdrawn'}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                title="Upload a PDF statement for this patient"
-              >
-                <IconUpload size={14} /> {uploading ? 'Uploading…' : 'Upload PDF'}
-              </button>
-            </>
-          )}
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={onSwitchToStatement}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-          >
-            ← View Statement Details
-          </button>
-        </div>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          onClick={onSwitchToStatement}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+        >
+          ← View Statement Details
+        </button>
       </div>
 
       {files.length > 0 ? (
         <div className="pdf-file-cards-list">
           {files.map((file) => (
-            <div key={file.id || `${file.statementId}-${file.name}`} className={`pdf-file-card ${file.isCurrent ? 'is-current' : ''}`}>
+            <div key={file.statementId} className={`pdf-file-card ${file.isCurrent ? 'is-current' : ''}`}>
               <div className="pdf-file-card-top">
                 <div className="pdf-file-card-info">
                   <div className="pdf-file-icon-box">
@@ -257,29 +200,16 @@ function PatientPdfStatTab({ statement: s, role, onUploaded, onSwitchToStatement
           <div style={{ margin: '0 auto 16px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 48, height: 48, borderRadius: 24, background: '#f1f5f9', color: '#64748b' }}>
             <IconFileText size={24} />
           </div>
-          <h3 style={{ margin: '0 0 8px', fontSize: '1rem', fontWeight: 600 }}>No PDF Statements Attached</h3>
+          <h3 style={{ margin: '0 0 8px', fontSize: '1rem', fontWeight: 600 }}>No PDF from ZIP Archive Attached</h3>
           <p style={{ margin: '0 0 20px', color: 'var(--color-text-muted)', fontSize: '0.88rem', maxWidth: 480, marginInline: 'auto' }}>
-            {role === 'specialist'
-              ? 'No PDF file has been uploaded for this patient yet. You can upload a PDF statement directly using the button below or view the system-generated PDF.'
-              : 'No PDF file is attached to this patient statement yet. You can view or download the official system-generated PDF statement.'}
+            This patient's statement was uploaded via spreadsheet without an extracted ZIP PDF file. You can still view and download the official system-generated PDF statement.
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap' }}>
-            {role === 'specialist' && (
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading || s.status?.toLowerCase() === 'withdrawn'}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              >
-                <IconUpload size={14} /> {uploading ? 'Uploading…' : 'Upload PDF'}
-              </button>
-            )}
             <a
               href={`/api/statements/${s.id}/file`}
               target="_blank"
               rel="noopener noreferrer"
-              className={role === 'specialist' ? 'btn btn-secondary' : 'btn btn-primary'}
+              className="btn btn-primary"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
               <IconExternalLink size={14} /> Open Generated Statement PDF
@@ -429,12 +359,7 @@ export function StatementDetailPage() {
       <div className="detail-columns-grid">
         <div className="statement-document-card">
           {docTab === 'pdf' ? (
-            <PatientPdfStatTab
-              statement={s}
-              role={user.role}
-              onUploaded={load}
-              onSwitchToStatement={() => setDocTab('statement')}
-            />
+            <PatientPdfStatTab statement={s} onSwitchToStatement={() => setDocTab('statement')} />
           ) : s.source === 'pdf_upload' && s.file && !s.lineItems?.length ? (
             <div className="pdf-panel" style={{ padding: '32px 20px', textAlign: 'center' }}>
               <p style={{ marginBottom: 14, fontWeight: 500 }}>

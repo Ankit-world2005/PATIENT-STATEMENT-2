@@ -1,23 +1,16 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import multer from 'multer';
 import ExcelJS from 'exceljs';
-import { config } from '../config.js';
 import { pool, query, withTransaction } from '../db/pool.js';
 import { audit } from '../lib/audit.js';
 import { HttpError, badRequest, conflict, parseOrThrow } from '../lib/errors.js';
-import { storage, sha256Hex, statementFileKey } from '../lib/storage.js';
+import { storage, sha256Hex } from '../lib/storage.js';
 import { requireRole } from '../middleware/guards.js';
 import { getVisibleClinic, getVisibleStatement, statementScope } from '../services/access.js';
-import { checkUploadedPdf, renderStatementPdf } from '../services/pdf.js';
+import { renderStatementPdf } from '../services/pdf.js';
 import { insertRemark } from '../services/statements.js';
 
 export const statementsRouter = Router();
-
-const uploadPdf = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: config.uploads.maxBytes, files: 1 },
-});
 
 const PAGE_SIZE = 25; // FR-9.5
 
@@ -366,7 +359,7 @@ statementsRouter.get('/:id', async (req, res) => {
 
     const [clinic, file, remarks, people, others, patientFiles] = await Promise.all([
       db.query('SELECT * FROM clinic WHERE id = $1', [s.clinic_id]),
-      db.query('SELECT original_filename, size_bytes FROM statement_file WHERE statement_id = $1 ORDER BY id DESC LIMIT 1', [s.id]),
+      db.query('SELECT original_filename, size_bytes FROM statement_file WHERE statement_id = $1', [s.id]),
       db.query(
         `SELECT r.*, u.full_name AS author_name FROM remark r JOIN app_user u ON u.id = r.author_id
           WHERE r.statement_id = $1 ORDER BY r.created_at, r.id`,
@@ -579,63 +572,6 @@ statementsRouter.post('/:id/print', async (req, res) => {
   const includeRemarks = Boolean(req.body?.includeRemarks);
   await loadForFile(req, 'statement.print', { include_remarks: includeRemarks });
   res.json({ ok: true });
-});
-
-// --- Specialist: upload PDF to statement (PDF Stat tab) -----------------------
-statementsRouter.post('/:id/files', requireRole('specialist'), uploadPdf.single('pdf'), async (req, res) => {
-  if (!req.file) {
-    throw badRequest('Please choose a PDF file to upload.');
-  }
-
-  const checkErr = await checkUploadedPdf(req.file.buffer);
-  if (checkErr) {
-    throw badRequest(checkErr);
-  }
-
-  const fileRecord = await withTransaction(async (db) => {
-    const s = await getVisibleStatement(db, req, req.params.id, { forUpdate: true });
-    if (s.status?.toLowerCase() === 'withdrawn') {
-      throw conflict('Files cannot be uploaded to a withdrawn statement.');
-    }
-
-    const key = statementFileKey();
-    await storage.put(key, req.file.buffer);
-
-    const sha = sha256Hex(req.file.buffer);
-    const originalFilename = (req.file.originalname || `statement-${s.statement_date}.pdf`).trim().slice(0, 255);
-
-    const { rows } = await db.query(
-      `INSERT INTO statement_file (statement_id, storage_key, original_filename, size_bytes, sha256)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, statement_id, original_filename, size_bytes, created_at`,
-      [s.id, key, originalFilename, req.file.buffer.length, sha],
-    );
-
-    await audit(db, req, {
-      action: 'statement.upload',
-      targetType: 'statement',
-      targetId: s.id,
-      clinicId: s.clinic_id,
-      details: {
-        file_id: rows[0].id,
-        filename: originalFilename,
-        size_bytes: req.file.buffer.length,
-      },
-    });
-
-    return rows[0];
-  });
-
-  res.status(201).json({
-    ok: true,
-    file: {
-      id: fileRecord.id,
-      statementId: fileRecord.statement_id,
-      name: fileRecord.original_filename,
-      sizeBytes: fileRecord.size_bytes,
-      createdAt: fileRecord.created_at,
-    },
-  });
 });
 
 // --- Remarks (F11) -------------------------------------------------------------
