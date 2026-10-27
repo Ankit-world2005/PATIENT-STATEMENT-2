@@ -110,7 +110,9 @@ export function ImportNewPage() {
       }
     } catch (err) {
       setErrors(err.fieldErrors || {});
-      setFailure(err.status === 0 ? "The check didn't finish. Try again." : err.message);
+      const detail = err.data?.detail ? ` (${err.data.detail})` : '';
+      const ref = err.data?.reference ? ` [Ref: ${err.data.reference}]` : '';
+      setFailure(err.status === 0 ? "The check didn't finish. Try again." : `${err.message}${detail}${ref}`);
     } finally {
       setBusy(false);
     }

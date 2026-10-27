@@ -32,11 +32,20 @@ importsRouter.get('/template.csv', (_req, res) => {
 });
 
 // S4: check file & zip.
-importsRouter.post('/', importUpload, async (req, res) => {
-  const file = req.files?.file?.[0] || req.file;
-  const zipFile = req.files?.zip?.[0];
-  const result = await checkImport(req, { clinicId: req.body?.clinicId, file, zipFile });
-  res.status(201).json(result);
+importsRouter.post('/', (req, res, next) => {
+  importUpload(req, res, (err) => {
+    if (err) return next(err);
+    next();
+  });
+}, async (req, res, next) => {
+  try {
+    const file = req.files?.file?.[0] || req.file;
+    const zipFile = req.files?.zip?.[0];
+    const result = await checkImport(req, { clinicId: req.body?.clinicId, file, zipFile });
+    res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
 });
 
 // S5 / S6.
