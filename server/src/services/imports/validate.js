@@ -68,6 +68,7 @@ export async function markDuplicates(db, clinicId, validated) {
       if (id) {
         row.outcome = 'duplicate';
         row.duplicateOf = id;
+        row.duplicateDecision = 'new_version';
       }
     }
   }

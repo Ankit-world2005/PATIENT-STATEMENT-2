@@ -72,8 +72,6 @@ export function parsePatientStatementPdfSyntax(filename) {
   const segments = base.split('_').map((s) => s.trim()).filter(Boolean);
 
   if (segments.length >= 2) {
-    const rawPatientName = segments[0];
-
     // Find amount segment (e.g. "$538.91", "$00.00", "538.91", "$1,200.50")
     let amountStr = null;
     let amountNum = null;
@@ -88,12 +86,16 @@ export function parsePatientStatementPdfSyntax(filename) {
       }
     }
 
+    // Patient name is everything before the amount segment (supports "lastname, Firstname" or "lastname_Firstname")
+    const nameSegments = amountIdx > 1 ? segments.slice(0, amountIdx) : [segments[0]];
+    const rawPatientName = nameSegments.join(' ').replace(/\s*,\s*/g, ', ');
+
     // Find cycle segment (e.g. "1st", "2nd", "3rd", "1st Electronic Statement", "cycle 1", etc.)
     let cycleStr = null;
     let cycleNum = null;
     let cycleIdx = -1;
     for (let i = 1; i < segments.length; i++) {
-      if (i === amountIdx) continue;
+      if (i === amountIdx || (amountIdx > 1 && i < amountIdx)) continue;
       const cMatch = segments[i].match(/^(1st|2nd|3rd|1|2|3)\b/i);
       if (cMatch) {
         cycleStr = cMatch[1].toLowerCase();
@@ -103,8 +105,12 @@ export function parsePatientStatementPdfSyntax(filename) {
       }
     }
 
-    // Remaining segments can represent location / clinic (e.g. "West AZ")
-    const locationSegments = segments.filter((_, idx) => idx !== 0 && idx !== amountIdx && idx !== cycleIdx);
+    // Remaining segments represent location / clinic (e.g. "West AZ")
+    const locationSegments = segments.filter((_, idx) => {
+      if (amountIdx > 1 ? idx < amountIdx : idx === 0) return false;
+      if (idx === amountIdx || idx === cycleIdx) return false;
+      return true;
+    });
     const locationStr = locationSegments.join(' ');
 
     return {
@@ -136,7 +142,7 @@ export function parsePatientStatementPdfSyntax(filename) {
 /**
  * Matches extracted PDFs to validated statement rows.
  * Supports:
- *   1. Specialist Syntax: Patient Name_$00.00_West AZ_1st or 2nd or 3rd (Scores 105 - 125)
+ *   1. Specialist Syntax: lastname, Firstname_$00.00_West AZ_1st (Scores 105 - 125)
  *   2. Exact account number (Score 100)
  *   3. Account number + patient name in filename (Score 98)
  *   4. Exact patient name (Score 95)
@@ -173,13 +179,22 @@ export function matchPdfsToRows(pdfEntries, rows) {
 
       let score = 0;
 
-      // Check specialist syntax: Patient Name_$00.00_West AZ_1st or 2nd or 3rd
+      // Check specialist syntax: lastname, Firstname_$00.00_West AZ_1st or 2nd or 3rd
       const syntax = parsePatientStatementPdfSyntax(pdf.originalFilename);
       if (syntax.isSyntaxMatch && syntax.cleanPatientName && cleanPat) {
         const sPat = syntax.cleanPatientName;
+        const sPatParts = (syntax.patientName || '').toLowerCase().split(/[\s,._-]+/).filter((p) => p.length >= 2);
+
+        // Token match: check if first & last name parts appear in both (handles lastname, Firstname vs Firstname Lastname)
+        const sharedParts = sPatParts.filter((p) => patParts.includes(p));
+        const tokenMatch = (sPatParts.length >= 2 && sharedParts.length >= 2) ||
+                           (sPatParts.length === 1 && patParts.includes(sPatParts[0]));
+
         const isNameMatch =
           cleanPat === sPat ||
           (patParts.length >= 2 && patParts.slice().reverse().join('') === sPat) ||
+          (sPatParts.length >= 2 && sPatParts.slice().reverse().join('') === cleanPat) ||
+          tokenMatch ||
           (cleanPat.length >= 5 && sPat.includes(cleanPat)) ||
           (sPat.length >= 5 && cleanPat.includes(sPat));
 

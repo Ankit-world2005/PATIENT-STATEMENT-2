@@ -24,13 +24,20 @@ async function insertImportRows(db, batchId, rows) {
     const chunk = rows.slice(i, i + 1000);
     const params = [];
     const tuples = chunk.map((r) => {
-      params.push(batchId, r.rowNumber, r.outcome, JSON.stringify(r.data),
-        r.errors ? JSON.stringify(r.errors) : null, r.duplicateOf ?? null);
+      params.push(
+        batchId,
+        r.rowNumber,
+        r.outcome,
+        JSON.stringify(r.data),
+        r.errors ? JSON.stringify(r.errors) : null,
+        r.duplicateOf ?? null,
+        r.duplicateDecision ?? (r.outcome === 'duplicate' ? 'new_version' : null),
+      );
       const n = params.length;
-      return `($${n - 5}, $${n - 4}, $${n - 3}, $${n - 2}::jsonb, $${n - 1}::jsonb, $${n})`;
+      return `($${n - 6}, $${n - 5}, $${n - 4}, $${n - 3}::jsonb, $${n - 2}::jsonb, $${n - 1}, $${n})`;
     });
     await db.query(
-      `INSERT INTO import_row (batch_id, row_number, outcome, data, errors, duplicate_of_statement_id)
+      `INSERT INTO import_row (batch_id, row_number, outcome, data, errors, duplicate_of_statement_id, duplicate_decision)
        VALUES ${tuples.join(', ')}`,
       params,
     );
@@ -272,8 +279,9 @@ export async function publishImport(req, batchId) {
       [batch.id],
     );
     const duplicates = rows.filter((r) => r.outcome === 'duplicate');
-    if (duplicates.some((r) => !r.duplicate_decision)) {
-      throw badRequest('Choose Skip or Publish as new version for every possible duplicate before publishing.');
+    // Don't skip duplicates: default all undecided duplicates to 'new_version'
+    for (const d of duplicates) {
+      if (!d.duplicate_decision) d.duplicate_decision = 'new_version';
     }
 
     const base = { clinic_id: batch.clinic_id, source: 'import', import_batch_id: batch.id, uploaded_by_id: req.user.id };
@@ -322,8 +330,31 @@ export async function publishImport(req, batchId) {
       }
     }
 
-    const failed = rows.filter((r) => r.outcome === 'invalid');
+    // Attach matched PDFs to existing statements even if a duplicate row was marked skip
     const skipped = duplicates.filter((r) => r.duplicate_decision === 'skip');
+    for (const sRow of skipped) {
+      if (sRow.duplicate_of_statement_id) {
+        const it = sRow.data || {};
+        const pdfsToInsert = it.matched_pdfs && Array.isArray(it.matched_pdfs) && it.matched_pdfs.length > 0
+          ? it.matched_pdfs
+          : (it.matched_pdf_storage_key ? [{
+              storage_key: it.matched_pdf_storage_key,
+              original_filename: it.matched_pdf_name,
+              size_bytes: it.matched_pdf_size,
+              sha256: it.matched_pdf_sha256,
+            }] : []);
+
+        for (const pdf of pdfsToInsert) {
+          await db.query(
+            `INSERT INTO statement_file (statement_id, storage_key, original_filename, size_bytes, sha256)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [sRow.duplicate_of_statement_id, pdf.storage_key, pdf.original_filename, pdf.size_bytes, pdf.sha256],
+          );
+        }
+      }
+    }
+
+    const failed = rows.filter((r) => r.outcome === 'invalid');
     let reportKey = null;
     if (failed.length || skipped.length) {
       // Written before commit: a storage failure aborts the publish (schema T6).

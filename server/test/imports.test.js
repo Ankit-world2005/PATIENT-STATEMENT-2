@@ -216,4 +216,41 @@ test('matchPdfsToRows matches multi-cycle PDFs for the same patient into rowPdfs
   assert.equal(johnPdfs[0], 'John Doe_$00.00_West AZ_1st.pdf');
 });
 
+test('parsePatientStatementPdfSyntax handles lastname, Firstname format', () => {
+  const p1 = parsePatientStatementPdfSyntax('SHARP, EMMA_$142.46_West AZ_1st.pdf');
+  assert.ok(p1);
+  assert.equal(p1.patientName, 'SHARP, EMMA');
+  assert.equal(p1.amountNum, 142.46);
+  assert.equal(p1.locationStr, 'West AZ');
+  assert.equal(p1.cycleNum, 1);
+
+  const p2 = parsePatientStatementPdfSyntax('STIERMAN, LINSEY_$258.06_West AZ_2nd.pdf');
+  assert.ok(p2);
+  assert.equal(p2.patientName, 'STIERMAN, LINSEY');
+  assert.equal(p2.amountNum, 258.06);
+  assert.equal(p2.locationStr, 'West AZ');
+  assert.equal(p2.cycleNum, 2);
+});
+
+test('matchPdfsToRows matches lastname, Firstname PDF to both Firstname Lastname and LAST, FIRST rows', async () => {
+  const zip = new JSZip();
+  zip.file('SHARP, EMMA_$142.46_West AZ_1st.pdf', Buffer.from('%PDF-1.4 cycle1'));
+  zip.file('STIERMAN, LINSEY_$258.06_West AZ_2nd.pdf', Buffer.from('%PDF-1.4 cycle2'));
+  const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+  const pdfs = await extractPdfsFromZip(zipBuffer);
+
+  const rows = [
+    { rowNumber: 1, data: { patient_name: 'Emma Sharp', balance_due: '142.46', location_name: 'West AZ' } },
+    { rowNumber: 2, data: { patient_name: 'STIERMAN, LINSEY', balance_due: '258.06', location_name: 'West AZ' } },
+  ];
+
+  const matched = matchPdfsToRows(pdfs, rows);
+  assert.equal(matched.matchedCount, 2);
+  const p0 = pdfs[matched.assignments.get(0)];
+  const p1 = pdfs[matched.assignments.get(1)];
+  assert.equal(p0.originalFilename, 'SHARP, EMMA_$142.46_West AZ_1st.pdf');
+  assert.equal(p1.originalFilename, 'STIERMAN, LINSEY_$258.06_West AZ_2nd.pdf');
+});
+
+
 

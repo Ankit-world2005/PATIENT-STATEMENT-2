@@ -381,14 +381,14 @@ statementsRouter.get('/:id', async (req, res) => {
         const params = [s.clinic_id, s.account_number, s.patient_name];
         const scope = statementScope(req.user, 'st', params);
         return db.query(
-          `SELECT sf.statement_id, sf.original_filename, sf.size_bytes, sf.created_at,
+          `SELECT sf.id, sf.statement_id, sf.original_filename, sf.size_bytes, sf.created_at,
                   st.statement_date, st.version, st.status, st.balance_due
              FROM statement_file sf
              JOIN statement st ON st.id = sf.statement_id
             WHERE st.clinic_id = $1
               AND (st.account_number = $2 OR LOWER(TRIM(st.patient_name)) = LOWER(TRIM($3)))
               AND ${scope}
-            ORDER BY st.statement_date DESC, st.version DESC`,
+            ORDER BY st.statement_date DESC, st.version DESC, sf.id DESC`,
           params,
         );
       })(),
@@ -461,6 +461,7 @@ statementsRouter.get('/:id', async (req, res) => {
         wasNew,
         file: file.rows[0] ? { name: file.rows[0].original_filename, sizeBytes: file.rows[0].size_bytes } : null,
         patientFiles: patientFiles.rows.map((pf) => ({
+          id: pf.id,
           statementId: pf.statement_id,
           name: pf.original_filename,
           sizeBytes: pf.size_bytes,
