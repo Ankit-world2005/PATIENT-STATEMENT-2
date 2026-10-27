@@ -19,9 +19,10 @@ async function cleanDemoData() {
     const rRes = await client.query('DELETE FROM remark');
     console.log(`   Deleted ${rRes.rowCount} remarks.`);
 
-    console.log('2. Deleting statement files...');
+    console.log('2. Deleting statement files and storage objects...');
     const sfRes = await client.query('DELETE FROM statement_file');
-    console.log(`   Deleted ${sfRes.rowCount} statement files.`);
+    const soRes = await client.query('DELETE FROM storage_object').catch(() => ({ rowCount: 0 }));
+    console.log(`   Deleted ${sfRes.rowCount} statement files and ${soRes.rowCount} storage objects.`);
 
     console.log('3. Deleting import rows and drafts...');
     const irRes = await client.query('DELETE FROM import_row');

@@ -264,8 +264,8 @@ export function ImportPreviewPage() {
   const { batch, invalidRows, duplicates, sampleRows } = data;
   const t = batch.totals;
   const undecided = duplicates.filter((d) => !d.decision).length;
-  const newVersions = duplicates.filter((d) => d.decision === 'new_version').length;
-  const toPublish = t.valid + newVersions;
+  const toUpdate = duplicates.filter((d) => d.decision === 'update' || d.decision === 'new_version').length;
+  const toPublish = t.valid + toUpdate;
   const ignored = location.state?.ignoredColumns ?? [];
 
   const decide = async (decision, rowNumbers) => {
@@ -363,17 +363,17 @@ export function ImportPreviewPage() {
           }}
         />
         <StatTile
-          label="Possible duplicates"
+          label="Existing patients"
           value={t.duplicate}
           tone={t.duplicate ? 'warning' : undefined}
-          actionHint={t.duplicate ? 'Review duplicates ↓' : '0 duplicates (clean)'}
-          title={t.duplicate ? `${t.duplicate} possible duplicate(s) found` : 'No duplicates detected'}
+          actionHint={t.duplicate ? 'Review existing ↓' : '0 existing'}
+          title={t.duplicate ? `${t.duplicate} existing patient statement(s) found to update` : 'No existing patients matched'}
           onClick={() => {
             if (t.duplicate > 0) {
               const el = document.getElementById('dup-heading');
               if (el) el.scrollIntoView({ behavior: 'smooth' });
             } else {
-              toast('No duplicate rows detected.', 'success');
+              toast('No existing patient rows detected.', 'success');
             }
           }}
         />
@@ -428,14 +428,14 @@ export function ImportPreviewPage() {
       {duplicates.length > 0 && (
         <section className="panel" aria-labelledby="dup-heading">
           <div className="panel-header">
-            <h2 id="dup-heading">Possible duplicates <span className="badge badge-warning">{duplicates.length}</span></h2>
+            <h2 id="dup-heading">Existing patient statements <span className="badge badge-warning">{duplicates.length}</span></h2>
             <div className="btn-group">
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => decide('update')}>Update all existing</button>
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => decide('skip')}>Skip all</button>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => decide('new_version')}>Publish all as new versions</button>
             </div>
           </div>
           <p className="panel-intro">
-            These rows match a statement this clinic already has (same account number and statement date). Choose what to do with each.
+            These rows match existing patients in this clinic. Choosing &ldquo;Update existing&rdquo; updates their statement with the new data, cycle balances, remarks, and attached PDFs instead of creating duplicate records.
           </p>
           <div className="table-responsive table-always">
             <table className="statements-table compact">
@@ -447,38 +447,41 @@ export function ImportPreviewPage() {
                 </tr>
               </thead>
               <tbody>
-                {duplicates.map((d) => (
-                  <tr key={d.rowNumber} className={`row-static ${d.decision ? '' : 'row-attention'}`}>
-                    <td className="col-mono">{d.rowNumber}</td>
-                    <td>
-                      {d.data.patient_name}
-                      {d.data.matched_pdf_name && (
-                        <span className="badge badge-secondary" style={{ marginLeft: 6, fontSize: '0.7rem' }} title={`PDF: ${d.data.matched_pdf_name}`}>
-                          PDF
-                        </span>
-                      )}
-                    </td>
-                    <td className="col-mono">{d.data.account_number}</td>
-                    <td className="col-date">{date(d.data.statement_date)}</td>
-                    <td className="col-amount">{money(d.data.balance_due)}</td>
-                    <td className="col-amount">
-                      <Link to={`/statements/${d.existing.id}`} target="_blank" rel="noopener">{money(d.existing.balanceDue)}</Link>
-                      <div className="form-hint">v{d.existing.version} · {shortDate(d.existing.uploadedAt)}</div>
-                    </td>
-                    <td>
-                      <fieldset className="segmented segmented-sm">
-                        <legend className="sr-only">Decision for row {d.rowNumber}</legend>
-                        {[['skip', 'Skip'], ['new_version', 'New version']].map(([value, label]) => (
-                          <label key={value} className={`segmented-option ${d.decision === value ? 'selected' : ''}`}>
-                            <input type="radio" name={`dup-${d.rowNumber}`} value={value} checked={d.decision === value}
-                              onChange={() => decide(value, [d.rowNumber])} />
-                            {label}
-                          </label>
-                        ))}
-                      </fieldset>
-                    </td>
-                  </tr>
-                ))}
+                {duplicates.map((d) => {
+                  const effectiveDecision = d.decision === 'new_version' ? 'update' : d.decision;
+                  return (
+                    <tr key={d.rowNumber} className={`row-static ${effectiveDecision ? '' : 'row-attention'}`}>
+                      <td className="col-mono">{d.rowNumber}</td>
+                      <td>
+                        {d.data.patient_name}
+                        {d.data.matched_pdf_name && (
+                          <span className="badge badge-secondary" style={{ marginLeft: 6, fontSize: '0.7rem' }} title={`PDF: ${d.data.matched_pdf_name}`}>
+                            PDF
+                          </span>
+                        )}
+                      </td>
+                      <td className="col-mono">{d.data.account_number}</td>
+                      <td className="col-date">{date(d.data.statement_date)}</td>
+                      <td className="col-amount">{money(d.data.balance_due)}</td>
+                      <td className="col-amount">
+                        <Link to={`/statements/${d.existing.id}`} target="_blank" rel="noopener">{money(d.existing.balanceDue)}</Link>
+                        <div className="form-hint">v{d.existing.version} · {shortDate(d.existing.uploadedAt)}</div>
+                      </td>
+                      <td>
+                        <fieldset className="segmented segmented-sm">
+                          <legend className="sr-only">Decision for row {d.rowNumber}</legend>
+                          {[['update', 'Update existing'], ['skip', 'Skip']].map(([value, label]) => (
+                            <label key={value} className={`segmented-option ${effectiveDecision === value ? 'selected' : ''}`}>
+                              <input type="radio" name={`dup-${d.rowNumber}`} value={value} checked={effectiveDecision === value}
+                                onChange={() => decide(value, [d.rowNumber])} />
+                              {label}
+                            </label>
+                          ))}
+                        </fieldset>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -528,9 +531,12 @@ export function ImportPreviewPage() {
           {toPublish === 0 ? (
             <strong>No rows can be published. Fix the file and try again.</strong>
           ) : undecided > 0 ? (
-            <strong>Choose Skip or New version for {undecided} possible duplicate{undecided === 1 ? '' : 's'} to continue.</strong>
+            <strong>Choose decision for {undecided} existing patient{undecided === 1 ? '' : 's'} to continue.</strong>
           ) : (
-            <span><strong>{toPublish.toLocaleString('en-US')}</strong> patient statement{toPublish === 1 ? '' : 's'} will be uploaded and published to <strong>{batch.clinic.name}</strong>.</span>
+            <span>
+              <strong>{toPublish.toLocaleString('en-US')}</strong> patient statement{toPublish === 1 ? '' : 's'}{' '}
+              {toUpdate > 0 ? `(${t.valid.toLocaleString('en-US')} new, ${toUpdate.toLocaleString('en-US')} updated)` : ''} will be published to <strong>{batch.clinic.name}</strong>.
+            </span>
           )}
           <div className="form-hint">Preview expires {dateTime(batch.previewExpiresAt)}.</div>
         </div>

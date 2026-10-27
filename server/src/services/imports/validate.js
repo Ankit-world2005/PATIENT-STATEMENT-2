@@ -45,32 +45,52 @@ export function validateRows(rows) {
 }
 
 /**
- * Marks valid rows that match an existing active statement for the clinic with the
- * same account number and statement date. They point at the newest version.
+ * Marks valid rows that match an existing active statement for the clinic.
+ * Matches primarily by account number, and secondarily by normalized patient name.
+ * Default decision is 'update' to update the existing statement record.
  */
 export async function markDuplicates(db, clinicId, validated) {
   const valid = validated.filter((r) => r.outcome === 'valid');
   for (let i = 0; i < valid.length; i += 1000) {
     const chunk = valid.slice(i, i + 1000);
+    const accountNumbers = chunk.map((r) => r.data.account_number).filter(Boolean);
+    const patientNames = chunk
+      .map((r) => (r.data.patient_name ? r.data.patient_name.trim().toLowerCase() : ''))
+      .filter(Boolean);
+
     const { rows } = await db.query(
-      `SELECT DISTINCT ON (s.account_number, s.statement_date)
-              s.id, s.account_number, s.statement_date
+      `SELECT DISTINCT ON (s.account_number)
+              s.id, s.account_number, lower(trim(s.patient_name)) AS norm_name, s.statement_date
          FROM statement s
-         JOIN unnest($2::text[], $3::date[]) AS k(account_number, statement_date)
-           ON s.account_number = k.account_number AND s.statement_date = k.statement_date
         WHERE s.clinic_id = $1 AND s.status = 'active'
-        ORDER BY s.account_number, s.statement_date, s.version DESC`,
-      [clinicId, chunk.map((r) => r.data.account_number), chunk.map((r) => r.data.statement_date)],
+          AND (s.account_number = ANY($2::text[]) OR lower(trim(s.patient_name)) = ANY($3::text[]))
+        ORDER BY s.account_number, s.statement_date DESC, s.created_at DESC`,
+      [clinicId, accountNumbers, patientNames],
     );
-    const existing = new Map(rows.map((r) => [`${r.account_number}\u0000${r.statement_date}`, r.id]));
+
+    const byAccount = new Map();
+    const byName = new Map();
+    for (const r of rows) {
+      if (r.account_number && !byAccount.has(r.account_number)) {
+        byAccount.set(r.account_number, r.id);
+      }
+      if (r.norm_name && !byName.has(r.norm_name)) {
+        byName.set(r.norm_name, r.id);
+      }
+    }
+
     for (const row of chunk) {
-      const id = existing.get(`${row.data.account_number}\u0000${row.data.statement_date}`);
-      if (id) {
+      const existingId =
+        (row.data.account_number ? byAccount.get(row.data.account_number) : null) ||
+        (row.data.patient_name ? byName.get(row.data.patient_name.trim().toLowerCase()) : null);
+
+      if (existingId) {
         row.outcome = 'duplicate';
-        row.duplicateOf = id;
-        row.duplicateDecision = 'new_version';
+        row.duplicateOf = existingId;
+        row.duplicateDecision = 'update';
       }
     }
   }
   return validated;
 }
+

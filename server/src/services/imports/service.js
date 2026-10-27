@@ -4,9 +4,7 @@ import { audit } from '../../lib/audit.js';
 import { badRequest, conflict } from '../../lib/errors.js';
 import { storage, sha256Hex, statementFileKey } from '../../lib/storage.js';
 import { getOwnImportBatch, getPublishableClinic } from '../access.js';
-import { runCleanup } from '../cleanup.js';
-import { insertStatements, lockChainHead } from '../statements.js';
-import { ImportFileError, detectFormat, parseImportFile } from './parse.js';
+import { insertStatements, lockChainHead, updateStatement } from '../statements.js';
 import { buildErrorReportCsv } from './report.js';
 import { markDuplicates, validateRows } from './validate.js';
 import { extractPdfsFromZip, matchPdfsToRows } from './zip.js';
@@ -241,9 +239,9 @@ export async function getImportDetail(req, batchId) {
   return result;
 }
 
-/** S5: choose Skip or Publish as new version for one, several or all duplicates. */
+/** S5: choose Skip or Update existing for one, several or all duplicates. */
 export async function setDuplicateDecisions(req, batchId, { decision, rowNumbers }) {
-  if (!['skip', 'new_version'].includes(decision)) throw badRequest('Choose Skip or Publish as new version.');
+  if (!['skip', 'new_version', 'update'].includes(decision)) throw badRequest('Choose Skip or Update existing.');
   return withTransaction(async (db) => {
     let batch = await getOwnImportBatch(db, req, batchId, { forUpdate: true });
     batch = await expireIfStale(db, batch);
@@ -279,9 +277,9 @@ export async function publishImport(req, batchId) {
       [batch.id],
     );
     const duplicates = rows.filter((r) => r.outcome === 'duplicate');
-    // Don't skip duplicates: default all undecided duplicates to 'new_version'
+    // Default all undecided duplicates to 'update' existing patient statement
     for (const d of duplicates) {
-      if (!d.duplicate_decision) d.duplicate_decision = 'new_version';
+      if (!d.duplicate_decision) d.duplicate_decision = 'update';
     }
 
     const base = { clinic_id: batch.clinic_id, source: 'import', import_batch_id: batch.id, uploaded_by_id: req.user.id };
@@ -289,11 +287,7 @@ export async function publishImport(req, batchId) {
       .filter((r) => r.outcome === 'valid')
       .map((r) => ({ ...base, ...r.data, import_row_number: r.row_number, version: 1, supersedes_id: null }));
 
-    const newVersions = duplicates.filter((r) => r.duplicate_decision === 'new_version');
-    for (const r of newVersions) {
-      const head = await lockChainHead(db, r.duplicate_of_statement_id);
-      items.push({ ...base, ...r.data, import_row_number: r.row_number, version: head.version + 1, supersedes_id: head.id });
-    }
+    // 1. Insert new statements for brand new patients
     const createdStatements = await insertStatements(db, items);
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
@@ -330,7 +324,50 @@ export async function publishImport(req, batchId) {
       }
     }
 
-    // Attach matched PDFs to existing statements even if a duplicate row was marked skip
+    // 2. Update existing statements in place with latest ledger data, cycle balances, remarks, and attached PDFs
+    const toUpdate = duplicates.filter((r) => r.duplicate_decision === 'update' || r.duplicate_decision === 'new_version');
+    for (const r of toUpdate) {
+      const targetStatementId = r.duplicate_of_statement_id;
+      if (targetStatementId) {
+        await updateStatement(db, targetStatementId, r.data);
+        const remarkBody = r.data.remarks || r.data.us24_notes;
+        if (remarkBody) {
+          await db.query(
+            `INSERT INTO remark (statement_id, author_id, author_role, type, body)
+             VALUES ($1, $2, 'specialist', 'specialist', $3)`,
+            [targetStatementId, req.user.id, remarkBody],
+          );
+          await db.query(
+            `UPDATE statement SET last_remark_at = now() WHERE id = $1`,
+            [targetStatementId],
+          );
+        }
+        const pdfsToInsert = r.data.matched_pdfs && Array.isArray(r.data.matched_pdfs) && r.data.matched_pdfs.length > 0
+          ? r.data.matched_pdfs
+          : (r.data.matched_pdf_storage_key ? [{
+              storage_key: r.data.matched_pdf_storage_key,
+              original_filename: r.data.matched_pdf_name,
+              size_bytes: r.data.matched_pdf_size,
+              sha256: r.data.matched_pdf_sha256,
+            }] : []);
+
+        for (const pdf of pdfsToInsert) {
+          const existingFile = await db.query(
+            `SELECT id FROM statement_file WHERE statement_id = $1 AND (storage_key = $2 OR original_filename = $3)`,
+            [targetStatementId, pdf.storage_key, pdf.original_filename],
+          );
+          if (!existingFile.rows.length) {
+            await db.query(
+              `INSERT INTO statement_file (statement_id, storage_key, original_filename, size_bytes, sha256)
+               VALUES ($1, $2, $3, $4, $5)`,
+              [targetStatementId, pdf.storage_key, pdf.original_filename, pdf.size_bytes, pdf.sha256],
+            );
+          }
+        }
+      }
+    }
+
+    // 3. Attach matched PDFs to existing statements even if a duplicate row was marked skip
     const skipped = duplicates.filter((r) => r.duplicate_decision === 'skip');
     for (const sRow of skipped) {
       if (sRow.duplicate_of_statement_id) {
@@ -345,11 +382,17 @@ export async function publishImport(req, batchId) {
             }] : []);
 
         for (const pdf of pdfsToInsert) {
-          await db.query(
-            `INSERT INTO statement_file (statement_id, storage_key, original_filename, size_bytes, sha256)
-             VALUES ($1, $2, $3, $4, $5)`,
-            [sRow.duplicate_of_statement_id, pdf.storage_key, pdf.original_filename, pdf.size_bytes, pdf.sha256],
+          const existingFile = await db.query(
+            `SELECT id FROM statement_file WHERE statement_id = $1 AND (storage_key = $2 OR original_filename = $3)`,
+            [sRow.duplicate_of_statement_id, pdf.storage_key, pdf.original_filename],
           );
+          if (!existingFile.rows.length) {
+            await db.query(
+              `INSERT INTO statement_file (statement_id, storage_key, original_filename, size_bytes, sha256)
+               VALUES ($1, $2, $3, $4, $5)`,
+              [sRow.duplicate_of_statement_id, pdf.storage_key, pdf.original_filename, pdf.size_bytes, pdf.sha256],
+            );
+          }
         }
       }
     }
@@ -368,7 +411,7 @@ export async function publishImport(req, batchId) {
           SET status = $2, published_at = now(), published_rows = $3, published_new_versions = $4,
               skipped_duplicates = $5, error_report_storage_key = $6
         WHERE id = $1`,
-      [batch.id, status, items.length - newVersions.length, newVersions.length, skipped.length, reportKey],
+      [batch.id, status, items.length, toUpdate.length, skipped.length, reportKey],
     );
     await db.query('DELETE FROM import_row WHERE batch_id = $1', [batch.id]);
     await audit(db, req, {
