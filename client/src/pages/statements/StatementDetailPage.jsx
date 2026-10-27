@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router';
-import { IconDownload, IconExternalLink, IconFileText, IconPrint } from '../../components/Icons.jsx';
+import { IconDownload, IconExternalLink, IconFileText } from '../../components/Icons.jsx';
 import { RemarksLedger } from '../../components/RemarksLedger.jsx';
 import { StatementDocument } from '../../components/StatementDocument.jsx';
 import { Alert, BackBar, Field, Modal, Spinner, StatusBadge } from '../../components/ui.jsx';
@@ -45,30 +45,6 @@ function WithdrawDialog({ clinicName, statementId, onDone, onCancel }) {
       <Field label="Reason" error={error} required>
         {(p) => <textarea {...p} className="form-textarea" maxLength={1000} value={reason} onChange={(e) => setReason(e.target.value)} />}
       </Field>
-    </Modal>
-  );
-}
-
-function PrintDialog({ statementId, onCancel }) {
-  const navigate = useNavigate();
-  const [includeRemarks, setIncludeRemarks] = useState(false);
-  return (
-    <Modal
-      title="Print statement"
-      onClose={onCancel}
-      footer={
-        <>
-          <button type="button" className="btn btn-secondary" onClick={onCancel}>Cancel</button>
-          <button type="button" className="btn btn-primary" onClick={() => navigate(`/statements/${statementId}/print${includeRemarks ? '?remarks=1' : ''}`)}>
-            Continue to print
-          </button>
-        </>
-      }
-    >
-      <label className="checkbox-row">
-        <input type="checkbox" checked={includeRemarks} onChange={(e) => setIncludeRemarks(e.target.checked)} />
-        Include the remarks log in the printout
-      </label>
     </Modal>
   );
 }
@@ -343,9 +319,6 @@ export function StatementDetailPage() {
             <div className="balance-hero-amount">{money(s.balanceDue)}</div>
           </div>
           <div className="detail-buttons">
-            {docTab !== 'pdf' && (
-              <button type="button" className="btn btn-secondary" onClick={() => setDialog('print')}><IconPrint /> Print</button>
-            )}
             <button type="button" className="btn btn-primary" onClick={download} disabled={downloading}>
               <IconDownload /> {downloading ? 'Preparing…' : 'Download PDF'}
             </button>
@@ -421,7 +394,6 @@ export function StatementDetailPage() {
         />
       </div>
 
-      {dialog === 'print' && <PrintDialog statementId={s.id} onCancel={() => setDialog(null)} />}
       {dialog === 'withdraw' && (
         <WithdrawDialog
           clinicName={clinic.name}
