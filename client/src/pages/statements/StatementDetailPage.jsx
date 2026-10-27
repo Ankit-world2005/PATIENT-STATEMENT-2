@@ -143,7 +143,7 @@ function PatientPdfStatTab({ statement: s, onSwitchToStatement }) {
 
                 <div className="pdf-file-actions">
                   <a
-                    href={`/api/statements/${file.statementId}/file`}
+                    href={file.id ? `/api/statements/${file.statementId}/file?fileId=${file.id}` : `/api/statements/${file.statementId}/file`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn btn-primary btn-sm"
@@ -153,7 +153,7 @@ function PatientPdfStatTab({ statement: s, onSwitchToStatement }) {
                     <IconExternalLink size={13} /> Open PDF
                   </a>
                   <a
-                    href={`/api/statements/${file.statementId}/download`}
+                    href={file.id ? `/api/statements/${file.statementId}/download?fileId=${file.id}` : `/api/statements/${file.statementId}/download`}
                     className="btn btn-secondary btn-sm"
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
                     title="Download this PDF statement"
@@ -163,14 +163,14 @@ function PatientPdfStatTab({ statement: s, onSwitchToStatement }) {
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
-                    onClick={() => setPreviewId(previewId === file.statementId ? null : file.statementId)}
+                    onClick={() => setPreviewId(previewId === (file.id || file.statementId) ? null : (file.id || file.statementId))}
                   >
-                    {previewId === file.statementId ? 'Hide Preview' : 'Preview'}
+                    {previewId === (file.id || file.statementId) ? 'Hide Preview' : 'Preview'}
                   </button>
                 </div>
               </div>
 
-              {previewId === file.statementId && (
+              {previewId === (file.id || file.statementId) && (
                 <div className="pdf-preview-container">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                     <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--color-text-muted)' }}>
@@ -187,7 +187,7 @@ function PatientPdfStatTab({ statement: s, onSwitchToStatement }) {
                   </div>
                   <iframe
                     className="pdf-preview-frame"
-                    src={`/api/statements/${file.statementId}/file`}
+                    src={file.id ? `/api/statements/${file.statementId}/file?fileId=${file.id}` : `/api/statements/${file.statementId}/file`}
                     title={`PDF preview for ${file.name}`}
                   />
                 </div>

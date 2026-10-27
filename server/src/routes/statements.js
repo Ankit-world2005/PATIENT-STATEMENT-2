@@ -508,38 +508,62 @@ async function loadForFile(req, action, details) {
   });
 }
 
-async function readStatementFile(s) {
-  const { rows } = await query('SELECT storage_key, sha256 FROM statement_file WHERE statement_id = $1', [s.id]);
+async function readStatementFile(s, fileId) {
+  let queryText = 'SELECT storage_key, sha256, original_filename FROM statement_file WHERE statement_id = $1';
+  const params = [s.id];
+  if (fileId && /^\d+$/.test(String(fileId))) {
+    queryText += ' AND id = $2';
+    params.push(fileId);
+  } else {
+    queryText += ' ORDER BY id DESC LIMIT 1';
+  }
+  const { rows } = await query(queryText, params);
   if (!rows[0]) return null;
-  const buffer = await storage.get(rows[0].storage_key);
-  if (sha256Hex(buffer) !== rows[0].sha256) throw new HttpError(500, 'The stored file failed its integrity check.');
-  return buffer;
+  try {
+    const buffer = await storage.get(rows[0].storage_key);
+    if (!buffer) return null;
+    if (sha256Hex(buffer) !== rows[0].sha256) throw new HttpError(500, 'The stored file failed its integrity check.');
+    return { buffer, filename: rows[0].original_filename };
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      return null;
+    }
+    throw err;
+  }
 }
 
 statementsRouter.get('/:id/file', async (req, res) => {
-  const s = await loadForFile(req, 'statement.view', { part: 'pdf' });
-  let buffer = await readStatementFile(s);
+  const s = await loadForFile(req, 'statement.view', { part: 'pdf', file_id: req.query.fileId });
+  let fileResult = await readStatementFile(s, req.query.fileId);
+  let buffer = fileResult?.buffer;
+  let filename = fileResult?.filename || `statement-${s.statement_date}.pdf`;
   if (!buffer) {
     const { rows } = await query('SELECT * FROM clinic WHERE id = $1', [s.clinic_id]);
     buffer = await renderStatementPdf(s, rows[0]);
+    filename = `statement-${s.statement_date}.pdf`;
   }
   if (!buffer) throw new HttpError(404, 'This statement has no PDF available.');
   // This one response may be shown inside the portal's own page (implementation plan C-2).
   res.set('X-Frame-Options', 'SAMEORIGIN');
   res.set('Content-Security-Policy', "default-src 'none'; frame-ancestors 'self'");
-  res.type('application/pdf').set('Content-Disposition', 'inline; filename="statement.pdf"').send(buffer);
+  const safeFilename = filename.replace(/["\r\n]/g, '');
+  res.type('application/pdf').set('Content-Disposition', `inline; filename="${safeFilename}"`).send(buffer);
 });
 
 statementsRouter.get('/:id/download', async (req, res) => {
-  const s = await loadForFile(req, 'statement.download');
-  let buffer = await readStatementFile(s);
+  const s = await loadForFile(req, 'statement.download', { file_id: req.query.fileId });
+  let fileResult = await readStatementFile(s, req.query.fileId);
+  let buffer = fileResult?.buffer;
+  let filename = fileResult?.filename || `statement-${s.statement_date}.pdf`;
   if (!buffer) {
     const { rows } = await query('SELECT * FROM clinic WHERE id = $1', [s.clinic_id]);
     buffer = await renderStatementPdf(s, rows[0]);
+    filename = `statement-${s.statement_date}.pdf`;
   }
-  // No patient name in the file name (schema Q-7).
+  if (!buffer) throw new HttpError(404, 'This statement has no PDF available.');
+  const safeFilename = filename.replace(/["\r\n]/g, '');
   res.type('application/pdf')
-    .set('Content-Disposition', `attachment; filename="statement-${s.statement_date}.pdf"`)
+    .set('Content-Disposition', `attachment; filename="${safeFilename}"`)
     .send(buffer);
 });
 
