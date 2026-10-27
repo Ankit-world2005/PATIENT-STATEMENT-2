@@ -343,7 +343,9 @@ export function StatementDetailPage() {
             <div className="balance-hero-amount">{money(s.balanceDue)}</div>
           </div>
           <div className="detail-buttons">
-            <button type="button" className="btn btn-secondary" onClick={() => setDialog('print')}><IconPrint /> Print</button>
+            {docTab !== 'pdf' && (
+              <button type="button" className="btn btn-secondary" onClick={() => setDialog('print')}><IconPrint /> Print</button>
+            )}
             <button type="button" className="btn btn-primary" onClick={download} disabled={downloading}>
               <IconDownload /> {downloading ? 'Preparing…' : 'Download PDF'}
             </button>
