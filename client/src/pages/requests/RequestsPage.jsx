@@ -1,20 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { IconChat, IconClock, IconDownload, IconInbox, IconSearch, IconSend, IconTable } from '../../components/Icons.jsx';
-import { Alert, BackBar, EmptyState, Field, Modal, PageHeader, Pagination, Spinner } from '../../components/ui.jsx';
+import { IconChat, IconClock, IconSearch, IconSend } from '../../components/Icons.jsx';
+import { Alert, BackBar, EmptyState, Modal, PageHeader, Pagination, Spinner } from '../../components/ui.jsx';
 import { api } from '../../lib/api.js';
 import { useAuth } from '../../lib/auth.jsx';
 import { date, dateTime, money } from '../../lib/format.js';
 import { useToast } from '../../lib/toast.jsx';
-
-const CATEGORIES = [
-  'Balance Adjustment / Inquiry',
-  'Re-bill Insurance / Submit Claim',
-  'Insurance Verification (VOB)',
-  'Statement Dispute / Correction',
-  'Payment / Collection Question',
-  'General Request',
-];
 
 const PRIORITIES = [
   { value: 'Normal', label: 'Normal', cls: 'priority-normal' },
@@ -24,47 +15,69 @@ const PRIORITIES = [
 
 function NewRequestModal({ onClose, onCreated, clinicId }) {
   const toast = useToast();
-  const [q, setQ] = useState('');
-  const [statementResults, setStatementResults] = useState([]);
-  const [selectedStatement, setSelectedStatement] = useState(null);
-  const [searching, setSearching] = useState(false);
-  const [category, setCategory] = useState(CATEGORIES[0]);
+  const [patientName, setPatientName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [statementId, setStatementId] = useState(null);
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [priority, setPriority] = useState('Normal');
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const wrapperRef = useRef(null);
 
-  // Initial load of recent statements for selection
+  // Live suggestions when typing patient name
   useEffect(() => {
+    const q = patientName.trim();
+    if (!q || q.length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
     let ignore = false;
-    setSearching(true);
-    const params = new URLSearchParams({ limit: '15' });
-    if (q) params.set('q', q);
+    const params = new URLSearchParams({ q, limit: '5' });
     if (clinicId) params.set('clinicId', clinicId);
 
     const timer = setTimeout(() => {
       api(`/requests/statements?${params.toString()}`)
         .then((res) => {
           if (!ignore) {
-            setStatementResults(res.statements || []);
-            setSearching(false);
+            setSuggestions(res.statements || []);
+            setShowSuggestions((res.statements || []).length > 0);
           }
         })
-        .catch(() => {
-          if (!ignore) setSearching(false);
-        });
-    }, q ? 300 : 0);
+        .catch(() => {});
+    }, 200);
 
     return () => {
       ignore = true;
       clearTimeout(timer);
     };
-  }, [q, clinicId]);
+  }, [patientName, clinicId]);
+
+  // Click outside suggestions closes dropdown
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectSuggestion = (s) => {
+    setPatientName(s.patientName);
+    setAccountNumber(s.accountNumber);
+    setStatementId(s.id);
+    setShowSuggestions(false);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedStatement) {
-      setError('Please search and select a patient statement.');
+    if (!patientName.trim()) {
+      setError('Please enter patient name.');
       return;
     }
     if (!body.trim()) {
@@ -78,8 +91,9 @@ function NewRequestModal({ onClose, onCreated, clinicId }) {
       await api('/requests', {
         method: 'POST',
         body: {
-          statementId: selectedStatement.id,
-          category,
+          statementId: statementId || undefined,
+          patientName: patientName.trim(),
+          accountNumber: accountNumber.trim() || undefined,
           priority,
           body: body.trim(),
         },
@@ -101,7 +115,7 @@ function NewRequestModal({ onClose, onCreated, clinicId }) {
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
             Cancel
           </button>
-          <button type="button" className="btn btn-primary" onClick={handleSubmit} disabled={busy || !selectedStatement}>
+          <button type="button" className="btn btn-primary" onClick={handleSubmit} disabled={busy || !patientName.trim()}>
             {busy ? 'Submitting…' : 'Submit Request'}
           </button>
         </>
@@ -110,88 +124,74 @@ function NewRequestModal({ onClose, onCreated, clinicId }) {
       {error && <Alert tone="error">{error}</Alert>}
 
       <div className="request-modal-form">
-        {/* Step 1: Patient statement picker */}
-        <div className="form-group">
-          <label className="form-label" htmlFor="req-patient-search">
-            1. Select Patient Statement <span className="req-star">*</span>
-          </label>
-          <div className="input-with-icon">
-            <IconSearch className="input-icon" />
+        {/* Patient Name and Account Number Row */}
+        <div className="form-row-2">
+          <div className="form-group patient-autocomplete-wrap" ref={wrapperRef} style={{ position: 'relative' }}>
+            <label className="form-label" htmlFor="req-patient-name">
+              Patient Name <span className="req-star">*</span>
+            </label>
             <input
-              id="req-patient-search"
-              type="search"
+              id="req-patient-name"
+              type="text"
               className="form-input"
-              placeholder="Search by patient name, account number, or balance…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
+              placeholder="e.g. John Doe"
+              value={patientName}
+              onChange={(e) => {
+                setPatientName(e.target.value);
+                setStatementId(null);
+              }}
               autoComplete="off"
+              autoFocus
+              required
             />
-          </div>
 
-          <div className="statement-picker-results" role="listbox">
-            {searching ? (
-              <div className="picker-loading"><Spinner label="Searching statements…" size={16} /></div>
-            ) : statementResults.length === 0 ? (
-              <div className="picker-empty">No statements found matching search.</div>
-            ) : (
-              statementResults.map((s) => (
-                <div
-                  key={s.id}
-                  className={`statement-picker-item ${selectedStatement?.id === s.id ? 'selected' : ''}`}
-                  onClick={() => setSelectedStatement(s)}
-                  role="option"
-                  aria-selected={selectedStatement?.id === s.id}
-                >
-                  <div className="picker-item-main">
-                    <strong className="picker-patient-name">{s.patientName}</strong>
-                    <span className="picker-account col-mono">{s.accountNumber}</span>
+            {/* Clean autocomplete dropdown if matching patients exist */}
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="patient-autocomplete-dropdown" role="listbox">
+                {suggestions.map((s) => (
+                  <div
+                    key={s.id}
+                    className="patient-autocomplete-item"
+                    onClick={() => selectSuggestion(s)}
+                    role="option"
+                    aria-selected={statementId === s.id}
+                  >
+                    <div className="autocomplete-name">{s.patientName}</div>
+                    <div className="autocomplete-meta">
+                      <span className="col-mono">{s.accountNumber}</span>
+                      {s.currentBalance != null && (
+                        <>
+                          <span className="pipe-sep">·</span>
+                          <span>Balance: {money(s.currentBalance)}</span>
+                        </>
+                      )}
+                      <span className="pipe-sep">·</span>
+                      <span>{date(s.statementDate)}</span>
+                    </div>
                   </div>
-                  <div className="picker-item-sub">
-                    <span>Date: {date(s.statementDate)}</span>
-                    <span className="pipe-sep">·</span>
-                    <span>Balance: <strong className="col-mono">{money(s.balanceDue)}</strong></span>
-                    {s.locationName && (
-                      <>
-                        <span className="pipe-sep">·</span>
-                        <span>{s.locationName}</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </div>
 
-          {selectedStatement && (
-            <div className="selected-statement-card">
-              <div className="selected-badge">Selected Statement</div>
-              <div className="selected-details">
-                <strong>{selectedStatement.patientName}</strong> ({selectedStatement.accountNumber}) · {date(selectedStatement.statementDate)} · Balance: <strong className="col-mono">{money(selectedStatement.balanceDue)}</strong>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Step 2: Request Category */}
-        <div className="form-group">
-          <label className="form-label">2. Request Category <span className="req-star">*</span></label>
-          <div className="request-categories-grid">
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                className={`request-cat-btn ${category === cat ? 'active' : ''}`}
-                onClick={() => setCategory(cat)}
-              >
-                {cat}
-              </button>
-            ))}
+          <div className="form-group">
+            <label className="form-label" htmlFor="req-account-no">
+              Account # <span className="form-hint" style={{ display: 'inline', marginLeft: 4 }}>(optional)</span>
+            </label>
+            <input
+              id="req-account-no"
+              type="text"
+              className="form-input col-mono"
+              placeholder="e.g. ACC-1234"
+              value={accountNumber}
+              onChange={(e) => setAccountNumber(e.target.value)}
+            />
           </div>
         </div>
 
-        {/* Step 3: Priority */}
-        <div className="form-group">
-          <label className="form-label">3. Priority</label>
+        {/* Priority Selection */}
+        <div className="form-group" style={{ marginTop: 8 }}>
+          <label className="form-label">Priority</label>
           <div className="priority-pills-row">
             {PRIORITIES.map((p) => (
               <button
@@ -206,18 +206,19 @@ function NewRequestModal({ onClose, onCreated, clinicId }) {
           </div>
         </div>
 
-        {/* Step 4: Body */}
-        <div className="form-group">
+        {/* Request Message */}
+        <div className="form-group" style={{ marginTop: 8 }}>
           <label className="form-label" htmlFor="req-body">
-            4. Details / Instructions for Specialist <span className="req-star">*</span>
+            Details / Question for Specialist <span className="req-star">*</span>
           </label>
           <textarea
             id="req-body"
             className="form-input form-textarea"
             rows={4}
-            placeholder="Please detail your request (e.g. adjust copay, verify secondary insurance coverage, explain disputed charge, etc.)…"
+            placeholder="Type your inquiry, request, or question for the US24 specialist here…"
             value={body}
             onChange={(e) => setBody(e.target.value)}
+            required
           />
         </div>
       </div>
@@ -270,11 +271,12 @@ function ReplyModal({ request, onClose, onReplied }) {
       {error && <Alert tone="error">{error}</Alert>}
       <div className="reply-modal-original">
         <div className="original-req-meta">
-          <strong>{request.patientName}</strong> · Account {request.accountNumber} · Submitted by {request.authorName} ({dateTime(request.createdAt)})
+          <strong>{request.patientName}</strong> {request.accountNumber && <span className="col-mono">· {request.accountNumber}</span>} · Submitted by {request.authorName} ({dateTime(request.createdAt)})
         </div>
         <div className="original-req-badge">
-          <span className="badge badge-plum">{request.category}</span>
-          <span className="badge badge-secondary">{request.priority}</span>
+          <span className={`badge-priority priority-${request.priority?.toLowerCase() || 'normal'}`}>
+            {request.priority || 'Normal'}
+          </span>
         </div>
         <div className="original-req-body">
           {request.body}
@@ -385,7 +387,7 @@ export function RequestsContent({ clinicId: propClinicId, embedded = false }) {
             <p className="form-hint" style={{ margin: '4px 0 0 0' }}>
               {isStaff
                 ? 'Review and resolve requests submitted by this clinic.'
-                : 'Submit requests, statement disputes, and billing inquiries to US24 specialists.'}
+                : 'Submit requests and billing inquiries directly to US24 specialists.'}
             </p>
           </div>
           {user.role === 'clinic_user' && (
@@ -523,11 +525,8 @@ export function RequestsContent({ clinicId: propClinicId, embedded = false }) {
             <div key={r.id} className={`request-item-card ${r.isAwaiting ? 'awaiting-border' : ''}`}>
               <div className="request-card-header">
                 <div className="request-header-left">
-                  <span className={`request-badge-category category-${r.category.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}>
-                    {r.category}
-                  </span>
-                  <span className={`badge-priority priority-${r.priority.toLowerCase()}`}>
-                    {r.priority}
+                  <span className={`badge-priority priority-${r.priority?.toLowerCase() || 'normal'}`}>
+                    {r.priority || 'Normal'}
                   </span>
                   {r.isAwaiting ? (
                     <span className="badge badge-warning" style={{ fontWeight: 600 }}>
@@ -548,11 +547,19 @@ export function RequestsContent({ clinicId: propClinicId, embedded = false }) {
               <div className="request-patient-bar">
                 <div className="patient-context-info">
                   <strong>{r.patientName}</strong>
-                  <span className="col-mono" style={{ marginLeft: 8 }}>Account: {r.accountNumber}</span>
-                  <span className="pipe-sep">·</span>
-                  <span>Date: {date(r.statementDate)}</span>
-                  <span className="pipe-sep">·</span>
-                  <span>Balance: <strong className="col-mono">{money(r.currentBalance)}</strong></span>
+                  {r.accountNumber && <span className="col-mono" style={{ marginLeft: 8 }}>Account: {r.accountNumber}</span>}
+                  {r.statementDate && (
+                    <>
+                      <span className="pipe-sep">·</span>
+                      <span>Date: {date(r.statementDate)}</span>
+                    </>
+                  )}
+                  {r.currentBalance != null && (
+                    <>
+                      <span className="pipe-sep">·</span>
+                      <span>Balance: <strong className="col-mono">{money(r.currentBalance)}</strong></span>
+                    </>
+                  )}
                   {isStaff && (
                     <>
                       <span className="pipe-sep">·</span>
@@ -560,9 +567,11 @@ export function RequestsContent({ clinicId: propClinicId, embedded = false }) {
                     </>
                   )}
                 </div>
-                <Link to={`/statements/${r.statementId}`} className="btn btn-secondary btn-sm" title="View Full Statement Document">
-                  View Statement →
-                </Link>
+                {r.statementId && (
+                  <Link to={`/statements/${r.statementId}`} className="btn btn-secondary btn-sm" title="View Full Statement Document">
+                    View Statement →
+                  </Link>
+                )}
               </div>
 
               {/* Request message */}
@@ -596,9 +605,11 @@ export function RequestsContent({ clinicId: propClinicId, embedded = false }) {
                   >
                     <IconChat size={13} /> Reply to Clinic
                   </button>
-                  <Link to={`/statements/${r.statementId}`} className="btn btn-secondary btn-sm">
-                    Open Statement Details
-                  </Link>
+                  {r.statementId && (
+                    <Link to={`/statements/${r.statementId}`} className="btn btn-secondary btn-sm">
+                      Open Statement Details
+                    </Link>
+                  )}
                 </div>
               )}
             </div>

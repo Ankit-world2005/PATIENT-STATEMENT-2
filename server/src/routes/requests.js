@@ -23,10 +23,28 @@ function getUserClinicScope(user) {
   return { sql: 'TRUE', params: [] };
 }
 
-// GET /api/requests/statements — Search recent statements for the "+ New Request" modal
+async function getDefaultClinicId(db, user) {
+  if (user.clinic_id) return user.clinic_id;
+  if (user.role === 'specialist') {
+    const { rows } = await db.query(
+      'SELECT clinic_id FROM specialist_assignment WHERE specialist_id = $1 LIMIT 1',
+      [user.id],
+    );
+    return rows[0]?.clinic_id || null;
+  }
+  const { rows } = await db.query('SELECT id FROM clinic WHERE is_active = true ORDER BY name ASC LIMIT 1');
+  return rows[0]?.id || null;
+}
+
+// GET /api/requests/statements — Search statements for autocomplete suggestions
 requestsRouter.get('/statements', async (req, res) => {
   const q = String(req.query.q || '').trim().toLowerCase();
-  const limit = Math.min(25, Math.max(5, parseInt(req.query.limit || '15', 10)));
+  const limit = Math.min(10, Math.max(1, parseInt(req.query.limit || '5', 10)));
+
+  // If query is empty, do not return statements to avoid cluttering UI
+  if (!q) {
+    return res.json({ statements: [] });
+  }
 
   const scope = getUserClinicScope(req.user);
   const where = ['st.status = \'active\'', scope.sql];
@@ -37,10 +55,8 @@ requestsRouter.get('/statements', async (req, res) => {
     where.push(`st.clinic_id = $${params.length}`);
   }
 
-  if (q) {
-    params.push(`%${q.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`);
-    where.push(`(lower(st.patient_name) LIKE $${params.length} OR lower(st.account_number) LIKE $${params.length})`);
-  }
+  params.push(`%${q.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`);
+  where.push(`(lower(st.patient_name) LIKE $${params.length} OR lower(st.account_number) LIKE $${params.length})`);
 
   params.push(limit);
   const sql = `
@@ -99,7 +115,7 @@ requestsRouter.get('/', async (req, res) => {
 
   // Count query
   const countSql = `
-    SELECT count(*)::int AS total
+    SELECT count(DISTINCT r.id)::int AS total
       FROM remark r
       JOIN statement st ON st.id = r.statement_id
       JOIN clinic c ON c.id = st.clinic_id
@@ -108,47 +124,71 @@ requestsRouter.get('/', async (req, res) => {
   const { rows: countRows } = await query(countSql, params);
   const total = countRows[0]?.total || 0;
 
-  // Stat metrics query
-  const statParams = [...scope.params];
-  const statSql = `
+  // Metrics query
+  const metricsScope = getUserClinicScope(req.user);
+  const metricsWhere = ['TRUE', metricsScope.sql];
+  const metricsParams = [...metricsScope.params];
+  if (clinicId && isUuid(clinicId) && req.user.role !== 'clinic_user') {
+    metricsParams.push(clinicId);
+    metricsWhere.push(`st.clinic_id = $${metricsParams.length}`);
+  }
+
+  const metricsSql = `
     SELECT
-      count(*)::int AS total_requests,
-      count(*) FILTER (WHERE st.awaiting_reply_since IS NOT NULL)::int AS awaiting_count,
-      count(*) FILTER (WHERE st.awaiting_reply_since IS NULL)::int AS answered_count
+      count(DISTINCT r.id)::int AS total_requests,
+      count(DISTINCT CASE WHEN st.awaiting_reply_since IS NOT NULL THEN r.id END)::int AS awaiting_count,
+      count(DISTINCT CASE WHEN st.awaiting_reply_since IS NULL THEN r.id END)::int AS answered_count
     FROM remark r
     JOIN statement st ON st.id = r.statement_id
     JOIN clinic c ON c.id = st.clinic_id
-    WHERE ${scope.sql}
+    WHERE ${metricsWhere.join(' AND ')}
   `;
-  const { rows: statRows } = await query(statSql, statParams);
-  const stats = statRows[0] || { total_requests: 0, awaiting_count: 0, answered_count: 0 };
+  const { rows: metricsRows } = await query(metricsSql, metricsParams);
+  const stats = metricsRows[0] || { total_requests: 0, awaiting_count: 0, answered_count: 0 };
 
-  // Data query with latest specialist reply subquery
-  params.push(limit, offset);
+  // Data query with latest specialist response joined
+  params.push(limit);
+  params.push(offset);
+
   const dataSql = `
-    SELECT r.id, r.statement_id, r.type, r.body, r.created_at,
-           r.author_role, u.full_name AS author_name,
-           st.patient_name, st.account_number, st.statement_date,
-           COALESCE(st.current_balance, st.cycle1_balance, st.balance_due) AS current_balance,
-           st.pr_type, st.ledger_status, st.awaiting_reply_since,
-           c.id AS clinic_id, c.name AS clinic_name, c.clinic_code,
-           reply.body AS latest_reply_body,
-           reply.author_name AS latest_reply_author,
-           reply.created_at AS latest_reply_at
-      FROM remark r
-      JOIN statement st ON st.id = r.statement_id
-      JOIN clinic c ON c.id = st.clinic_id
-      LEFT JOIN app_user u ON u.id = r.author_id
-      LEFT JOIN LATERAL (
-        SELECT sr.body, su.full_name AS author_name, sr.created_at
-          FROM remark sr
-          LEFT JOIN app_user su ON su.id = sr.author_id
-         WHERE sr.statement_id = st.id AND sr.type = 'specialist' AND sr.created_at >= r.created_at
-         ORDER BY sr.created_at DESC LIMIT 1
-      ) reply ON true
-     WHERE ${where.join(' AND ')}
-     ORDER BY (st.awaiting_reply_since IS NOT NULL) DESC, r.created_at DESC
-     LIMIT $${params.length - 1} OFFSET $${params.length}
+    SELECT
+      r.id,
+      r.statement_id,
+      r.body,
+      r.type,
+      r.author_role,
+      r.created_at,
+      u.full_name AS author_name,
+      st.patient_name,
+      st.account_number,
+      st.statement_date,
+      COALESCE(st.current_balance, st.cycle1_balance, st.balance_due) AS current_balance,
+      st.pr_type,
+      st.ledger_status,
+      st.awaiting_reply_since,
+      c.id AS clinic_id,
+      c.name AS clinic_name,
+      c.clinic_code,
+      latest_reply.body AS latest_reply_body,
+      latest_reply.created_at AS latest_reply_at,
+      reply_u.full_name AS latest_reply_author
+    FROM remark r
+    JOIN statement st ON st.id = r.statement_id
+    JOIN clinic c ON c.id = st.clinic_id
+    LEFT JOIN app_user u ON u.id = r.author_id
+    LEFT JOIN LATERAL (
+      SELECT r2.body, r2.created_at, r2.author_id
+        FROM remark r2
+       WHERE r2.statement_id = r.statement_id
+         AND r2.type = 'specialist'
+         AND r2.created_at > r.created_at
+       ORDER BY r2.created_at DESC
+       LIMIT 1
+    ) latest_reply ON true
+    LEFT JOIN app_user reply_u ON reply_u.id = latest_reply.author_id
+    WHERE ${where.join(' AND ')}
+    ORDER BY (st.awaiting_reply_since IS NOT NULL) DESC, r.created_at DESC
+    LIMIT $${params.length - 1} OFFSET $${params.length}
   `;
   const { rows: items } = await query(dataSql, params);
 
@@ -171,14 +211,12 @@ requestsRouter.get('/', async (req, res) => {
 
   res.json({
     requests: items.map((r) => {
-      // Parse structured category and priority if present in format "[Category] (Priority) Body"
-      let category = 'General Request';
       let priority = 'Normal';
       let cleanBody = r.body;
 
+      // Clean legacy category tag if present in existing remarks
       const catMatch = r.body.match(/^\[REQUEST:\s*([^\]]+)\]/i) || r.body.match(/^\[([^\]]+)\]/);
       if (catMatch) {
-        category = catMatch[1].trim();
         cleanBody = cleanBody.replace(catMatch[0], '').trim();
       }
 
@@ -201,7 +239,6 @@ requestsRouter.get('/', async (req, res) => {
         clinicName: r.clinic_name,
         clinicCode: r.clinic_code,
         type: r.type,
-        category,
         priority,
         rawBody: r.body,
         body: cleanBody || r.body,
@@ -232,28 +269,40 @@ requestsRouter.get('/', async (req, res) => {
 
 // POST /api/requests — Submit a new request or specialist reply
 const requestCreateSchema = z.object({
-  statementId: z.string().uuid('Please select a valid statement.'),
-  category: z.string().trim().max(100).optional().default('General Request'),
+  statementId: z.string().uuid('Please select a valid statement.').optional().nullable(),
+  patientName: z.string().trim().min(1, 'Please enter patient name.').max(200).optional().nullable(),
+  accountNumber: z.string().trim().max(64).optional().nullable(),
   priority: z.enum(['Normal', 'High', 'Urgent']).optional().default('Normal'),
   body: z.string().trim().min(1, 'Please enter request details.').max(2000, 'Requests are limited to 2,000 characters.'),
   isReply: z.boolean().optional().default(false),
+  clinicId: z.string().uuid().optional().nullable(),
 });
 
 requestsRouter.post('/', async (req, res) => {
   const input = parseOrThrow(requestCreateSchema, req.body);
 
   const result = await withTransaction(async (db) => {
-    // 1. Verify statement exists and user has access
-    const { rows: stRows } = await db.query(
-      'SELECT id, clinic_id, patient_name, account_number, status, awaiting_reply_since FROM statement WHERE id = $1 FOR UPDATE',
-      [input.statementId],
-    );
-    const statement = stRows[0];
-    if (!statement) throw notFound('Statement not found.');
-    if (statement.status === 'withdrawn') throw badRequest('Requests cannot be added to a withdrawn statement.');
+    let statement = null;
+
+    // 1. If statementId was provided, verify it exists and user has access
+    if (input.statementId) {
+      const { rows: stRows } = await db.query(
+        'SELECT id, clinic_id, patient_name, account_number, status, awaiting_reply_since FROM statement WHERE id = $1 FOR UPDATE',
+        [input.statementId],
+      );
+      statement = stRows[0];
+      if (!statement) throw notFound('Statement not found.');
+      if (statement.status === 'withdrawn') throw badRequest('Requests cannot be added to a withdrawn statement.');
+    }
+
+    const clinicId = req.user.role === 'clinic_user'
+      ? req.user.clinic_id
+      : (statement?.clinic_id || input.clinicId || (await getDefaultClinicId(db, req.user)));
+
+    if (!clinicId) throw badRequest('Clinic ID is required.');
 
     // Clinic user can only submit for their own clinic
-    if (req.user.role === 'clinic_user' && statement.clinic_id !== req.user.clinic_id) {
+    if (req.user.role === 'clinic_user' && statement && statement.clinic_id !== req.user.clinic_id) {
       throw new HttpError(403, 'You do not have access to this clinic\'s statements.');
     }
 
@@ -261,18 +310,58 @@ requestsRouter.post('/', async (req, res) => {
     if (req.user.role === 'specialist') {
       const { rows: assignRows } = await db.query(
         'SELECT 1 FROM specialist_assignment WHERE specialist_id = $1 AND clinic_id = $2',
-        [req.user.id, statement.clinic_id],
+        [req.user.id, clinicId],
       );
       if (!assignRows[0]) throw new HttpError(403, 'You are not assigned to this clinic.');
     }
 
-    // Determine type: if specialist/admin, type is specialist. If clinic_user, type is clinic.
+    // 2. If no statementId, search for matching statement for this patient in the clinic
+    if (!statement && input.patientName) {
+      const params = [clinicId, `%${input.patientName.trim()}%`];
+      let matchSql = `
+        SELECT id, clinic_id, patient_name, account_number, status, awaiting_reply_since
+          FROM statement
+         WHERE clinic_id = $1 AND status != 'withdrawn' AND lower(patient_name) LIKE lower($2)
+      `;
+      if (input.accountNumber) {
+        params.push(input.accountNumber.trim());
+        matchSql += ` AND lower(account_number) = lower($${params.length})`;
+      }
+      matchSql += ' ORDER BY statement_date DESC, id DESC LIMIT 1 FOR UPDATE';
+
+      const { rows } = await db.query(matchSql, params);
+      if (rows[0]) {
+        statement = rows[0];
+      }
+    }
+
+    // 3. If still no statement found (manually entered patient without existing uploaded statement),
+    // create a statement record so foreign key constraint and auditing succeed
+    if (!statement) {
+      const pName = input.patientName?.trim() || 'Patient';
+      const cleanInit = pName.replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase() || 'PAT';
+      const accNum = input.accountNumber?.trim() || `ACC-${cleanInit}-${Date.now().toString().slice(-4)}`;
+
+      const { rows: newStRows } = await db.query(
+        `INSERT INTO statement (
+           clinic_id, patient_name, account_number, statement_date, balance_due,
+           source, uploaded_by_id, status, awaiting_reply_since
+         ) VALUES (
+           $1, $2, $3, CURRENT_DATE, 0.00,
+           'import', $4, 'active', now()
+         ) RETURNING id, clinic_id, patient_name, account_number, status, awaiting_reply_since`,
+        [clinicId, pName, accNum, req.user.id],
+      );
+      statement = newStRows[0];
+    }
+
+    // Determine remark type: if specialist/admin, type is specialist. If clinic_user, type is clinic.
     const remarkType = req.user.role === 'clinic_user' ? 'clinic' : 'specialist';
 
-    // Format body with category and priority if it's a new request from clinic
+    // Format body with priority if it's a new request from clinic (no category!)
     let formattedBody = input.body;
     if (remarkType === 'clinic' && !input.isReply) {
-      formattedBody = `[REQUEST: ${input.category}] (${input.priority}) ${input.body}`;
+      formattedBody = `(${input.priority}) ${input.body}`;
     }
 
     const remark = await insertRemark(db, {
@@ -289,7 +378,6 @@ requestsRouter.post('/', async (req, res) => {
       clinicId: statement.clinic_id,
       details: {
         is_request: true,
-        category: input.category,
         priority: input.priority,
         is_reply: input.isReply || remarkType === 'specialist',
       },
@@ -310,3 +398,56 @@ requestsRouter.post('/', async (req, res) => {
   res.status(201).json({ ok: true, request: result });
 });
 
+// POST /api/requests/:id/reply — Fast shortcut to reply to a specific request
+requestsRouter.post('/:id/reply', async (req, res) => {
+  const remarkId = parseInt(req.params.id, 10);
+  if (!remarkId || isNaN(remarkId)) throw badRequest('Invalid request ID.');
+
+  const bodySchema = z.object({
+    body: z.string().trim().min(1, 'Please enter a reply.').max(2000),
+  });
+  const input = parseOrThrow(bodySchema, req.body);
+
+  const result = await withTransaction(async (db) => {
+    // 1. Fetch remark and statement
+    const { rows } = await db.query(
+      `SELECT r.id, r.statement_id, st.clinic_id, st.patient_name, st.account_number
+         FROM remark r
+         JOIN statement st ON st.id = r.statement_id
+        WHERE r.id = $1`,
+      [remarkId],
+    );
+    const orig = rows[0];
+    if (!orig) throw notFound('Request not found.');
+
+    const replyType = req.user.role === 'clinic_user' ? 'clinic' : 'specialist';
+
+    const replyRemark = await insertRemark(db, {
+      statementId: orig.statement_id,
+      author: req.user,
+      type: replyType,
+      body: input.body,
+    });
+
+    await audit(db, req, {
+      action: 'remark.create',
+      targetType: 'statement',
+      targetId: orig.statement_id,
+      clinicId: orig.clinic_id,
+      details: {
+        is_reply: true,
+        reply_to_remark_id: orig.id,
+      },
+    });
+
+    return {
+      id: String(replyRemark.id),
+      statementId: orig.statement_id,
+      body: input.body,
+      createdAt: replyRemark.created_at,
+      authorName: req.user.full_name,
+    };
+  });
+
+  res.status(201).json({ ok: true, reply: result });
+});
