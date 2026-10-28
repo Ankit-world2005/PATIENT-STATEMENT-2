@@ -60,7 +60,7 @@ export function StatementDocument({ statement: s, clinic: c }) {
         </div>
         <div className="doc-statement-badge">
           <div className="doc-badge-title">Patient statement</div>
-          <div className="doc-badge-date">Date: {date(s.statementDate)}</div>
+          <div className="doc-badge-date">Date: {date(s.uploadedAt || s.uploaded_at || s.statementDate)}</div>
           <div style={{ marginTop: 4 }}>
             <LedgerStatusBadge status={s.ledgerStatus || s.status} />
           </div>

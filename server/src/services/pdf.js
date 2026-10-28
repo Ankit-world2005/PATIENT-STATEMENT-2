@@ -66,7 +66,7 @@ export async function renderStatementPdf(statement, clinic) {
   y -= 16;
   const address = [clinic.address_line1, clinic.address_line2].filter(Boolean).join(', ');
   text(address, left, y, { size: 9, color: MUTED });
-  textRight(`Statement date: ${usDate(statement.statement_date)}`, right, y, { size: 9, color: MUTED });
+  textRight(`Date: ${usDate(statement.uploaded_at || statement.uploadedAt || statement.statement_date)}`, right, y, { size: 9, color: MUTED });
   y -= 12;
   text(`${clinic.city}, ${clinic.state} ${clinic.postal_code}  |  ${clinic.contact_phone}`, left, y, { size: 9, color: MUTED });
   textRight(`Account: ${statement.account_number}`, right, y, { size: 9, color: MUTED });

@@ -481,6 +481,7 @@ statementsRouter.get('/:id', async (req, res) => {
         // Withdrawal reasons may contain PHI and are for staff only.
         withdrawalReason: req.user.role === 'clinic_user' ? null : s.withdrawal_reason,
         uploadedAt: s.uploaded_at,
+        uploaded_at: s.uploaded_at,
         uploadedByName: nameOf[s.uploaded_by_id],
         wasNew,
         file: file.rows[0] ? { name: file.rows[0].original_filename, sizeBytes: file.rows[0].size_bytes } : null,
