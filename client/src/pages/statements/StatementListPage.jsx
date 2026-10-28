@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
-import { IconDownload, IconSearch, IconTable, IconUpload } from '../../components/Icons.jsx';
+import { IconDownload, IconSearch, IconTable } from '../../components/Icons.jsx';
 import { Alert, BackBar, EmptyState, PageHeader, Pagination, Spinner, StatusBadge } from '../../components/ui.jsx';
 import { api, downloadFile } from '../../lib/api.js';
 import { useAuth } from '../../lib/auth.jsx';
@@ -202,14 +202,9 @@ export function StatementListPage() {
             </button>
           )}
           {user.role === 'specialist' && data?.clinic.isActive && (
-            <>
-              <Link to={`/imports/new?clinicId=${clinicId}`} className="btn btn-primary btn-sm">
-                <IconTable size={14} /> Upload Excel
-              </Link>
-              <Link to={`/statements/upload?clinicId=${clinicId}`} className="btn btn-secondary btn-sm">
-                <IconUpload size={14} /> Upload PDF
-              </Link>
-            </>
+            <Link to={`/imports/new?clinicId=${clinicId}`} className="btn btn-primary btn-sm">
+              <IconTable size={14} /> Upload Excel
+            </Link>
           )}
         </div>
       </PageHeader>
@@ -379,6 +374,11 @@ export function StatementListPage() {
                       <td className="sticky-col-patient">
                         <div className="cell-patient">
                           <Highlight text={s.patientName} query={q} />
+                          {s.hasFile && (
+                            <span className="badge badge-secondary" style={{ fontSize: '0.68rem', padding: '1px 5px' }} title="Attached PDF statement">
+                              PDF
+                            </span>
+                          )}
                           {s.isNew && <span className="badge badge-new">New</span>}
                           {s.hasNewerVersion && <span className="badge badge-muted">Earlier</span>}
                           {s.awaitingReply && <span className="badge badge-plum">Awaiting reply</span>}

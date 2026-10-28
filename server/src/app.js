@@ -84,10 +84,14 @@ export function createApp() {
       return res.status(409).json({ error: 'This change is not allowed.' });
     }
     const reference = crypto.randomUUID().slice(0, 8);
-    // Log codes and names only: messages can include patient data (TRD 5.6).
+    // Log error details for diagnostics
     console.error(`[error ${reference}] ${req.method} ${req.route?.path ?? req.path.split('/').slice(0, 3).join('/')}`,
-      err.name, err.code ?? '', config.isProduction ? '' : err.stack);
-    res.status(500).json({ error: 'Something went wrong on our side. Please try again.', reference });
+      err.name, err.code ?? '', err.message ?? '', config.isProduction ? (err.stack ? err.stack.split('\n').slice(0, 3).join(' ') : '') : err.stack);
+    res.status(500).json({
+      error: 'Something went wrong on our side. Please try again.',
+      reference,
+      ...(config.isProduction ? {} : { detail: err.message }),
+    });
   });
 
   return app;

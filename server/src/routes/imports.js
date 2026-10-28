@@ -5,9 +5,18 @@ import {
   cancelImport, checkImport, getErrorReport, getImportDetail, publishImport, setDuplicateDecisions,
 } from '../services/imports/service.js';
 import { templateCsv, templateXlsx } from '../services/imports/template.js';
+import multer from 'multer';
 import { upload } from './uploads.js';
 
 export const importsRouter = Router();
+
+const importUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 100 * 1024 * 1024, files: 2, fields: 40 },
+}).fields([
+  { name: 'file', maxCount: 1 },
+  { name: 'zip', maxCount: 1 },
+]);
 
 // FR-7.2: downloadable template.
 importsRouter.get('/template.xlsx', async (_req, res) => {
@@ -22,10 +31,21 @@ importsRouter.get('/template.csv', (_req, res) => {
     .send(templateCsv());
 });
 
-// S4: check file.
-importsRouter.post('/', upload.single('file'), async (req, res) => {
-  const result = await checkImport(req, { clinicId: req.body?.clinicId, file: req.file });
-  res.status(201).json(result);
+// S4: check file & zip.
+importsRouter.post('/', (req, res, next) => {
+  importUpload(req, res, (err) => {
+    if (err) return next(err);
+    next();
+  });
+}, async (req, res, next) => {
+  try {
+    const file = req.files?.file?.[0] || req.file;
+    const zipFile = req.files?.zip?.[0];
+    const result = await checkImport(req, { clinicId: req.body?.clinicId, file, zipFile });
+    res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
 });
 
 // S5 / S6.
@@ -34,7 +54,7 @@ importsRouter.get('/:id', async (req, res) => {
 });
 
 const decisionSchema = z.object({
-  decision: z.enum(['skip', 'new_version']),
+  decision: z.enum(['update', 'skip']),
   rowNumbers: z.array(z.number().int().positive()).max(5000).optional(),
 });
 

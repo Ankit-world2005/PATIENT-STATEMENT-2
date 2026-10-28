@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
-import { IconDownload, IconTable } from '../../components/Icons.jsx';
+import { IconDownload, IconFileText, IconTable } from '../../components/Icons.jsx';
 import { Alert, BackBar, ConfirmDialog, Field, PageHeader, Spinner, StatusBadge } from '../../components/ui.jsx';
 import { api, downloadFile } from '../../lib/api.js';
 import { date, dateTime, fileSize, money, shortDate } from '../../lib/format.js';
@@ -21,26 +21,7 @@ export function useDownload() {
 }
 
 export function TemplateLinks() {
-  const download = useDownload();
-  return (
-    <div className="template-box">
-      <div>
-        <strong>Import template</strong>
-        <p className="form-hint">
-          Required columns: patient_name, account_number, statement_date, balance_due. Optional: patient_dob, service dates,
-          cpt_codes, amounts and insurance_name. Dates as YYYY-MM-DD or MM/DD/YYYY.
-        </p>
-      </div>
-      <div className="template-actions">
-        <button type="button" className="btn btn-secondary btn-sm" onClick={() => download('/imports/template.xlsx', 'statement-import-template.xlsx')}>
-          <IconDownload size={14} /> Excel template
-        </button>
-        <button type="button" className="btn btn-secondary btn-sm" onClick={() => download('/imports/template.csv', 'statement-import-template.csv')}>
-          <IconDownload size={14} /> CSV template
-        </button>
-      </div>
-    </div>
-  );
+  return null;
 }
 
 // --- S4: choose clinic and file (FR-7.1, 7.2) -----------------------------------
@@ -50,11 +31,13 @@ export function ImportNewPage() {
   const [clinics, setClinics] = useState(null);
   const [clinicId, setClinicId] = useState(params.get('clinicId') ?? '');
   const [file, setFile] = useState(null);
+  const [zipFile, setZipFile] = useState(null);
   const [errors, setErrors] = useState({});
   const [failure, setFailure] = useState('');
   const [busy, setBusy] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const fileInput = useRef(null);
+  const zipInput = useRef(null);
 
   useEffect(() => {
     api('/publishable-clinics')
@@ -89,11 +72,27 @@ export function ImportNewPage() {
     setFile(f);
   };
 
+  const chooseZip = (f) => {
+    setFailure('');
+    setErrors((e) => ({ ...e, zip: undefined }));
+    if (!f) return setZipFile(null);
+    if (!/\.zip$/i.test(f.name)) {
+      setErrors((e) => ({ ...e, zip: 'Upload a .zip file containing statement PDFs.' }));
+      return setZipFile(null);
+    }
+    if (f.size > 100 * 1024 * 1024) {
+      setErrors((e) => ({ ...e, zip: 'The ZIP file is larger than 100 MB.' }));
+      return setZipFile(null);
+    }
+    setZipFile(f);
+  };
+
   const check = async (e) => {
     e.preventDefault();
     const fe = {};
     if (!clinicId) fe.clinicId = 'Choose the clinic.';
     if (!file) fe.file = errors.file || 'Choose an .xlsx or .csv file.';
+    if (!zipFile) fe.zip = errors.zip || 'Choose the .zip file containing patient statement PDFs.';
     setErrors(fe);
     setFailure('');
     if (Object.keys(fe).length) return;
@@ -102,15 +101,18 @@ export function ImportNewPage() {
       const form = new FormData();
       form.set('clinicId', clinicId);
       form.set('file', file, file.name);
+      form.set('zip', zipFile, zipFile.name);
       const result = await api('/imports', { method: 'POST', form });
       if (result.status === 'failed') {
         setFailure(result.failureReason);
       } else {
-        navigate(`/imports/${result.id}/preview`, { state: { ignoredColumns: result.ignoredColumns } });
+        navigate(`/imports/${result.id}/preview`, { state: { ignoredColumns: result.ignoredColumns, zipSummary: result.zipSummary } });
       }
     } catch (err) {
-      setErrors(err.fieldErrors);
-      setFailure(err.status === 0 ? "The check didn't finish. Try again." : err.message);
+      setErrors(err.fieldErrors || {});
+      const detail = err.data?.detail ? ` (${err.data.detail})` : '';
+      const ref = err.data?.reference ? ` [Ref: ${err.data.reference}]` : '';
+      setFailure(err.status === 0 ? "The check didn't finish. Try again." : `${err.message}${detail}${ref}`);
     } finally {
       setBusy(false);
     }
@@ -161,7 +163,25 @@ export function ImportNewPage() {
           )}
         </Field>
 
-        <TemplateLinks />
+        <Field label="Patient Statement PDFs (.zip)" error={errors.zip} required hint="ZIP archive containing statement PDFs for the patients in this spreadsheet (up to 100 MB).">
+          {(p) => (
+            <div className={`dropzone ${zipFile ? 'has-file' : ''}`}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => { e.preventDefault(); if (!busy) chooseZip(e.dataTransfer.files[0]); }}>
+              <input {...p} ref={zipInput} type="file" className="sr-only-input" disabled={busy}
+                accept=".zip,application/zip,application/x-zip-compressed,multipart/x-zip"
+                onChange={(e) => chooseZip(e.target.files[0])} />
+              {zipFile ? (
+                <span><IconFileText size={16} /> <strong>{zipFile.name}</strong> <span className="form-hint">({fileSize(zipFile.size)})</span></span>
+              ) : (
+                <span>Drag patient PDFs ZIP archive here, or</span>
+              )}
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => zipInput.current.click()} disabled={busy}>
+                {zipFile ? 'Choose a different ZIP' : 'Choose ZIP file'}
+              </button>
+            </div>
+          )}
+        </Field>
 
         {failure && (
           <Alert tone="error" title="This file can't be imported">
@@ -187,11 +207,34 @@ export function ImportNewPage() {
   );
 }
 
-function StatTile({ label, value, tone }) {
+function StatTile({ label, value, tone, onClick, actionHint, title }) {
+  const isClickable = Boolean(onClick);
   return (
-    <div className={`stat-tile ${tone ? `stat-${tone}` : ''}`}>
+    <div
+      className={`stat-tile ${tone ? `stat-${tone}` : ''} ${isClickable ? 'stat-tile-clickable' : ''}`}
+      onClick={onClick}
+      role={isClickable ? 'button' : undefined}
+      tabIndex={isClickable ? 0 : undefined}
+      title={title || (isClickable && actionHint ? `${label}: ${actionHint}` : undefined)}
+      aria-label={isClickable ? `${label}: ${value ?? 0}. ${actionHint || 'Click to view'}` : undefined}
+      onKeyDown={
+        isClickable
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+    >
       <div className="stat-value">{value?.toLocaleString('en-US') ?? '—'}</div>
       <div className="stat-label">{label}</div>
+      {actionHint && (
+        <div className="stat-action-hint">
+          <span>{actionHint}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -223,8 +266,8 @@ export function ImportPreviewPage() {
   const { batch, invalidRows, duplicates, sampleRows } = data;
   const t = batch.totals;
   const undecided = duplicates.filter((d) => !d.decision).length;
-  const newVersions = duplicates.filter((d) => d.decision === 'new_version').length;
-  const toPublish = t.valid + newVersions;
+  const toUpdate = duplicates.filter((d) => d.decision === 'update' || d.decision === 'new_version').length;
+  const toPublish = t.valid + toUpdate;
   const ignored = location.state?.ignoredColumns ?? [];
 
   const decide = async (decision, rowNumbers) => {
@@ -285,10 +328,64 @@ export function ImportPreviewPage() {
       </div>
 
       <div className="stat-tiles">
-        <StatTile label="Rows in file" value={t.total} />
-        <StatTile label="Ready to publish" value={t.valid} tone="success" />
-        <StatTile label="Invalid rows" value={t.invalid} tone={t.invalid ? 'danger' : undefined} />
-        <StatTile label="Possible duplicates" value={t.duplicate} tone={t.duplicate ? 'warning' : undefined} />
+        <StatTile
+          label="Rows in file"
+          value={t.total}
+          actionHint="Scroll to preview ↓"
+          title="Total rows detected in uploaded file"
+          onClick={() => {
+            const el = document.getElementById('sample-heading');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+          }}
+        />
+        <StatTile
+          label="New patients"
+          value={t.valid}
+          tone="success"
+          actionHint="Jump to publish ↓"
+          title="New patient statements that will be created in this clinic"
+          onClick={() => {
+            const el = document.querySelector('.publish-bar');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+          }}
+        />
+        <StatTile
+          label="Invalid rows"
+          value={t.invalid}
+          tone={t.invalid ? 'danger' : undefined}
+          actionHint={t.invalid ? 'Review invalid rows ↓' : '0 invalid (clean)'}
+          title={t.invalid ? `${t.invalid} invalid row(s) require attention` : 'All rows passed basic validation'}
+          onClick={() => {
+            if (t.invalid > 0) {
+              const el = document.getElementById('invalid-heading');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            } else {
+              toast('No invalid rows found in this file.', 'success');
+            }
+          }}
+        />
+        <StatTile
+          label="Existing patients"
+          value={t.duplicate}
+          tone={t.duplicate ? 'warning' : undefined}
+          actionHint={t.duplicate ? 'Review existing ↓' : '0 existing'}
+          title={t.duplicate ? `${t.duplicate} existing patient statement(s) found to update` : 'No existing patients matched'}
+          onClick={() => {
+            if (t.duplicate > 0) {
+              const el = document.getElementById('dup-heading');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            } else {
+              toast('No existing patient rows detected.', 'success');
+            }
+          }}
+        />
+        <StatTile
+          label="PDFs in ZIP"
+          value={data.matchedPdfsCount !== undefined ? `${data.matchedPdfsCount} matched` : 'Extracted'}
+          tone={data.matchedPdfsCount > 0 ? 'success' : undefined}
+          actionHint="Extracted from ZIP"
+          title="Number of patient statement PDFs matched and extracted from ZIP archive"
+        />
       </div>
 
       {ignored.length > 0 && (
@@ -333,14 +430,14 @@ export function ImportPreviewPage() {
       {duplicates.length > 0 && (
         <section className="panel" aria-labelledby="dup-heading">
           <div className="panel-header">
-            <h2 id="dup-heading">Possible duplicates <span className="badge badge-warning">{duplicates.length}</span></h2>
+            <h2 id="dup-heading">Existing patient statements <span className="badge badge-warning">{duplicates.length}</span></h2>
             <div className="btn-group">
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => decide('update')}>Update all existing</button>
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => decide('skip')}>Skip all</button>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => decide('new_version')}>Publish all as new versions</button>
             </div>
           </div>
           <p className="panel-intro">
-            These rows match a statement this clinic already has (same account number and statement date). Choose what to do with each.
+            These rows match existing patients in this clinic. Choosing &ldquo;Update existing&rdquo; updates their statement with the new data, cycle balances, remarks, and attached PDFs instead of creating duplicate records.
           </p>
           <div className="table-responsive table-always">
             <table className="statements-table compact">
@@ -352,31 +449,41 @@ export function ImportPreviewPage() {
                 </tr>
               </thead>
               <tbody>
-                {duplicates.map((d) => (
-                  <tr key={d.rowNumber} className={`row-static ${d.decision ? '' : 'row-attention'}`}>
-                    <td className="col-mono">{d.rowNumber}</td>
-                    <td>{d.data.patient_name}</td>
-                    <td className="col-mono">{d.data.account_number}</td>
-                    <td className="col-date">{date(d.data.statement_date)}</td>
-                    <td className="col-amount">{money(d.data.balance_due)}</td>
-                    <td className="col-amount">
-                      <Link to={`/statements/${d.existing.id}`} target="_blank" rel="noopener">{money(d.existing.balanceDue)}</Link>
-                      <div className="form-hint">v{d.existing.version} · {shortDate(d.existing.uploadedAt)}</div>
-                    </td>
-                    <td>
-                      <fieldset className="segmented segmented-sm">
-                        <legend className="sr-only">Decision for row {d.rowNumber}</legend>
-                        {[['skip', 'Skip'], ['new_version', 'New version']].map(([value, label]) => (
-                          <label key={value} className={`segmented-option ${d.decision === value ? 'selected' : ''}`}>
-                            <input type="radio" name={`dup-${d.rowNumber}`} value={value} checked={d.decision === value}
-                              onChange={() => decide(value, [d.rowNumber])} />
-                            {label}
-                          </label>
-                        ))}
-                      </fieldset>
-                    </td>
-                  </tr>
-                ))}
+                {duplicates.map((d) => {
+                  const effectiveDecision = d.decision === 'new_version' ? 'update' : d.decision;
+                  return (
+                    <tr key={d.rowNumber} className={`row-static ${effectiveDecision ? '' : 'row-attention'}`}>
+                      <td className="col-mono">{d.rowNumber}</td>
+                      <td>
+                        {d.data.patient_name}
+                        {d.data.matched_pdf_name && (
+                          <span className="badge badge-secondary" style={{ marginLeft: 6, fontSize: '0.7rem' }} title={`PDF: ${d.data.matched_pdf_name}`}>
+                            PDF
+                          </span>
+                        )}
+                      </td>
+                      <td className="col-mono">{d.data.account_number}</td>
+                      <td className="col-date">{date(d.data.statement_date)}</td>
+                      <td className="col-amount">{money(d.data.balance_due)}</td>
+                      <td className="col-amount">
+                        <Link to={`/statements/${d.existing.id}`} target="_blank" rel="noopener">{money(d.existing.balanceDue)}</Link>
+                        <div className="form-hint">v{d.existing.version} · {shortDate(d.existing.uploadedAt)}</div>
+                      </td>
+                      <td>
+                        <fieldset className="segmented segmented-sm">
+                          <legend className="sr-only">Decision for row {d.rowNumber}</legend>
+                          {[['update', 'Update existing'], ['skip', 'Skip']].map(([value, label]) => (
+                            <label key={value} className={`segmented-option ${effectiveDecision === value ? 'selected' : ''}`}>
+                              <input type="radio" name={`dup-${d.rowNumber}`} value={value} checked={effectiveDecision === value}
+                                onChange={() => decide(value, [d.rowNumber])} />
+                              {label}
+                            </label>
+                          ))}
+                        </fieldset>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -401,7 +508,14 @@ export function ImportPreviewPage() {
                 {sampleRows.map((r) => (
                   <tr key={r.rowNumber} className="row-static">
                     <td className="col-mono">{r.rowNumber}</td>
-                    <td>{r.data.patient_name}</td>
+                    <td>
+                      {r.data.patient_name}
+                      {r.data.matched_pdf_name && (
+                        <span className="badge badge-secondary" style={{ marginLeft: 6, fontSize: '0.7rem' }} title={`PDF: ${r.data.matched_pdf_name}`}>
+                          PDF
+                        </span>
+                      )}
+                    </td>
                     <td className="col-mono">{r.data.account_number}</td>
                     <td className="col-date">{date(r.data.statement_date)}</td>
                     <td className="col-amount">{money(r.data.balance_due)}</td>
@@ -419,9 +533,12 @@ export function ImportPreviewPage() {
           {toPublish === 0 ? (
             <strong>No rows can be published. Fix the file and try again.</strong>
           ) : undecided > 0 ? (
-            <strong>Choose Skip or New version for {undecided} possible duplicate{undecided === 1 ? '' : 's'} to continue.</strong>
+            <strong>Choose decision for {undecided} existing patient{undecided === 1 ? '' : 's'} to continue.</strong>
           ) : (
-            <span><strong>{toPublish.toLocaleString('en-US')}</strong> patient statement{toPublish === 1 ? '' : 's'} will be uploaded and published to <strong>{batch.clinic.name}</strong>.</span>
+            <span>
+              <strong>{toPublish.toLocaleString('en-US')}</strong> patient statement{toPublish === 1 ? '' : 's'}{' '}
+              {toUpdate > 0 ? `(${t.valid.toLocaleString('en-US')} new, ${toUpdate.toLocaleString('en-US')} updated)` : ''} will be published to <strong>{batch.clinic.name}</strong>.
+            </span>
           )}
           <div className="form-hint">Preview expires {dateTime(batch.previewExpiresAt)}.</div>
         </div>
@@ -464,7 +581,9 @@ export function ImportPreviewPage() {
 // --- S6: result summary (FR-7.6) ----------------------------------------------------
 export function ImportResultPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const location = useLocation();
+  const toast = useToast();
   const download = useDownload();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -481,7 +600,7 @@ export function ImportResultPage() {
   const b = data.batch;
   const t = b.totals;
   const done = ['published', 'partially_imported'].includes(b.status);
-  const created = (t.published ?? 0) + (t.newVersions ?? 0);
+  const total = (t.published ?? 0) + (t.updated ?? 0);
 
   return (
     <div className="container page-narrow">
@@ -489,7 +608,9 @@ export function ImportResultPage() {
       {done && <ol className="steps steps-page" aria-label="Import steps"><li className="done">Choose clinic and file</li><li className="done">Review preview</li><li className="done current">Upload complete</li></ol>}
       {location.state?.justPublished && done && (
         <Alert tone="success" title={`Excel report successfully uploaded to ${b.clinic.name}.`}>
-          {created.toLocaleString('en-US')} patient record{created === 1 ? '' : 's'} published. Clinic users can view them now in their portal ledger.
+          {total.toLocaleString('en-US')} patient record{total === 1 ? '' : 's'} published
+          ({(t.published ?? 0).toLocaleString('en-US')} new, {(t.updated ?? 0).toLocaleString('en-US')} updated).
+          Clinic users can view them now in their portal ledger.
         </Alert>
       )}
 
@@ -515,10 +636,56 @@ export function ImportResultPage() {
       {done && (
         <>
           <div className="stat-tiles">
-            <StatTile label="Uploaded to clinic" value={t.published} tone="success" />
-            <StatTile label="New versions" value={t.newVersions} />
-            <StatTile label="Skipped duplicates" value={t.skipped} tone={t.skipped ? 'warning' : undefined} />
-            <StatTile label="Failed rows" value={t.invalid} tone={t.invalid ? 'danger' : undefined} />
+            <StatTile
+              label="New patients"
+              value={t.published}
+              tone="success"
+              actionHint="View in ledger →"
+              title={`View new patient statements in ${b.clinic.name} ledger`}
+              onClick={() => navigate(`/clinics/${b.clinic.id}/statements`)}
+            />
+            <StatTile
+              label="Updated existing"
+              value={t.updated}
+              tone={t.updated ? 'info' : undefined}
+              actionHint={t.updated > 0 ? 'View in ledger →' : 'No existing patients'}
+              title={t.updated > 0 ? `View ${t.updated} updated patient statement(s)` : 'No existing patient statements were updated'}
+              onClick={() => {
+                if (t.updated > 0) {
+                  navigate(`/clinics/${b.clinic.id}/statements`);
+                } else {
+                  toast(`No existing patients were updated. All ${t.published || 0} records were uploaded as new statements.`, 'info');
+                }
+              }}
+            />
+            <StatTile
+              label="Skipped duplicates"
+              value={t.skipped}
+              tone={t.skipped ? 'warning' : undefined}
+              actionHint={t.skipped > 0 ? 'Download report ↓' : '0 skipped (clean)'}
+              title={t.skipped > 0 ? 'Download report of skipped duplicate rows' : 'No duplicate rows were skipped'}
+              onClick={() => {
+                if (b.hasErrorReport || t.skipped > 0) {
+                  download(`/imports/${id}/error-report`, 'skipped-duplicates.csv');
+                } else {
+                  toast('No duplicate rows were skipped. All rows were processed cleanly.', 'success');
+                }
+              }}
+            />
+            <StatTile
+              label="Failed rows"
+              value={t.invalid}
+              tone={t.invalid ? 'danger' : undefined}
+              actionHint={t.invalid > 0 ? 'Download error report ↓' : '0 failed (clean)'}
+              title={t.invalid > 0 ? 'Download error report for failed rows' : 'All rows passed validation'}
+              onClick={() => {
+                if (b.hasErrorReport || t.invalid > 0) {
+                  download(`/imports/${id}/error-report`, 'import-errors.csv');
+                } else {
+                  toast('No failed rows. All records in this file imported cleanly.', 'success');
+                }
+              }}
+            />
           </div>
           {b.hasErrorReport ? (
             <div className="panel panel-inline">

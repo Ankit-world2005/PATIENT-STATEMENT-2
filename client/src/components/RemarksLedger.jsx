@@ -14,10 +14,8 @@ const MAX = 2000;
 
 function RemarkForm({ statementId, role, onAdded }) {
   const toast = useToast();
-  const [type, setType] = useState(role === 'clinic_user' ? 'clinic' : 'specialist');
+  const type = role === 'clinic_user' ? 'clinic' : 'specialist';
   const [body, setBody] = useState('');
-  const [insuranceName, setInsuranceName] = useState('');
-  const [insuranceReference, setInsuranceReference] = useState('');
   const [errors, setErrors] = useState({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -27,7 +25,6 @@ function RemarkForm({ statementId, role, onAdded }) {
     const fe = {};
     if (!body.trim()) fe.body = 'Enter a remark.';
     if (body.length > MAX) fe.body = 'Remarks are limited to 2,000 characters.';
-    if (type === 'insurance' && !insuranceName.trim()) fe.insuranceName = 'Enter the insurance company name.';
     setErrors(fe);
     setError('');
     if (Object.keys(fe).length) return;
@@ -35,12 +32,10 @@ function RemarkForm({ statementId, role, onAdded }) {
     try {
       const d = await api(`/statements/${statementId}/remarks`, {
         method: 'POST',
-        body: { type, body, insuranceName, insuranceReference },
+        body: { type, body },
       });
       onAdded(d.remark);
       setBody('');
-      setInsuranceName('');
-      setInsuranceReference('');
       toast('Remark added.');
     } catch (err) {
       // Typed text is kept so nothing is lost (App Flow 4.1).
@@ -57,27 +52,6 @@ function RemarkForm({ statementId, role, onAdded }) {
     <form className="add-remark-section" onSubmit={submit} noValidate>
       <h4 className="add-remark-title">Add a remark</h4>
       <p className="add-remark-rule-hint">Remarks can't be edited or deleted after posting.</p>
-      {role === 'specialist' && (
-        <fieldset className="segmented" aria-label="Remark type">
-          <legend className="sr-only">Remark type</legend>
-          {['specialist', 'insurance'].map((t) => (
-            <label key={t} className={`segmented-option ${type === t ? 'selected' : ''}`}>
-              <input type="radio" name="remark-type" value={t} checked={type === t} onChange={() => setType(t)} />
-              {t === 'specialist' ? 'Specialist remark' : 'Insurance remark'}
-            </label>
-          ))}
-        </fieldset>
-      )}
-      {type === 'insurance' && (
-        <div className="form-row-2">
-          <Field label="Insurance company" error={errors.insuranceName} required>
-            {(p) => <input {...p} className="form-input" maxLength={200} value={insuranceName} onChange={(e) => setInsuranceName(e.target.value)} />}
-          </Field>
-          <Field label="Reference or call number" error={errors.insuranceReference}>
-            {(p) => <input {...p} className="form-input" maxLength={100} value={insuranceReference} onChange={(e) => setInsuranceReference(e.target.value)} />}
-          </Field>
-        </div>
-      )}
       <Field label="Remark" error={errors.body}>
         {(p) => (
           <textarea {...p} className="form-textarea" value={body} onChange={(e) => setBody(e.target.value)}

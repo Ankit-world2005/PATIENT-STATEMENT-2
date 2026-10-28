@@ -1,16 +1,23 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import multer from 'multer';
 import ExcelJS from 'exceljs';
+import { config } from '../config.js';
 import { pool, query, withTransaction } from '../db/pool.js';
 import { audit } from '../lib/audit.js';
 import { HttpError, badRequest, conflict, parseOrThrow } from '../lib/errors.js';
-import { storage, sha256Hex } from '../lib/storage.js';
+import { storage, sha256Hex, statementFileKey } from '../lib/storage.js';
 import { requireRole } from '../middleware/guards.js';
 import { getVisibleClinic, getVisibleStatement, statementScope } from '../services/access.js';
-import { renderStatementPdf } from '../services/pdf.js';
+import { checkUploadedPdf, renderStatementPdf } from '../services/pdf.js';
 import { insertRemark } from '../services/statements.js';
 
 export const statementsRouter = Router();
+
+const uploadPdf = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: config.uploads.maxBytes, files: 1 },
+});
 
 const PAGE_SIZE = 25; // FR-9.5
 
@@ -108,7 +115,8 @@ statementsRouter.get('/', async (req, res) => {
             s.last_remark_at, s.version,
             s.first_opened_by_clinic_at IS NULL AS is_new,
             s.awaiting_reply_since IS NOT NULL AS awaiting_reply,
-            EXISTS (SELECT 1 FROM statement n WHERE n.supersedes_id = s.id) AS has_newer_version
+            EXISTS (SELECT 1 FROM statement n WHERE n.supersedes_id = s.id) AS has_newer_version,
+            EXISTS (SELECT 1 FROM statement_file sf WHERE sf.statement_id = s.id) AS has_file
        FROM statement s
        JOIN clinic c ON c.id = s.clinic_id
       WHERE ${whereSql}
@@ -121,6 +129,7 @@ statementsRouter.get('/', async (req, res) => {
     clinic: { id: clinic.id, name: clinic.name, code: clinic.clinic_code, isActive: clinic.is_active },
     items: rows.map((r) => ({
       id: r.id,
+      hasFile: Boolean(r.has_file),
       location: r.location_name,
       patientName: r.patient_name,
       accountNumber: r.account_number,
@@ -355,9 +364,9 @@ statementsRouter.get('/:id', async (req, res) => {
       wasNew = upd.rowCount === 1;
     }
 
-    const [clinic, file, remarks, people, others] = await Promise.all([
+    const [clinic, file, remarks, people, others, patientFiles] = await Promise.all([
       db.query('SELECT * FROM clinic WHERE id = $1', [s.clinic_id]),
-      db.query('SELECT original_filename, size_bytes FROM statement_file WHERE statement_id = $1', [s.id]),
+      db.query('SELECT original_filename, size_bytes FROM statement_file WHERE statement_id = $1 ORDER BY id DESC LIMIT 1', [s.id]),
       db.query(
         `SELECT r.*, u.full_name AS author_name FROM remark r JOIN app_user u ON u.id = r.author_id
           WHERE r.statement_id = $1 ORDER BY r.created_at, r.id`,
@@ -372,6 +381,21 @@ statementsRouter.get('/:id', async (req, res) => {
              FROM statement o
             WHERE o.clinic_id = $1 AND o.account_number = $2 AND o.id <> $3 AND ${scope}
             ORDER BY o.statement_date DESC, o.version DESC LIMIT 50`,
+          params,
+        );
+      })(),
+      (() => {
+        const params = [s.clinic_id, s.account_number, s.patient_name];
+        const scope = statementScope(req.user, 'st', params);
+        return db.query(
+          `SELECT sf.id, sf.statement_id, sf.original_filename, sf.size_bytes, sf.created_at,
+                  st.statement_date, st.version, st.status, st.balance_due
+             FROM statement_file sf
+             JOIN statement st ON st.id = sf.statement_id
+            WHERE st.clinic_id = $1
+              AND (st.account_number = $2 OR LOWER(TRIM(st.patient_name)) = LOWER(TRIM($3)))
+              AND ${scope}
+            ORDER BY st.statement_date DESC, st.version DESC, sf.id DESC`,
           params,
         );
       })(),
@@ -443,6 +467,18 @@ statementsRouter.get('/:id', async (req, res) => {
         uploadedByName: nameOf[s.uploaded_by_id],
         wasNew,
         file: file.rows[0] ? { name: file.rows[0].original_filename, sizeBytes: file.rows[0].size_bytes } : null,
+        patientFiles: patientFiles.rows.map((pf) => ({
+          id: pf.id,
+          statementId: pf.statement_id,
+          name: pf.original_filename,
+          sizeBytes: pf.size_bytes,
+          createdAt: pf.created_at,
+          statementDate: pf.statement_date,
+          version: pf.version,
+          status: pf.status,
+          balanceDue: pf.balance_due,
+          isCurrent: pf.statement_id === s.id,
+        })),
         earlierVersionId: earlier?.id ?? null,
         newerVersionId: newer?.id ?? null,
       },
@@ -480,34 +516,62 @@ async function loadForFile(req, action, details) {
   });
 }
 
-async function readStatementFile(s) {
-  const { rows } = await query('SELECT storage_key, sha256 FROM statement_file WHERE statement_id = $1', [s.id]);
+async function readStatementFile(s, fileId) {
+  let queryText = 'SELECT storage_key, sha256, original_filename FROM statement_file WHERE statement_id = $1';
+  const params = [s.id];
+  if (fileId && /^\d+$/.test(String(fileId))) {
+    queryText += ' AND id = $2';
+    params.push(fileId);
+  } else {
+    queryText += ' ORDER BY id DESC LIMIT 1';
+  }
+  const { rows } = await query(queryText, params);
   if (!rows[0]) return null;
-  const buffer = await storage.get(rows[0].storage_key);
-  if (sha256Hex(buffer) !== rows[0].sha256) throw new HttpError(500, 'The stored file failed its integrity check.');
-  return buffer;
+  try {
+    const buffer = await storage.get(rows[0].storage_key);
+    if (!buffer) return null;
+    if (sha256Hex(buffer) !== rows[0].sha256) throw new HttpError(500, 'The stored file failed its integrity check.');
+    return { buffer, filename: rows[0].original_filename };
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      return null;
+    }
+    throw err;
+  }
 }
 
 statementsRouter.get('/:id/file', async (req, res) => {
-  const s = await loadForFile(req, 'statement.view', { part: 'pdf' });
-  const buffer = s.source === 'pdf_upload' ? await readStatementFile(s) : null;
-  if (!buffer) throw new HttpError(404, 'This statement has no uploaded PDF.');
-  // This one response may be shown inside the portal's own page (implementation plan C-2).
-  res.set('X-Frame-Options', 'SAMEORIGIN');
-  res.set('Content-Security-Policy', "default-src 'none'; frame-ancestors 'self'");
-  res.type('application/pdf').set('Content-Disposition', 'inline; filename="statement.pdf"').send(buffer);
-});
-
-statementsRouter.get('/:id/download', async (req, res) => {
-  const s = await loadForFile(req, 'statement.download');
-  let buffer = s.source === 'pdf_upload' ? await readStatementFile(s) : null;
+  const s = await loadForFile(req, 'statement.view', { part: 'pdf', file_id: req.query.fileId });
+  let fileResult = await readStatementFile(s, req.query.fileId);
+  let buffer = fileResult?.buffer;
+  let filename = fileResult?.filename || `statement-${s.statement_date}.pdf`;
   if (!buffer) {
     const { rows } = await query('SELECT * FROM clinic WHERE id = $1', [s.clinic_id]);
     buffer = await renderStatementPdf(s, rows[0]);
+    filename = `statement-${s.statement_date}.pdf`;
   }
-  // No patient name in the file name (schema Q-7).
+  if (!buffer) throw new HttpError(404, 'This statement has no PDF available.');
+  // This one response may be shown inside the portal's own page (implementation plan C-2).
+  res.set('X-Frame-Options', 'SAMEORIGIN');
+  res.set('Content-Security-Policy', "default-src 'none'; frame-ancestors 'self'");
+  const safeFilename = filename.replace(/["\r\n]/g, '');
+  res.type('application/pdf').set('Content-Disposition', `inline; filename="${safeFilename}"`).send(buffer);
+});
+
+statementsRouter.get('/:id/download', async (req, res) => {
+  const s = await loadForFile(req, 'statement.download', { file_id: req.query.fileId });
+  let fileResult = await readStatementFile(s, req.query.fileId);
+  let buffer = fileResult?.buffer;
+  let filename = fileResult?.filename || `statement-${s.statement_date}.pdf`;
+  if (!buffer) {
+    const { rows } = await query('SELECT * FROM clinic WHERE id = $1', [s.clinic_id]);
+    buffer = await renderStatementPdf(s, rows[0]);
+    filename = `statement-${s.statement_date}.pdf`;
+  }
+  if (!buffer) throw new HttpError(404, 'This statement has no PDF available.');
+  const safeFilename = filename.replace(/["\r\n]/g, '');
   res.type('application/pdf')
-    .set('Content-Disposition', `attachment; filename="statement-${s.statement_date}.pdf"`)
+    .set('Content-Disposition', `attachment; filename="${safeFilename}"`)
     .send(buffer);
 });
 
@@ -515,6 +579,63 @@ statementsRouter.post('/:id/print', async (req, res) => {
   const includeRemarks = Boolean(req.body?.includeRemarks);
   await loadForFile(req, 'statement.print', { include_remarks: includeRemarks });
   res.json({ ok: true });
+});
+
+// --- Specialist: upload PDF to statement (PDF Stat / Upload card) --------------
+statementsRouter.post('/:id/files', requireRole('specialist'), uploadPdf.single('pdf'), async (req, res) => {
+  if (!req.file) {
+    throw badRequest('Please choose a PDF file to upload.');
+  }
+
+  const checkErr = await checkUploadedPdf(req.file.buffer);
+  if (checkErr) {
+    throw badRequest(checkErr);
+  }
+
+  const fileRecord = await withTransaction(async (db) => {
+    const s = await getVisibleStatement(db, req, req.params.id, { forUpdate: true });
+    if (s.status?.toLowerCase() === 'withdrawn') {
+      throw conflict('Files cannot be uploaded to a withdrawn statement.');
+    }
+
+    const key = statementFileKey();
+    await storage.put(key, req.file.buffer);
+
+    const sha = sha256Hex(req.file.buffer);
+    const originalFilename = (req.file.originalname || `statement-${s.statement_date}.pdf`).trim().slice(0, 255);
+
+    const { rows } = await db.query(
+      `INSERT INTO statement_file (statement_id, storage_key, original_filename, size_bytes, sha256)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, statement_id, original_filename, size_bytes, created_at`,
+      [s.id, key, originalFilename, req.file.buffer.length, sha],
+    );
+
+    await audit(db, req, {
+      action: 'statement.upload',
+      targetType: 'statement',
+      targetId: s.id,
+      clinicId: s.clinic_id,
+      details: {
+        file_id: rows[0].id,
+        filename: originalFilename,
+        size_bytes: req.file.buffer.length,
+      },
+    });
+
+    return rows[0];
+  });
+
+  res.status(201).json({
+    ok: true,
+    file: {
+      id: fileRecord.id,
+      statementId: fileRecord.statement_id,
+      name: fileRecord.original_filename,
+      sizeBytes: fileRecord.size_bytes,
+      createdAt: fileRecord.created_at,
+    },
+  });
 });
 
 // --- Remarks (F11) -------------------------------------------------------------

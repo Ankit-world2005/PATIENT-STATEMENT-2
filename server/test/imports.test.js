@@ -3,7 +3,11 @@ import { test } from 'node:test';
 import { ImportFileError, parseImportFile } from '../src/services/imports/parse.js';
 import { buildErrorReportCsv } from '../src/services/imports/report.js';
 import { templateCsv, templateXlsx } from '../src/services/imports/template.js';
-import { validateRows } from '../src/services/imports/validate.js';
+import { markDuplicates, validateRows } from '../src/services/imports/validate.js';
+import JSZip from 'jszip';
+import { PDFDocument } from 'pdf-lib';
+import { extractPdfsFromZip, matchPdfsToRows, parsePatientStatementPdfSyntax } from '../src/services/imports/zip.js';
+import { checkUploadedPdf } from '../src/services/pdf.js';
 
 const csv = (text) => Buffer.from(text, 'utf8');
 
@@ -42,6 +46,59 @@ test('flags in-file duplicates and invalid rows', () => {
   assert.deepEqual(rows.map((r) => r.outcome), ['valid', 'invalid', 'invalid']);
   assert.match(rows[1].errors[0].message, /row 2/);
   assert.equal(rows[2].data.statement_date, 'soon'); // raw text kept for the error report
+});
+
+test('a patient appears once per file: by account number, or by name when the file has none', () => {
+  const withAccounts = validateRows([
+    { rowNumber: 2, raw: { patient_name: 'A', account_number: 'X1', statement_date: '2026-10-01', balance_due: '5' } },
+    { rowNumber: 3, raw: { patient_name: 'B', account_number: 'X1', statement_date: '2026-10-02', balance_due: '6' } },
+    { rowNumber: 4, raw: { patient_name: 'A', account_number: 'X2', statement_date: '2026-10-01', balance_due: '7' } },
+  ]);
+  assert.deepEqual(withAccounts.map((r) => r.outcome), ['valid', 'invalid', 'valid']);
+  assert.equal(withAccounts[1].errors[0].message, 'Same patient as row 2 in this file.');
+
+  // Ledgers without an account column get a generated ACC-NAME-row number, so the name decides.
+  const ledger = validateRows([
+    { rowNumber: 2, raw: { _rowNumber: 2, patient_name: 'Smith John', cycle1_date: '10/01/2026', current_balance: '5' } },
+    { rowNumber: 3, raw: { _rowNumber: 3, patient_name: 'SMITH JOHN', cycle1_date: '10/15/2026', current_balance: '6' } },
+  ]);
+  assert.deepEqual(ledger.map((r) => r.outcome), ['valid', 'invalid']);
+  assert.equal(ledger[1].errors[0].field, 'patient_name');
+});
+
+test('markDuplicates finds existing patients by account number, or by name when the file has none', async () => {
+  const lookups = [];
+  const db = {
+    async query(_sql, params) {
+      lookups.push(params.slice(1));
+      return {
+        rows: [
+          { id: 'jane-a1', account_number: 'A-1', name_key: 'jane doe' },
+          { id: 'johnny', account_number: 'ACC-SMITHJ-0003', name_key: 'smith johnny' },
+          { id: 'john', account_number: 'ACC-SMITHJ-0009', name_key: 'smith john' },
+        ],
+      };
+    },
+  };
+
+  const withAccounts = validateRows([
+    { rowNumber: 2, raw: { patient_name: 'Jane Doe', account_number: 'A-1', statement_date: '2026-10-01', balance_due: '5' } },
+    { rowNumber: 3, raw: { patient_name: 'Jane Doe', account_number: 'Z-7', statement_date: '2026-10-01', balance_due: '5' } },
+  ]);
+  await markDuplicates(db, 'clinic', withAccounts);
+  // The same name under another account number is a different patient.
+  assert.deepEqual(withAccounts.map((r) => [r.outcome, r.duplicateOf]), [['duplicate', 'jane-a1'], ['valid', undefined]]);
+
+  const ledger = validateRows([
+    { rowNumber: 3, raw: { _rowNumber: 3, patient_name: 'Smith John', cycle1_date: '10/01/2026', current_balance: '5' } },
+  ]);
+  assert.equal(ledger[0].data.account_number, 'ACC-SMITHJ-0003'); // what Smith Johnny got on this row last time
+  await markDuplicates(db, 'clinic', ledger);
+  assert.equal(ledger[0].duplicateOf, 'john');
+  assert.equal(ledger[0].duplicateDecision, 'update');
+
+  // Generated account numbers are never looked up.
+  assert.deepEqual(lookups, [[['A-1', 'Z-7'], []], [[], ['smith john']]]);
 });
 
 test('the template parses, and its EXAMPLE rows are rejected', async () => {
@@ -126,3 +183,142 @@ test('parses Namaste Rehab Clinics LLC status sheet format with cycle-specific b
   assert.equal(validated[0].data.cycle1_payment, '3.29');
   assert.equal(validated[0].data.status, 'Payment Received');
 });
+
+test('extractPdfsFromZip extracts valid PDFs and ignores non-PDFs and metadata', async () => {
+  const zip = new JSZip();
+  zip.file('1001.pdf', Buffer.from('%PDF-1.4 patient sample statement'));
+  zip.file('Jane Smith.pdf', Buffer.from('%PDF-1.7 second patient statement'));
+  zip.file('readme.txt', 'Ignored text file');
+  zip.file('__MACOSX/._1001.pdf', Buffer.from('AppleDouble metadata'));
+  const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+
+  const pdfs = await extractPdfsFromZip(zipBuffer);
+  assert.equal(pdfs.length, 2);
+  assert.deepEqual(pdfs.map((p) => p.originalFilename).sort(), ['1001.pdf', 'Jane Smith.pdf']);
+});
+
+test('matchPdfsToRows matches PDFs by account number, patient name, and row index', async () => {
+  const zip = new JSZip();
+  zip.file('1001.pdf', Buffer.from('%PDF-1.4 statement'));
+  zip.file('Smith_Jane.pdf', Buffer.from('%PDF-1.4 statement'));
+  const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+  const pdfs = await extractPdfsFromZip(zipBuffer);
+
+  const rows = [
+    { rowNumber: 1, data: { patient_name: 'John Doe', account_number: 'ACC-1001' } },
+    { rowNumber: 2, data: { patient_name: 'Jane Smith', account_number: 'ACC-2002' } },
+  ];
+
+  const matched = matchPdfsToRows(pdfs, rows);
+  assert.equal(matched.matchedCount, 2);
+  const p0 = pdfs[matched.assignments.get(0)];
+  const p1 = pdfs[matched.assignments.get(1)];
+  assert.equal(p0.originalFilename, '1001.pdf');
+  assert.equal(p1.originalFilename, 'Smith_Jane.pdf');
+});
+
+test('parsePatientStatementPdfSyntax parses Patient Name_$00.00_West AZ_1st or 2nd or 3rd', () => {
+  const p1 = parsePatientStatementPdfSyntax('Dolores Beatty_$538.91_West AZ_1st.pdf');
+  assert.ok(p1);
+  assert.equal(p1.patientName, 'Dolores Beatty');
+  assert.equal(p1.amountNum, 538.91);
+  assert.equal(p1.locationStr, 'West AZ');
+  assert.equal(p1.cycleNum, 1);
+
+  const p2 = parsePatientStatementPdfSyntax('John Doe_$00.00_West AZ_2nd.pdf');
+  assert.ok(p2);
+  assert.equal(p2.patientName, 'John Doe');
+  assert.equal(p2.amountNum, 0);
+  assert.equal(p2.locationStr, 'West AZ');
+  assert.equal(p2.cycleNum, 2);
+
+  const p3 = parsePatientStatementPdfSyntax('Jane Smith_$1,250.75_Downtown_3rd.pdf');
+  assert.ok(p3);
+  assert.equal(p3.patientName, 'Jane Smith');
+  assert.equal(p3.amountNum, 1250.75);
+  assert.equal(p3.locationStr, 'Downtown');
+  assert.equal(p3.cycleNum, 3);
+});
+
+test('matchPdfsToRows matches multi-cycle PDFs for the same patient into rowPdfs', async () => {
+  const zip = new JSZip();
+  zip.file('Dolores Beatty_$538.91_West AZ_1st.pdf', Buffer.from('%PDF-1.4 cycle1'));
+  zip.file('Dolores Beatty_$538.91_West AZ_2nd.pdf', Buffer.from('%PDF-1.4 cycle2'));
+  zip.file('Dolores Beatty_$538.91_West AZ_3rd.pdf', Buffer.from('%PDF-1.4 cycle3'));
+  zip.file('John Doe_$00.00_West AZ_1st.pdf', Buffer.from('%PDF-1.4 cycle1'));
+  const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+  const pdfs = await extractPdfsFromZip(zipBuffer);
+
+  const rows = [
+    { rowNumber: 1, data: { patient_name: 'Dolores Beatty', balance_due: '538.91', location_name: 'West AZ' } },
+    { rowNumber: 2, data: { patient_name: 'John Doe', balance_due: '0.00', location_name: 'West AZ' } },
+  ];
+
+  const matched = matchPdfsToRows(pdfs, rows);
+  assert.equal(matched.matchedCount, 2); // 2 rows matched
+  assert.equal(matched.matchedPdfsCount, 4); // all 4 PDFs matched!
+
+  // Dolores Beatty has 3 PDFs attached
+  const doloresPdfs = matched.rowPdfs.get(0).map((idx) => pdfs[idx].originalFilename);
+  assert.equal(doloresPdfs.length, 3);
+  assert.ok(doloresPdfs.includes('Dolores Beatty_$538.91_West AZ_1st.pdf'));
+  assert.ok(doloresPdfs.includes('Dolores Beatty_$538.91_West AZ_2nd.pdf'));
+  assert.ok(doloresPdfs.includes('Dolores Beatty_$538.91_West AZ_3rd.pdf'));
+
+  // John Doe has 1 PDF attached
+  const johnPdfs = matched.rowPdfs.get(1).map((idx) => pdfs[idx].originalFilename);
+  assert.equal(johnPdfs.length, 1);
+  assert.equal(johnPdfs[0], 'John Doe_$00.00_West AZ_1st.pdf');
+});
+
+test('parsePatientStatementPdfSyntax handles lastname, Firstname format', () => {
+  const p1 = parsePatientStatementPdfSyntax('SHARP, EMMA_$142.46_West AZ_1st.pdf');
+  assert.ok(p1);
+  assert.equal(p1.patientName, 'SHARP, EMMA');
+  assert.equal(p1.amountNum, 142.46);
+  assert.equal(p1.locationStr, 'West AZ');
+  assert.equal(p1.cycleNum, 1);
+
+  const p2 = parsePatientStatementPdfSyntax('STIERMAN, LINSEY_$258.06_West AZ_2nd.pdf');
+  assert.ok(p2);
+  assert.equal(p2.patientName, 'STIERMAN, LINSEY');
+  assert.equal(p2.amountNum, 258.06);
+  assert.equal(p2.locationStr, 'West AZ');
+  assert.equal(p2.cycleNum, 2);
+});
+
+test('matchPdfsToRows matches lastname, Firstname PDF to both Firstname Lastname and LAST, FIRST rows', async () => {
+  const zip = new JSZip();
+  zip.file('SHARP, EMMA_$142.46_West AZ_1st.pdf', Buffer.from('%PDF-1.4 cycle1'));
+  zip.file('STIERMAN, LINSEY_$258.06_West AZ_2nd.pdf', Buffer.from('%PDF-1.4 cycle2'));
+  const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+  const pdfs = await extractPdfsFromZip(zipBuffer);
+
+  const rows = [
+    { rowNumber: 1, data: { patient_name: 'Emma Sharp', balance_due: '142.46', location_name: 'West AZ' } },
+    { rowNumber: 2, data: { patient_name: 'STIERMAN, LINSEY', balance_due: '258.06', location_name: 'West AZ' } },
+  ];
+
+  const matched = matchPdfsToRows(pdfs, rows);
+  assert.equal(matched.matchedCount, 2);
+  const p0 = pdfs[matched.assignments.get(0)];
+  const p1 = pdfs[matched.assignments.get(1)];
+  assert.equal(p0.originalFilename, 'SHARP, EMMA_$142.46_West AZ_1st.pdf');
+  assert.equal(p1.originalFilename, 'STIERMAN, LINSEY_$258.06_West AZ_2nd.pdf');
+});
+
+test('checkUploadedPdf validates PDF magic bytes and valid pdf structure', async () => {
+  const notPdf = Buffer.from('Hello world non pdf content');
+  const err1 = await checkUploadedPdf(notPdf);
+  assert.equal(err1, 'Upload a PDF file up to 10 MB.');
+
+  const doc = await PDFDocument.create();
+  doc.addPage([200, 200]);
+  const pdfBytes = await doc.save();
+  const err2 = await checkUploadedPdf(Buffer.from(pdfBytes));
+  assert.equal(err2, null);
+});
+
+
+
+

@@ -124,3 +124,74 @@ export async function rebuildStatementFlags(db) {
      WHERE r.id = s.id
        AND (s.last_remark_at IS DISTINCT FROM r.last_at OR s.awaiting_reply_since IS DISTINCT FROM r.awaiting)`);
 }
+
+/** Updates an existing active statement in place with new ledger and cycle data. */
+export async function updateStatement(db, statementId, item) {
+  const ledgerStatus = item.status || item.ledger_status || null;
+  const us24Notes = item.us24_notes || item.remarks || null;
+  const cptCodes = Array.isArray(item.cpt_codes) && item.cpt_codes.length > 0 ? item.cpt_codes : null;
+
+  await db.query(
+    `UPDATE statement
+        SET statement_date = COALESCE($2::date, statement_date),
+            balance_due = COALESCE($3::numeric, balance_due),
+            patient_name = COALESCE($4::varchar, patient_name),
+            patient_dob = COALESCE($5::date, patient_dob),
+            service_date_from = COALESCE($6::date, service_date_from),
+            service_date_to = COALESCE($7::date, service_date_to),
+            cpt_codes = COALESCE($8::varchar(10)[], cpt_codes),
+            billed_amount = COALESCE($9::numeric, billed_amount),
+            insurance_paid = COALESCE($10::numeric, insurance_paid),
+            adjustments = COALESCE($11::numeric, adjustments),
+            insurance_name = COALESCE($12::varchar, insurance_name),
+            location_name = COALESCE($13::varchar, location_name),
+            cycle1_date = COALESCE($14::date, cycle1_date),
+            cycle1_balance = COALESCE($15::numeric, cycle1_balance),
+            cycle1_payment = COALESCE($16::numeric, cycle1_payment),
+            cycle2_date = COALESCE($17::date, cycle2_date),
+            cycle2_balance = COALESCE($18::numeric, cycle2_balance),
+            cycle2_payment = COALESCE($19::numeric, cycle2_payment),
+            cycle3_date = COALESCE($20::date, cycle3_date),
+            cycle3_balance = COALESCE($21::numeric, cycle3_balance),
+            cycle3_payment = COALESCE($22::numeric, cycle3_payment),
+            current_balance = COALESCE($23::numeric, current_balance),
+            pr_type = COALESCE($24::varchar, pr_type),
+            ledger_status = COALESCE($25::varchar, ledger_status),
+            us24_notes = COALESCE($26::text, us24_notes),
+            client_response = COALESCE($27::text, client_response),
+            vob_notes = COALESCE($28::text, vob_notes),
+            updated_at = now()
+      WHERE id = $1`,
+    [
+      statementId,
+      item.statement_date ?? null,
+      item.balance_due ?? null,
+      item.patient_name ?? null,
+      item.patient_dob ?? null,
+      item.service_date_from ?? null,
+      item.service_date_to ?? null,
+      cptCodes,
+      item.billed_amount ?? null,
+      item.insurance_paid ?? null,
+      item.adjustments ?? null,
+      item.insurance_name ?? null,
+      item.location_name ?? null,
+      item.cycle1_date ?? null,
+      item.cycle1_balance ?? null,
+      item.cycle1_payment ?? null,
+      item.cycle2_date ?? null,
+      item.cycle2_balance ?? null,
+      item.cycle2_payment ?? null,
+      item.cycle3_date ?? null,
+      item.cycle3_balance ?? null,
+      item.cycle3_payment ?? null,
+      item.current_balance ?? null,
+      item.pr_type ?? null,
+      ledgerStatus,
+      us24Notes,
+      item.client_response ?? null,
+      item.vob_notes ?? null,
+    ],
+  );
+}
+

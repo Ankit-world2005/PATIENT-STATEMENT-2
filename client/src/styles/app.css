@@ -560,13 +560,63 @@ input[type="date"].form-input {
   word-break: break-all;
 }
 
-/* --- Header -------------------------------------------------------------- */
+/* --- Header & Hallmark --------------------------------------------------- */
+.header-brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brand-pipe {
+  color: var(--color-border);
+  font-size: 1.15rem;
+  font-weight: 300;
+  user-select: none;
+}
+.header-hallmark-seal {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.12));
+}
+.header-portal-title {
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  letter-spacing: -0.01em;
+}
+
+.auth-hallmark-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0 auto 16px;
+}
+.auth-hallmark-img {
+  width: 140px;
+  height: 140px;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 20px rgba(13, 92, 99, 0.22)) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.08));
+  transition: transform 0.25s ease, filter 0.25s ease;
+}
+.auth-hallmark-img:hover {
+  transform: scale(1.03);
+  filter: drop-shadow(0 12px 28px rgba(13, 92, 99, 0.3)) drop-shadow(0 4px 10px rgba(0, 0, 0, 0.12));
+}
+
+@media (max-width: 600px) {
+  .header-portal-title { display: none; }
+  .brand-pipe { display: none; }
+}
+
 @media (max-width: 520px) {
   .site-header .container { gap: 10px; }
   .user-clinic-affiliation { display: none; }
   .user-avatar-circle { width: 32px; height: 32px; font-size: 0.8rem; }
   .user-full-name { font-size: 0.9rem; }
   .brand-logo-img { height: 28px; max-width: 110px; }
+  .header-hallmark-seal { width: 28px; height: 28px; }
+  .header-user-actions,
   .header-brand-actions { gap: 10px; }
   .signout-label { display: none; }
   .btn-signout { padding: 6px 9px; }
@@ -579,6 +629,161 @@ a.hub-card { text-decoration: none; color: inherit; }
 
 /* --- Statement detail ---------------------------------------------------- */
 .detail-published { font-size: 0.84rem; color: var(--color-primary); margin-top: 6px; font-weight: 500; }
+.detail-hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  width: 100%;
+}
+.detail-hero-tabs {
+  display: inline-flex;
+  align-items: center;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  gap: 4px;
+  margin-left: auto;
+  align-self: flex-start;
+}
+.pdf-stat-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  font-family: inherit;
+  text-decoration: none;
+}
+.pdf-stat-tab-btn:hover {
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.6);
+}
+.pdf-stat-tab-btn.active {
+  color: var(--color-primary, #253B80);
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+/* Patient PDF Stat Tab */
+.pdf-stat-hub {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.pdf-stat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+.pdf-stat-header-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pdf-stat-header-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+.pdf-file-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.pdf-file-card {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.pdf-file-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+.pdf-file-card.is-current {
+  border-color: rgba(37, 59, 128, 0.4);
+  background: #fafbff;
+}
+.pdf-file-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.pdf-file-card-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.pdf-file-icon-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: #fee2e2;
+  color: #dc2626;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.pdf-file-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pdf-file-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 6px;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+.pdf-file-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pdf-preview-container {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+}
+.pdf-preview-frame {
+  width: 100%;
+  height: 520px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #525659;
+}
 .detail-actions-bar { flex-wrap: wrap; gap: 16px; }
 .detail-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
 .detail-balance-hero { margin-right: 8px; }
@@ -772,8 +977,8 @@ a.hub-card { text-decoration: none; color: inherit; }
   font-weight: 700;
 }
 .steps li + li::after { order: -1; content: ''; width: 24px; height: 1px; background: var(--color-border-control); }
-.steps li.current { color: var(--color-text); font-weight: 700; }
-.steps li.current::before { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+.steps li.current { color: var(--color-primary); font-weight: 700; }
+.steps li.current::before { background: var(--color-accent); border-color: var(--color-accent); color: #fff; }
 .steps li.done::before { content: '✓'; background: var(--color-success-bg); border-color: var(--color-success); color: var(--color-success); }
 .steps-page { margin-top: 4px; }
 
@@ -792,6 +997,9 @@ a.hub-card { text-decoration: none; color: inherit; }
   border-radius: var(--radius-md);
   padding: 14px 16px;
   box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 .stat-value { font-size: 1.75rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .stat-label { font-size: 0.8rem; color: var(--color-text-muted); font-weight: 600; margin-top: 4px; }
@@ -801,6 +1009,66 @@ a.hub-card { text-decoration: none; color: inherit; }
 .stat-danger .stat-value { color: var(--color-danger); }
 .stat-warning { border-top: 3px solid var(--color-warning); }
 .stat-warning .stat-value { color: var(--color-warning); }
+.stat-info { border-top: 3px solid var(--color-primary); }
+.stat-info .stat-value { color: var(--color-primary); }
+
+.stat-tile-clickable {
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+  position: relative;
+}
+.stat-tile-clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px -2px rgba(0, 0, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+  border-color: var(--color-primary);
+}
+.stat-tile-clickable:active {
+  transform: translateY(0) scale(0.99);
+  box-shadow: var(--shadow-sm);
+}
+.stat-tile-clickable:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.stat-success.stat-tile-clickable:hover {
+  border-color: var(--color-success);
+  box-shadow: 0 6px 16px -2px rgba(13, 148, 136, 0.18), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+}
+.stat-warning.stat-tile-clickable:hover {
+  border-color: var(--color-accent);
+  box-shadow: 0 6px 16px -2px rgba(243, 108, 33, 0.22), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+}
+.stat-danger.stat-tile-clickable:hover {
+  border-color: var(--color-danger);
+  box-shadow: 0 6px 16px -2px rgba(220, 38, 38, 0.18), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+}
+
+.stat-action-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--color-border);
+  transition: color 0.15s ease;
+}
+.stat-tile-clickable:hover .stat-action-hint {
+  color: var(--color-accent);
+}
+.stat-success.stat-tile-clickable:hover .stat-action-hint {
+  color: var(--color-success);
+}
+.stat-warning.stat-tile-clickable:hover .stat-action-hint {
+  color: var(--color-accent);
+}
+.stat-danger.stat-tile-clickable:hover .stat-action-hint {
+  color: var(--color-danger);
+}
+
 
 .publish-bar {
   position: sticky;
@@ -814,9 +1082,9 @@ a.hub-card { text-decoration: none; color: inherit; }
   padding: 14px 18px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-left: 4px solid var(--color-primary);
+  border-left: 4px solid var(--color-accent);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 10px 25px rgba(37, 59, 128, 0.12);
   font-size: 0.92rem;
 }
 
@@ -1076,15 +1344,15 @@ a.hub-card { text-decoration: none; color: inherit; }
 }
 
 .patient-ledger-table thead tr th {
-  background: #2563EB; /* Vibrant Royal/Electric Blue */
+  background: #253B80; /* Royal Navy Blue */
   color: #FFFFFF;
   font-weight: 700;
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 11px 14px;
-  border-bottom: 2px solid #1D4ED8;
-  border-right: 1px solid rgba(255, 255, 255, 0.28);
+  border-bottom: 2px solid #1B2D66;
+  border-right: 1px solid rgba(255, 255, 255, 0.22);
   white-space: nowrap;
   vertical-align: middle;
   text-align: center;
@@ -1123,7 +1391,7 @@ a.hub-card { text-decoration: none; color: inherit; }
 
 .patient-ledger-table thead tr th.sticky-col-location,
 .patient-ledger-table thead tr th.sticky-col-patient {
-  background: #1D4ED8; /* Slightly deeper blue for pinned headers */
+  background: #1B2D66; /* Deeper Navy Blue for pinned headers */
   z-index: 12;
 }
 

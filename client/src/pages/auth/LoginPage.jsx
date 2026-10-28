@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router';
+import hallmarkImg from '../../assets/my-patient-hallmark.png';
 import { Alert, Field } from '../../components/ui.jsx';
 import { useAuth } from '../../lib/auth.jsx';
 import { landingPath } from '../../lib/format.js';
@@ -45,13 +46,13 @@ export function LoginPage() {
     <div className="auth-wrapper">
       <div className="auth-card">
         <div className="auth-header">
-          <h1 className="auth-title">My Patient</h1>
+          <div className="auth-hallmark-wrap">
+            <img src={hallmarkImg} alt="My Patient" className="auth-hallmark-img" />
+            <h1 className="sr-only">My Patient</h1>
+          </div>
           <p className="auth-subtitle">Secure statement portal for US24 Solutions clients</p>
         </div>
         {notice && <Alert tone="info">{notice}</Alert>}
-        <div className="auth-clinic-notice">
-          Clinic staff and US24 Solutions team members sign in here. Every sign-in is protected with a one-time code.
-        </div>
         <form onSubmit={submit} noValidate>
           <Field label="Email address" error={errors.email}>
             {(p) => (

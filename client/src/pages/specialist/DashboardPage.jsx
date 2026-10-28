@@ -1,44 +1,32 @@
 import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { Link, Navigate, useSearchParams } from 'react-router';
 import { ClinicsDropdown } from '../../components/ClinicsDropdown.jsx';
-import { IconBuilding, IconChat, IconClock, IconDocument, IconTable, IconUpload } from '../../components/Icons.jsx';
+import { IconChat, IconTable, IconUpload } from '../../components/Icons.jsx';
 import { Alert, EmptyState, PageHeader, Spinner, StatusBadge } from '../../components/ui.jsx';
 import { api } from '../../lib/api.js';
 import { useAuth } from '../../lib/auth.jsx';
 import { dateTime, shortDate } from '../../lib/format.js';
-import { ImportTabContent } from './ImportTabContent.jsx';
 
 // S1 – Specialist dashboard (F6, FR-5.1)
 export function DashboardPage() {
   const { user } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
-
-  const activeTab = searchParams.get('tab') === 'import' ? 'import' : 'overview';
-
-  const selectTab = (tab) => {
-    if (tab === 'overview') {
-      const next = new URLSearchParams(searchParams);
-      next.delete('tab');
-      setSearchParams(next, { replace: true });
-    } else {
-      const next = new URLSearchParams(searchParams);
-      next.set('tab', tab);
-      setSearchParams(next, { replace: true });
-    }
-  };
 
   useEffect(() => {
     api('/dashboard').then(setData).catch((err) => setError(err.message));
   }, []);
+
+  if (searchParams.get('tab') === 'import') {
+    return <Navigate to="/imports/new" replace />;
+  }
 
   if (error) return <div className="container"><Alert tone="error">{error}</Alert></div>;
   if (!data) return <div className="container"><Spinner label="Loading your dashboard…" /></div>;
 
   const canPublish = data.clinics.some((c) => c.isActive);
   const firstName = user.fullName.split(' ')[0];
-  const recentImports = data.recent.filter((r) => r.kind === 'import');
 
   return (
     <div className="container page-pad">
@@ -52,23 +40,9 @@ export function DashboardPage() {
             <Link to="/statements/upload" className="btn btn-secondary">
               <IconUpload /> Upload statement
             </Link>
-            {activeTab === 'overview' ? (
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => selectTab('import')}
-              >
-                <IconTable /> Import statements
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => selectTab('overview')}
-              >
-                <IconBuilding /> View overview
-              </button>
-            )}
+            <Link to="/imports/new" className="btn btn-primary">
+              <IconTable /> Import statements
+            </Link>
           </>
         ) : (
           <>
@@ -82,88 +56,14 @@ export function DashboardPage() {
         )}
       </PageHeader>
 
-      {/* Navigation tabs */}
-      <div className="dashboard-tabs-nav" role="tablist" aria-label="Specialist dashboard sections">
-        <button
-          type="button"
-          role="tab"
-          id="tab-overview"
-          aria-controls="panel-overview"
-          aria-selected={activeTab === 'overview'}
-          className={`dashboard-tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
-          onClick={() => selectTab('overview')}
-        >
-          <IconBuilding size={18} />
-          <span>Overview</span>
-          {data.unanswered.length > 0 && (
-            <span className="badge badge-plum">{data.unanswered.length}</span>
-          )}
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          id="tab-import"
-          aria-controls="panel-import"
-          aria-selected={activeTab === 'import'}
-          className={`dashboard-tab-btn ${activeTab === 'import' ? 'active' : ''}`}
-          onClick={() => selectTab('import')}
-        >
-          <IconTable size={18} />
-          <span>Import statements</span>
-          <span className="badge badge-open">Batch</span>
-        </button>
-      </div>
-
       {data.clinics.length === 0 && (
         <Alert tone="info">You haven't been assigned to any clinics yet. Contact your administrator.</Alert>
       )}
 
-      {activeTab === 'import' ? (
-        <div id="panel-import" role="tabpanel" aria-labelledby="tab-import">
-          <ImportTabContent clinics={data.clinics} recentImports={recentImports} />
-        </div>
-      ) : (
-        <div id="panel-overview" role="tabpanel" aria-labelledby="tab-overview" className="dashboard-grid">
-          <div className="dashboard-main">
-            {/* Aggregate Specialist KPI Stats Cards */}
-            <div className="stats-kpi-grid" style={{ marginBottom: '20px' }}>
-              <div className="stat-kpi-card">
-                <div className="kpi-icon-wrap kpi-blue"><IconBuilding size={20} /></div>
-                <div className="kpi-content">
-                  <span className="kpi-label">Assigned Clinics</span>
-                  <strong className="kpi-value">{data.clinics.length}</strong>
-                </div>
-              </div>
-              <div className="stat-kpi-card">
-                <div className="kpi-icon-wrap"><IconDocument size={20} /></div>
-                <div className="kpi-content">
-                  <span className="kpi-label">Active Statements</span>
-                  <strong className="kpi-value">
-                    {data.clinics.reduce((sum, c) => sum + (c.statementCount || 0), 0)}
-                  </strong>
-                </div>
-              </div>
-              <div className="stat-kpi-card">
-                <div className="kpi-icon-wrap kpi-teal"><IconClock size={20} /></div>
-                <div className="kpi-content">
-                  <span className="kpi-label">Unopened by Clinics</span>
-                  <strong className="kpi-value">
-                    {data.clinics.reduce((sum, c) => sum + (c.unopenedCount || 0), 0)}
-                  </strong>
-                </div>
-              </div>
-              <div className="stat-kpi-card">
-                <div className="kpi-icon-wrap kpi-plum"><IconChat size={20} /></div>
-                <div className="kpi-content">
-                  <span className="kpi-label">Awaiting Reply</span>
-                  <strong className="kpi-value text-plum">{data.unanswered.length}</strong>
-                </div>
-              </div>
-            </div>
-
-            <section className="panel" aria-labelledby="my-clinics">
-              <div className="panel-header"><h2 id="my-clinics">My clinics</h2></div>
+      <div className="dashboard-grid">
+        <div className="dashboard-main">
+          <section className="panel" aria-labelledby="my-clinics">
+            <div className="panel-header"><h2 id="my-clinics">My clinics</h2></div>
               {data.clinics.length === 0 ? (
                 <p className="panel-empty">No clinics assigned.</p>
               ) : (
@@ -258,7 +158,6 @@ export function DashboardPage() {
             )}
           </section>
         </div>
-      )}
-    </div>
-  );
-}
+      </div>
+    );
+  }
