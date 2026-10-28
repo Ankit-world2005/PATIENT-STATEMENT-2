@@ -14,12 +14,21 @@ export function ClinicHome() {
     api('/home').then((d) => setNewCount(d.newCount)).catch(() => {});
   }, []);
 
+  const statementPath =
+    user?.role === 'specialist'
+      ? '/dashboard'
+      : user?.role === 'admin'
+        ? '/admin'
+        : '/statements';
+
   return (
     <div className="container">
       <div className="hub-wrapper">
-        <h1 className="sr-only">{user.clinic?.name} portal home</h1>
+        <h1 className="sr-only">
+          {user?.clinic ? `${user.clinic.name} portal home` : 'My Patient portal home'}
+        </h1>
         <div className="three-cards-grid" role="list">
-          <Link to="/statements" className="hub-card hub-card-active" role="listitem">
+          <Link to={statementPath} className="hub-card hub-card-active" role="listitem">
             <div className="hub-card-icon-wrap"><IconDocument size={32} /></div>
             <h2 className="hub-card-title">Patient Statement</h2>
             <p className="hub-card-desc">View your patients' statements, their remark history, and download or print copies.</p>

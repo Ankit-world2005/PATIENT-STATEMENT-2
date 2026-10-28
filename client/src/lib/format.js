@@ -54,9 +54,7 @@ export function initials(name = '') {
 
 export function landingPath(user) {
   if (!user) return '/login';
-  if (user.role === 'clinic_user') return '/home';
-  if (user.role === 'specialist') return '/dashboard';
-  return '/admin';
+  return '/home';
 }
 
 export function fileSize(bytes) {

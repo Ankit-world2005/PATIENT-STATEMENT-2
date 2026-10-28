@@ -44,13 +44,13 @@ export function App() {
 
         <Route element={<RequireAuth />}>
           <Route path="/" element={<Landing />} />
+          <Route path="/home" element={<ClinicHome />} />
           <Route path="/account/authenticator" element={<AuthenticatorPage />} />
           <Route path="/statements/:id" element={<StatementDetailPage />} />
           <Route path="/statements/:id/print" element={<StatementPrintPage />} />
         </Route>
 
         <Route element={<RequireAuth roles={['clinic_user']} />}>
-          <Route path="/home" element={<ClinicHome />} />
           <Route path="/statements" element={<StatementListPage />} />
         </Route>
 

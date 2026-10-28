@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router';
 import { ClinicsDropdown } from '../../components/ClinicsDropdown.jsx';
 import { IconChat, IconTable, IconUpload } from '../../components/Icons.jsx';
-import { Alert, EmptyState, PageHeader, Spinner, StatusBadge } from '../../components/ui.jsx';
+import { Alert, BackBar, EmptyState, PageHeader, Spinner, StatusBadge } from '../../components/ui.jsx';
 import { api } from '../../lib/api.js';
 import { useAuth } from '../../lib/auth.jsx';
 import { dateTime, shortDate } from '../../lib/format.js';
@@ -30,6 +30,7 @@ export function DashboardPage() {
 
   return (
     <div className="container page-pad">
+      <BackBar to="/home" label="Back to portal home" />
       <PageHeader
         title="Specialist dashboard"
         subtitle={`Welcome back, ${firstName}. Here's what needs your attention.`}

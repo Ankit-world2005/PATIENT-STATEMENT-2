@@ -26,6 +26,7 @@ export function AdminHome() {
   return (
     <div className="container">
       <div className="hub-wrapper">
+        <BackBar to="/home" label="Back to portal home" />
         <div className="hub-welcome-banner">
           <h1 className="hub-clinic-headline">Administration</h1>
           <p className="hub-subheadline">{summary ? `${summary.active_statements.toLocaleString('en-US')} active statements across all clinics` : ' '}</p>

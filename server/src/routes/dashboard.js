@@ -4,16 +4,34 @@ import { requireRole } from '../middleware/guards.js';
 
 export const dashboardRouter = Router();
 
-// C1: clinic home, with the count of unopened statements (N4).
-dashboardRouter.get('/home', requireRole('clinic_user'), async (req, res) => {
-  const { rows } = await query(
-    `SELECT count(*)::int AS new_count FROM statement
-      WHERE clinic_id = $1 AND status = 'active' AND first_opened_by_clinic_at IS NULL`,
-    [req.user.clinic_id],
-  );
+// C1: portal home, with the count of unopened statements (N4).
+dashboardRouter.get('/home', requireRole('clinic_user', 'specialist', 'admin'), async (req, res) => {
+  let countQuery;
+  let params = [];
+
+  if (req.user.role === 'clinic_user') {
+    countQuery = `SELECT count(*)::int AS new_count FROM statement
+      WHERE clinic_id = $1 AND status = 'active' AND first_opened_by_clinic_at IS NULL`;
+    params = [req.user.clinic_id];
+  } else if (req.user.role === 'specialist') {
+    countQuery = `SELECT count(s.id)::int AS new_count FROM statement s
+      JOIN specialist_assignment a ON a.clinic_id = s.clinic_id
+      JOIN clinic c ON c.id = a.clinic_id
+      WHERE a.specialist_id = $1 AND c.is_active AND s.status = 'active' AND s.first_opened_by_clinic_at IS NULL`;
+    params = [req.user.id];
+  } else if (req.user.role === 'admin') {
+    countQuery = `SELECT count(s.id)::int AS new_count FROM statement s
+      JOIN clinic c ON c.id = s.clinic_id
+      WHERE c.is_active AND s.status = 'active' AND s.first_opened_by_clinic_at IS NULL`;
+    params = [];
+  }
+
+  const { rows } = await query(countQuery, params);
   res.json({
-    clinic: { id: req.user.clinic_id, name: req.user.clinic_name, code: req.user.clinic_code },
-    newCount: rows[0].new_count,
+    clinic: req.user.clinic_id
+      ? { id: req.user.clinic_id, name: req.user.clinic_name, code: req.user.clinic_code }
+      : null,
+    newCount: rows[0]?.new_count ?? 0,
   });
 });
 
