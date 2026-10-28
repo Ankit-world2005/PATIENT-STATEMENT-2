@@ -101,80 +101,80 @@ function NewRequestModal({ onClose, onCreated, clinicId }) {
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
             Cancel
           </button>
-          <button type="button" className="btn btn-primary" onClick={handleSubmit} disabled={busy || !selectedStatement || !body.trim()}>
+          <button type="button" className="btn btn-primary" onClick={handleSubmit} disabled={busy || !selectedStatement}>
             {busy ? 'Submitting…' : 'Submit Request'}
           </button>
         </>
       }
     >
-      <div className="new-request-dialog-content">
-        {error && <Alert tone="error">{error}</Alert>}
+      {error && <Alert tone="error">{error}</Alert>}
 
-        {/* 1. Select Patient Statement */}
-        <div className="form-group" style={{ marginBottom: 16 }}>
-          <label className="form-label" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
-            1. Select Patient Statement <span className="text-danger">*</span>
+      <div className="request-modal-form">
+        {/* Step 1: Patient statement picker */}
+        <div className="form-group">
+          <label className="form-label" htmlFor="req-patient-search">
+            1. Select Patient Statement <span className="req-star">*</span>
           </label>
-          {selectedStatement ? (
-            <div className="selected-statement-card">
-              <div className="selected-st-info">
-                <strong>{selectedStatement.patientName}</strong>
-                <span className="col-mono" style={{ marginLeft: 8 }}>{selectedStatement.accountNumber}</span>
-                <div className="form-hint">
-                  Date: {date(selectedStatement.statementDate)} · Balance: <strong className="col-mono">{money(selectedStatement.currentBalance)}</strong>
+          <div className="input-with-icon">
+            <IconSearch className="input-icon" />
+            <input
+              id="req-patient-search"
+              type="search"
+              className="form-input"
+              placeholder="Search by patient name, account number, or balance…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+
+          <div className="statement-picker-results" role="listbox">
+            {searching ? (
+              <div className="picker-loading"><Spinner label="Searching statements…" size={16} /></div>
+            ) : statementResults.length === 0 ? (
+              <div className="picker-empty">No statements found matching search.</div>
+            ) : (
+              statementResults.map((s) => (
+                <div
+                  key={s.id}
+                  className={`statement-picker-item ${selectedStatement?.id === s.id ? 'selected' : ''}`}
+                  onClick={() => setSelectedStatement(s)}
+                  role="option"
+                  aria-selected={selectedStatement?.id === s.id}
+                >
+                  <div className="picker-item-main">
+                    <strong className="picker-patient-name">{s.patientName}</strong>
+                    <span className="picker-account col-mono">{s.accountNumber}</span>
+                  </div>
+                  <div className="picker-item-sub">
+                    <span>Date: {date(s.statementDate)}</span>
+                    <span className="pipe-sep">·</span>
+                    <span>Balance: <strong className="col-mono">{money(s.balanceDue)}</strong></span>
+                    {s.locationName && (
+                      <>
+                        <span className="pipe-sep">·</span>
+                        <span>{s.locationName}</span>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => setSelectedStatement(null)}
-              >
-                Change
-              </button>
-            </div>
-          ) : (
-            <div>
-              <div className="input-with-icon" style={{ marginBottom: 8 }}>
-                <IconSearch className="input-icon" />
-                <input
-                  type="search"
-                  className="form-input"
-                  placeholder="Search patient name or account number…"
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  autoFocus
-                />
-              </div>
-              <div className="statement-picker-list">
-                {searching ? (
-                  <div style={{ padding: '12px', textAlign: 'center', color: '#64748b' }}>Searching statements…</div>
-                ) : statementResults.length === 0 ? (
-                  <div style={{ padding: '12px', textAlign: 'center', color: '#64748b' }}>No matching statements found.</div>
-                ) : (
-                  statementResults.map((st) => (
-                    <button
-                      key={st.id}
-                      type="button"
-                      className="statement-picker-item"
-                      onClick={() => setSelectedStatement(st)}
-                    >
-                      <div className="picker-patient-name">{st.patientName}</div>
-                      <div className="picker-details">
-                        <span className="col-mono">{st.accountNumber}</span> · {date(st.statementDate)} · <strong>{money(st.currentBalance)}</strong>
-                      </div>
-                    </button>
-                  ))
-                )}
+              ))
+            )}
+          </div>
+
+          {selectedStatement && (
+            <div className="selected-statement-card">
+              <div className="selected-badge">Selected Statement</div>
+              <div className="selected-details">
+                <strong>{selectedStatement.patientName}</strong> ({selectedStatement.accountNumber}) · {date(selectedStatement.statementDate)} · Balance: <strong className="col-mono">{money(selectedStatement.balanceDue)}</strong>
               </div>
             </div>
           )}
         </div>
 
-        {/* 2. Request Category */}
-        <div className="form-group" style={{ marginBottom: 16 }}>
-          <label className="form-label" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
-            2. Request Category
-          </label>
+        {/* Step 2: Request Category */}
+        <div className="form-group">
+          <label className="form-label">2. Request Category <span className="req-star">*</span></label>
           <div className="request-categories-grid">
             {CATEGORIES.map((cat) => (
               <button
@@ -189,17 +189,15 @@ function NewRequestModal({ onClose, onCreated, clinicId }) {
           </div>
         </div>
 
-        {/* 3. Priority */}
-        <div className="form-group" style={{ marginBottom: 16 }}>
-          <label className="form-label" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
-            3. Urgency / Priority
-          </label>
+        {/* Step 3: Priority */}
+        <div className="form-group">
+          <label className="form-label">3. Priority</label>
           <div className="priority-pills-row">
             {PRIORITIES.map((p) => (
               <button
                 key={p.value}
                 type="button"
-                className={`priority-pill-btn ${p.cls} ${priority === p.value ? 'active' : ''}`}
+                className={`priority-pill-btn ${priority === p.value ? `active ${p.cls}` : ''}`}
                 onClick={() => setPriority(p.value)}
               >
                 {p.label}
@@ -208,94 +206,90 @@ function NewRequestModal({ onClose, onCreated, clinicId }) {
           </div>
         </div>
 
-        {/* 4. Request Details */}
+        {/* Step 4: Body */}
         <div className="form-group">
-          <label className="form-label" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
-            4. Detailed Request Instructions <span className="text-danger">*</span>
+          <label className="form-label" htmlFor="req-body">
+            4. Details / Instructions for Specialist <span className="req-star">*</span>
           </label>
           <textarea
-            className="form-textarea"
+            id="req-body"
+            className="form-input form-textarea"
             rows={4}
-            maxLength={2000}
-            placeholder="Explain the required update, rebilling details, patient dispute, or question for US24 billing specialists…"
+            placeholder="Please detail your request (e.g. adjust copay, verify secondary insurance coverage, explain disputed charge, etc.)…"
             value={body}
             onChange={(e) => setBody(e.target.value)}
           />
-          <div className="form-hint text-right" style={{ marginTop: 4 }}>
-            {body.length} / 2,000 characters
-          </div>
         </div>
       </div>
     </Modal>
   );
 }
 
-function ReplyModal({ request: r, onClose, onReplied }) {
+function ReplyModal({ request, onClose, onReplied }) {
   const toast = useToast();
   const [replyText, setReplyText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const submit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!replyText.trim()) {
-      setError('Please enter your response.');
+      setError('Please enter a response.');
       return;
     }
     setBusy(true);
     setError('');
     try {
-      await api('/requests', {
+      await api(`/requests/${request.id}/reply`, {
         method: 'POST',
-        body: {
-          statementId: r.statementId,
-          body: replyText.trim(),
-          isReply: true,
-        },
+        body: { body: replyText.trim() },
       });
-      toast('Reply sent and request updated.', 'success');
+      toast('Response sent to clinic.', 'success');
       onReplied();
     } catch (err) {
-      setError(err.message || 'Failed to send reply.');
+      setError(err.message || 'Failed to send response.');
       setBusy(false);
     }
   };
 
   return (
     <Modal
-      title="Reply to Client Request"
+      title="Reply to Clinic Request"
       onClose={busy ? undefined : onClose}
       footer={
         <>
-          <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>Cancel</button>
-          <button type="button" className="btn btn-primary" onClick={submit} disabled={busy || !replyText.trim()}>
+          <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+          <button type="button" className="btn btn-primary" onClick={handleSubmit} disabled={busy}>
             {busy ? 'Sending…' : 'Send Response'}
           </button>
         </>
       }
     >
-      <div style={{ marginBottom: 16, background: '#f8fafc', padding: 14, borderRadius: 6, border: '1px solid #e2e8f0' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <strong>{r.patientName} (Account: {r.accountNumber})</strong>
-          <span className={`badge-priority ${r.priority.toLowerCase()}`}>{r.priority}</span>
+      {error && <Alert tone="error">{error}</Alert>}
+      <div className="reply-modal-original">
+        <div className="original-req-meta">
+          <strong>{request.patientName}</strong> · Account {request.accountNumber} · Submitted by {request.authorName} ({dateTime(request.createdAt)})
         </div>
-        <div style={{ fontSize: '0.88rem', color: '#475569', marginBottom: 6 }}>
-          <strong>{r.category}:</strong> {r.body}
+        <div className="original-req-badge">
+          <span className="badge badge-plum">{request.category}</span>
+          <span className="badge badge-secondary">{request.priority}</span>
         </div>
-        <div className="form-hint">Submitted by {r.authorName} · {dateTime(r.createdAt)}</div>
+        <div className="original-req-body">
+          {request.body}
+        </div>
       </div>
 
-      {error && <Alert tone="error">{error}</Alert>}
-
-      <div className="form-group">
-        <label className="form-label" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
-          Specialist Response
+      <div className="form-group" style={{ marginTop: 16 }}>
+        <label className="form-label" htmlFor="reply-text">
+          US24 Specialist Response <span className="req-star">*</span>
         </label>
         <textarea
-          className="form-textarea"
+          id="reply-text"
+          className="form-input form-textarea"
           rows={4}
-          maxLength={2000}
-          placeholder="Type your resolution, update on rebill/status, or instructions for the clinic user…"
+          placeholder="Type your response to the clinic here…"
           value={replyText}
           onChange={(e) => setReplyText(e.target.value)}
           autoFocus
@@ -308,14 +302,14 @@ function ReplyModal({ request: r, onClose, onReplied }) {
   );
 }
 
-export function RequestsPage() {
+export function RequestsContent({ clinicId: propClinicId, embedded = false }) {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const q = searchParams.get('q') ?? '';
-  const clinicId = searchParams.get('clinicId') ?? '';
-  const status = searchParams.get('status') ?? 'all'; // 'awaiting' | 'answered' | 'all'
-  const page = Number(searchParams.get('page') ?? 1);
+  const q = searchParams.get('rq_q') ?? searchParams.get('q') ?? '';
+  const clinicId = propClinicId || (searchParams.get('clinicId') ?? '');
+  const status = searchParams.get('rq_status') ?? searchParams.get('status') ?? 'all';
+  const page = Number(searchParams.get('rq_page') ?? searchParams.get('page') ?? 1);
 
   const [search, setSearch] = useState(q);
   const [data, setData] = useState(null);
@@ -329,18 +323,22 @@ export function RequestsPage() {
   const update = (changes) => {
     const next = new URLSearchParams(searchParams);
     for (const [k, v] of Object.entries(changes)) {
+      const paramKey = embedded ? `rq_${k}` : k;
       if (
         v === '' ||
         v === null ||
         (k === 'page' && v === 1) ||
         (k === 'status' && v === 'all')
       ) {
-        next.delete(k);
+        next.delete(paramKey);
+        if (!embedded) next.delete(k);
       } else {
-        next.set(k, String(v));
+        next.set(paramKey, String(v));
       }
     }
-    if (!('page' in changes)) next.delete('page');
+    if (!('page' in changes)) {
+      next.delete(embedded ? 'rq_page' : 'page');
+    }
     setSearchParams(next, { replace: true });
   };
 
@@ -376,38 +374,32 @@ export function RequestsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, status, q, clinicId]);
 
-  const backLink =
-    user.role === 'specialist'
-      ? { to: '/dashboard', label: 'Back to specialist dashboard' }
-      : user.role === 'admin'
-        ? { to: '/admin', label: 'Back to administration' }
-        : { to: '/home', label: 'Back to portal home' };
-
-  return (
-    <div className="container page-pad">
-      <BackBar to={backLink.to} label={backLink.label} />
-
-      <PageHeader
-        title={isStaff ? 'Client Requests & Inquiries' : 'Requests & Specialist Inquiries'}
-        subtitle={
-          isStaff
-            ? 'Track, review, and resolve requests submitted by clinics regarding patient statements and billing ledger updates.'
-            : 'Submit questions, balance adjustments, insurance rebilling requests, and track specialist answers.'
-        }
-      >
-        <div className="btn-group">
+  const content = (
+    <>
+      {embedded && (
+        <div className="embedded-requests-header">
+          <div>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>
+              {isStaff ? 'Client Requests & Inquiries' : 'Requests to US24 Specialists'}
+            </h2>
+            <p className="form-hint" style={{ margin: '4px 0 0 0' }}>
+              {isStaff
+                ? 'Review and resolve requests submitted by this clinic.'
+                : 'Submit requests, statement disputes, and billing inquiries to US24 specialists.'}
+            </p>
+          </div>
           {user.role === 'clinic_user' && (
             <button
               type="button"
-              className="btn btn-primary"
+              className="btn btn-primary btn-sm"
               onClick={() => setNewRequestOpen(true)}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
-              <IconSend size={15} /> + New Request to US24
+              <IconSend size={14} /> + New Request
             </button>
           )}
         </div>
-      </PageHeader>
+      )}
 
       {/* Metric Cards Row */}
       {data?.metrics && (
@@ -484,7 +476,7 @@ export function RequestsPage() {
               />
             </div>
 
-            {isStaff && data?.clinics?.length > 1 && (
+            {isStaff && !propClinicId && data?.clinics?.length > 1 && (
               <select
                 className="form-select"
                 value={clinicId}
@@ -626,7 +618,7 @@ export function RequestsPage() {
       {/* New Request Modal */}
       {newRequestOpen && (
         <NewRequestModal
-          clinicId={user.clinic_id}
+          clinicId={clinicId || user.clinic_id}
           onClose={() => setNewRequestOpen(false)}
           onCreated={() => {
             setNewRequestOpen(false);
@@ -646,7 +638,49 @@ export function RequestsPage() {
           }}
         />
       )}
+    </>
+  );
+
+  if (embedded) {
+    return <div className="embedded-requests-workspace">{content}</div>;
+  }
+
+  const backLink =
+    user.role === 'specialist'
+      ? { to: '/dashboard', label: 'Back to specialist dashboard' }
+      : user.role === 'admin'
+        ? { to: '/admin', label: 'Back to administration' }
+        : { to: '/home', label: 'Back to portal home' };
+
+  return (
+    <div className="container page-pad">
+      <BackBar to={backLink.to} label={backLink.label} />
+      <PageHeader
+        title={isStaff ? 'Client Requests & Inquiries' : 'Requests & Specialist Inquiries'}
+        subtitle={
+          isStaff
+            ? 'Track, review, and resolve requests submitted by clinics regarding patient statements and billing ledger updates.'
+            : 'Submit questions, balance adjustments, insurance rebilling requests, and track specialist answers.'
+        }
+      >
+        <div className="btn-group">
+          {user.role === 'clinic_user' && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setNewRequestOpen(true)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <IconSend size={15} /> + New Request to US24
+            </button>
+          )}
+        </div>
+      </PageHeader>
+      {content}
     </div>
   );
 }
 
+export function RequestsPage() {
+  return <RequestsContent embedded={false} />;
+}
