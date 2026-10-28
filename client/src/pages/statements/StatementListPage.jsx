@@ -9,16 +9,34 @@ import { useToast } from '../../lib/toast.jsx';
 import { NotFoundPage } from '../NotFoundPage.jsx';
 
 function Highlight({ text, query }) {
-  if (!query) return text;
-  const i = text.toLowerCase().indexOf(query.toLowerCase());
-  if (i === -1) return text;
-  return (
-    <>
-      {text.slice(0, i)}
-      <mark className="search-highlight">{text.slice(i, i + query.length)}</mark>
-      {text.slice(i + query.length)}
-    </>
-  );
+  if (!text || !query) return text || '';
+  const terms = query
+    .trim()
+    .split(/\s+/)
+    .map((t) => t.replace(/[^a-zA-Z0-9]/g, ''))
+    .filter(Boolean);
+  if (!terms.length) return text;
+
+  try {
+    const escaped = terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+    const regex = new RegExp(`(${escaped})`, 'gi');
+    const parts = String(text).split(regex);
+    if (parts.length === 1) return text;
+
+    return (
+      <>
+        {parts.map((part, idx) =>
+          regex.test(part) ? (
+            <mark key={idx} className="search-highlight">{part}</mark>
+          ) : (
+            part
+          )
+        )}
+      </>
+    );
+  } catch {
+    return text;
+  }
 }
 
 function formatLedgerDate(d) {
@@ -105,6 +123,13 @@ export function StatementListPage() {
   };
 
   const update = (changes) => {
+    if (changes.from && to && changes.from > to) {
+      changes.to = changes.from;
+    }
+    if (changes.to && from && changes.to < from) {
+      changes.from = changes.to;
+    }
+
     const next = new URLSearchParams(params);
     for (const [k, v] of Object.entries(changes)) {
       if (
@@ -122,6 +147,13 @@ export function StatementListPage() {
     if (!('page' in changes)) next.delete('page');
     setParams(next, { replace: true });
   };
+
+  // Sync search input with URL param q on external changes (e.g. Back/Forward, Clear filters)
+  useEffect(() => {
+    if (q !== search.trim()) {
+      setSearch(q);
+    }
+  }, [q]);
 
   // Debounced search box.
   useEffect(() => {
@@ -159,7 +191,7 @@ export function StatementListPage() {
 
   if (error?.status === 404) return <NotFoundPage />;
 
-  const filtered = q || from || to || (isStaff && status !== 'active');
+  const filtered = Boolean(q || from || to || (sort && sort !== 'name_asc') || (isStaff && status !== 'active'));
   const clearFilters = () => {
     setSearch('');
     setParams(new URLSearchParams(), { replace: true });
@@ -224,7 +256,7 @@ export function StatementListPage() {
                 id="f-search"
                 type="search"
                 className="form-input"
-                placeholder="Name or account number"
+                placeholder="Name, account, location, PR type…"
                 autoComplete="off"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -369,7 +401,7 @@ export function StatementListPage() {
                       className={s.status === 'withdrawn' ? 'row-withdrawn' : undefined}
                     >
                       <td className="sticky-col-location cell-location" title={s.location || data?.clinic.name}>
-                        {s.location || data?.clinic.name}
+                        <Highlight text={s.location || data?.clinic.name} query={q} />
                       </td>
                       <td className="sticky-col-patient">
                         <div className="cell-patient">
@@ -447,7 +479,7 @@ export function StatementListPage() {
                           <Highlight text={s.patientName} query={q} />
                         </div>
                         <div className="mobile-ledger-location">
-                          {s.location || data.clinic.name}
+                          <Highlight text={s.location || data.clinic.name} query={q} />
                         </div>
                       </div>
                       <div className="mobile-badges">
