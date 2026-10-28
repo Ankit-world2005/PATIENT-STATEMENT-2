@@ -57,6 +57,28 @@ export function DashboardPage() {
         )}
       </PageHeader>
 
+      <div className="dashboard-tabs-nav" role="tablist" aria-label="Specialist dashboard sections">
+        <button
+          type="button"
+          className="dashboard-tab-btn active"
+          role="tab"
+          aria-selected="true"
+        >
+          Overview
+        </button>
+        <Link
+          to="/requests"
+          className="dashboard-tab-btn"
+          role="tab"
+        >
+          <IconChat size={16} />
+          <span>Client Requests</span>
+          {data.unanswered.length > 0 && (
+            <span className="badge badge-plum">{data.unanswered.length}</span>
+          )}
+        </Link>
+      </div>
+
       {data.clinics.length === 0 && (
         <Alert tone="info">You haven't been assigned to any clinics yet. Contact your administrator.</Alert>
       )}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, Outlet } from 'react-router';
+import { Link, Outlet, useLocation } from 'react-router';
 import { useAuth } from '../lib/auth.jsx';
 import { ROLE_LABELS, initials, landingPath } from '../lib/format.js';
 import { IconSignOut } from './Icons.jsx';
@@ -23,6 +23,25 @@ function Logo() {
 // Header: US24 logo top-left, user's name + Sign out top-right (FR-3.1).
 function Header() {
   const { user, logout } = useAuth();
+  const location = useLocation();
+  const path = location.pathname;
+
+  const statementsPath =
+    user?.role === 'specialist'
+      ? '/dashboard'
+      : user?.role === 'admin'
+        ? '/admin'
+        : '/statements';
+
+  const isHome = path === '/home' || path === '/';
+  const isStatements =
+    path.startsWith('/statements') ||
+    path.startsWith('/dashboard') ||
+    path.startsWith('/admin') ||
+    path.startsWith('/clinics') ||
+    path.startsWith('/imports') ||
+    path.startsWith('/manage');
+  const isRequests = path.startsWith('/requests');
   return (
     <header className="site-header">
       <div className="container">
@@ -36,6 +55,19 @@ function Header() {
             </div>
           </Link>
         </div>
+        {user && (
+          <nav className="header-nav-tabs" aria-label="Main Navigation">
+            <Link to="/home" className={`header-nav-tab ${isHome ? 'active' : ''}`}>
+              Home
+            </Link>
+            <Link to={statementsPath} className={`header-nav-tab ${isStatements && !isHome && !isRequests ? 'active' : ''}`}>
+              Statements
+            </Link>
+            <Link to="/requests" className={`header-nav-tab ${isRequests ? 'active' : ''}`}>
+              Requests
+            </Link>
+          </nav>
+        )}
         {user ? (
           <div className="header-user-actions">
             <div className="header-user-badge">

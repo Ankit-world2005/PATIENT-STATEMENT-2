@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import { IconChart, IconDocument, IconWallet } from '../../components/Icons.jsx';
+import { IconChart, IconChat, IconDocument, IconWallet } from '../../components/Icons.jsx';
 import { api } from '../../lib/api.js';
 import { useAuth } from '../../lib/auth.jsx';
 
@@ -8,10 +8,10 @@ import { useAuth } from '../../lib/auth.jsx';
 // Statement comes first on every screen size (implementation plan C-5).
 export function ClinicHome() {
   const { user } = useAuth();
-  const [newCount, setNewCount] = useState(null);
+  const [homeData, setHomeData] = useState({ newCount: null, awaitingCount: 0 });
 
   useEffect(() => {
-    api('/home').then((d) => setNewCount(d.newCount)).catch(() => {});
+    api('/home').then((d) => setHomeData(d)).catch(() => {});
   }, []);
 
   const statementPath =
@@ -33,8 +33,21 @@ export function ClinicHome() {
             <h2 className="hub-card-title">Patient Statement</h2>
             <p className="hub-card-desc">View your patients' statements, their remark history, and download or print copies.</p>
             <div className="hub-card-tag">
-              {newCount > 0 ? (
-                <span className="badge badge-new">{newCount} new</span>
+              {homeData.newCount > 0 ? (
+                <span className="badge badge-new">{homeData.newCount} new</span>
+              ) : (
+                <span className="badge badge-open">Open</span>
+              )}
+            </div>
+          </Link>
+
+          <Link to="/requests" className="hub-card hub-card-active" role="listitem">
+            <div className="hub-card-icon-wrap"><IconChat size={32} /></div>
+            <h2 className="hub-card-title">Requests & Inquiries</h2>
+            <p className="hub-card-desc">Submit requests, statement disputes, and billing questions to your US24 specialists.</p>
+            <div className="hub-card-tag">
+              {homeData.awaitingCount > 0 ? (
+                <span className="badge badge-plum">{homeData.awaitingCount} awaiting</span>
               ) : (
                 <span className="badge badge-open">Open</span>
               )}

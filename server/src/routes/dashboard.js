@@ -27,11 +27,23 @@ dashboardRouter.get('/home', requireRole('clinic_user', 'specialist', 'admin'), 
   }
 
   const { rows } = await query(countQuery, params);
+  let awaitingCount = 0;
+  if (req.user.role === 'clinic_user') {
+    const { rows: aw } = await query('SELECT count(*)::int AS count FROM statement WHERE clinic_id = $1 AND status = \'active\' AND awaiting_reply_since IS NOT NULL', [req.user.clinic_id]);
+    awaitingCount = aw[0]?.count ?? 0;
+  } else if (req.user.role === 'specialist') {
+    const { rows: aw } = await query('SELECT count(s.id)::int AS count FROM statement s JOIN specialist_assignment a ON a.clinic_id = s.clinic_id WHERE a.specialist_id = $1 AND s.status = \'active\' AND s.awaiting_reply_since IS NOT NULL', [req.user.id]);
+    awaitingCount = aw[0]?.count ?? 0;
+  } else if (req.user.role === 'admin') {
+    const { rows: aw } = await query('SELECT count(*)::int AS count FROM statement WHERE status = \'active\' AND awaiting_reply_since IS NOT NULL');
+    awaitingCount = aw[0]?.count ?? 0;
+  }
   res.json({
     clinic: req.user.clinic_id
       ? { id: req.user.clinic_id, name: req.user.clinic_name, code: req.user.clinic_code }
       : null,
     newCount: rows[0]?.new_count ?? 0,
+    awaitingCount,
   });
 });
 
