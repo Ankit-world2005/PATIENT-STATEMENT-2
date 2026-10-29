@@ -342,15 +342,26 @@ requestsRouter.post('/', async (req, res) => {
       const cleanInit = pName.replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase() || 'PAT';
       const accNum = input.accountNumber?.trim() || `ACC-${cleanInit}-${Date.now().toString().slice(-4)}`;
 
+      const { rows: specRows } = await db.query(
+        `SELECT specialist_id FROM specialist_assignment WHERE clinic_id = $1
+         UNION ALL
+         SELECT id FROM app_user WHERE role IN ('specialist', 'admin') AND status = 'active'
+         LIMIT 1`,
+        [clinicId],
+      );
+      const uploaderId = specRows[0]?.specialist_id || specRows[0]?.id || req.user.id;
+
       const { rows: newStRows } = await db.query(
         `INSERT INTO statement (
            clinic_id, patient_name, account_number, statement_date, balance_due,
-           source, uploaded_by_id, status, awaiting_reply_since
+           source, import_batch_id, import_row_number, version, supersedes_id,
+           uploaded_by_id, status, ledger_status, awaiting_reply_since
          ) VALUES (
            $1, $2, $3, CURRENT_DATE, 0.00,
-           'import', $4, 'active', now()
+           'pdf_upload', NULL, NULL, 1, NULL,
+           $4, 'active', 'Active', now()
          ) RETURNING id, clinic_id, patient_name, account_number, status, awaiting_reply_since`,
-        [clinicId, pName, accNum, req.user.id],
+        [clinicId, pName, accNum, uploaderId],
       );
       statement = newStRows[0];
     }
@@ -364,9 +375,10 @@ requestsRouter.post('/', async (req, res) => {
       formattedBody = `(${input.priority}) ${input.body}`;
     }
 
+    const authorRole = req.user.role === 'clinic_user' ? 'clinic_user' : 'specialist';
     const remark = await insertRemark(db, {
       statementId: statement.id,
-      author: req.user,
+      author: { ...req.user, role: authorRole },
       type: remarkType,
       body: formattedBody,
     });
@@ -421,10 +433,11 @@ requestsRouter.post('/:id/reply', async (req, res) => {
     if (!orig) throw notFound('Request not found.');
 
     const replyType = req.user.role === 'clinic_user' ? 'clinic' : 'specialist';
+    const authorRole = req.user.role === 'clinic_user' ? 'clinic_user' : 'specialist';
 
     const replyRemark = await insertRemark(db, {
       statementId: orig.statement_id,
-      author: req.user,
+      author: { ...req.user, role: authorRole },
       type: replyType,
       body: input.body,
     });
