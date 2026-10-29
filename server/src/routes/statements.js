@@ -729,3 +729,47 @@ statementsRouter.post('/:id/withdraw', requireRole('specialist'), async (req, re
   });
   res.json({ ok: true });
 });
+
+
+// --- D2: remove / delete statement -------------------------------------------
+async function handleRemoveStatement(req, res) {
+  await withTransaction(async (db) => {
+    const s = await getVisibleStatement(db, req, req.params.id, { forUpdate: true });
+
+    // Collect any storage keys for files & attachments before deleting records
+    const files = await db.query(
+      'SELECT storage_key FROM statement_file WHERE statement_id = $1',
+      [s.id]
+    );
+    const attachments = await db.query(
+      'SELECT storage_key FROM attachment WHERE statement_id = $1',
+      [s.id]
+    );
+
+    // Call stored procedure to safely delete statement and all cascading records
+    await db.query('SELECT delete_statement($1)', [s.id]);
+
+    await audit(db, req, {
+      action: 'statement.delete',
+      targetType: 'statement',
+      targetId: s.id,
+      clinicId: s.clinic_id,
+      details: {
+        patientName: s.patient_name,
+        accountNumber: s.account_number,
+        statementDate: s.statement_date,
+      },
+    });
+
+    // Delete stored files asynchronously
+    for (const f of [...files.rows, ...attachments.rows]) {
+      if (f.storage_key) {
+        storage.delete(f.storage_key).catch(() => {});
+      }
+    }
+  });
+  res.json({ ok: true });
+}
+
+statementsRouter.delete('/:id', requireRole('specialist', 'admin'), handleRemoveStatement);
+statementsRouter.post('/:id/remove', requireRole('specialist', 'admin'), handleRemoveStatement);

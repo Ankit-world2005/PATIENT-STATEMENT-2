@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router';
-import { IconDownload, IconExternalLink, IconFileText, IconUpload } from '../../components/Icons.jsx';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
+import { IconDownload, IconExternalLink, IconFileText, IconTrash, IconUpload } from '../../components/Icons.jsx';
 import { RemarksLedger } from '../../components/RemarksLedger.jsx';
 import { StatementDocument } from '../../components/StatementDocument.jsx';
 import { Alert, BackBar, Field, Modal, Spinner, StatusBadge } from '../../components/ui.jsx';
@@ -10,41 +10,38 @@ import { date, dateTime, money } from '../../lib/format.js';
 import { useToast } from '../../lib/toast.jsx';
 import { NotFoundPage } from '../NotFoundPage.jsx';
 
-function WithdrawDialog({ clinicName, statementId, onDone, onCancel }) {
-  const [reason, setReason] = useState('');
-  const [error, setError] = useState('');
+function RemoveDialog({ patientName, statementId, clinicId, onDone, onCancel }) {
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
   const submit = async () => {
-    if (!reason.trim()) {
-      setError('Enter a reason.');
-      return;
-    }
     setBusy(true);
     try {
-      await api(`/statements/${statementId}/withdraw`, { method: 'POST', body: { reason } });
-      onDone('Statement withdrawn.');
+      await api(`/statements/${statementId}`, { method: 'DELETE' });
+      onDone('Statement removed successfully.');
     } catch (err) {
-      if (err.status === 409) onDone(err.message);
-      else setError(err.fieldErrors.reason || err.message);
+      setError(err.message || 'Failed to remove statement.');
       setBusy(false);
     }
   };
   return (
     <Modal
-      title="Withdraw this statement?"
-      tone="warning"
+      title="Remove this statement?"
+      tone="danger"
       onClose={busy ? undefined : onCancel}
       footer={
         <>
           <button type="button" className="btn btn-secondary" onClick={onCancel} disabled={busy}>Cancel</button>
-          <button type="button" className="btn btn-danger" onClick={submit} disabled={busy}>{busy ? 'Withdrawing…' : 'Withdraw'}</button>
+          <button type="button" className="btn btn-danger" onClick={submit} disabled={busy}>{busy ? 'Removing…' : 'Remove'}</button>
         </>
       }
     >
-      <p>{clinicName}'s users will no longer see this statement. This is recorded in the audit log and can't be undone.</p>
-      <Field label="Reason" error={error} required>
-        {(p) => <textarea {...p} className="form-textarea" maxLength={1000} value={reason} onChange={(e) => setReason(e.target.value)} />}
-      </Field>
+      <p>
+        Are you sure you want to permanently remove the statement data for <strong>{patientName}</strong> from the database?
+      </p>
+      <p className="text-muted" style={{ fontSize: '0.85rem' }}>
+        This will permanently delete this statement, along with all associated remarks, inquiries, and files. This action cannot be undone.
+      </p>
+      {error && <Alert tone="error">{error}</Alert>}
     </Modal>
   );
 }
@@ -438,6 +435,7 @@ export function StatementDetailPage() {
   const { id } = useParams();
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const toast = useToast();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -566,8 +564,16 @@ export function StatementDetailPage() {
                 <IconUpload size={14} /> Upload PDF
               </button>
             )}
-            {user.role === 'specialist' && s.status?.toLowerCase() !== 'withdrawn' && (
-              <button type="button" className="btn btn-danger-outline" onClick={() => setDialog('withdraw')}>Withdraw</button>
+            {(user.role === 'specialist' || user.role === 'admin') && (
+              <button
+                type="button"
+                className="btn btn-danger-outline"
+                onClick={() => setDialog('remove')}
+                title="Permanently remove this statement from database"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <IconTrash size={14} /> Remove
+              </button>
             )}
           </div>
         </div>
@@ -645,15 +651,16 @@ export function StatementDetailPage() {
         />
       </div>
 
-      {dialog === 'withdraw' && (
-        <WithdrawDialog
-          clinicName={clinic.name}
+      {dialog === 'remove' && (
+        <RemoveDialog
+          patientName={s.patientName}
           statementId={s.id}
+          clinicId={clinic.id}
           onCancel={() => setDialog(null)}
           onDone={(msg) => {
             setDialog(null);
             toast(msg);
-            load();
+            navigate(clinic.id ? `/statements?clinic=${clinic.id}` : '/statements');
           }}
         />
       )}
