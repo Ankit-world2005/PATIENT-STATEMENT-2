@@ -50,6 +50,7 @@ export function remarkView(r) {
     authorRole: r.author_role,
     insuranceName: r.insurance_name,
     insuranceReference: r.insurance_reference,
+    attachments: Array.isArray(r.attachments) ? r.attachments : [],
     createdAt: r.created_at,
   };
 }
@@ -660,9 +661,14 @@ statementsRouter.post('/:id/files', requireRole('specialist'), uploadPdf.single(
 const remarkSchema = z
   .object({
     type: z.enum(['clinic', 'specialist', 'insurance']),
-    body: z.string().trim().min(1, 'Enter a remark.').max(2000, 'Remarks are limited to 2,000 characters.'),
+    body: z.string().trim().max(2000, 'Remarks are limited to 2,000 characters.').optional().default(''),
     insuranceName: z.string().trim().max(200).optional().default(''),
     insuranceReference: z.string().trim().max(100).optional().default(''),
+    attachments: z.array(z.any()).optional().default([]),
+  })
+  .refine((v) => v.body?.trim().length > 0 || (v.attachments && v.attachments.length > 0), {
+    message: 'Enter a remark or attach a file.',
+    path: ['body'],
   })
   .refine((v) => v.type !== 'insurance' || v.insuranceName.length > 0, {
     message: 'Enter the insurance company name.',
@@ -680,21 +686,25 @@ statementsRouter.post('/:id/remarks', requireRole('clinic_user', 'specialist'), 
     const s = await getVisibleStatement(db, req, req.params.id, { forUpdate: true });
     if (s.status?.toLowerCase() === 'withdrawn') throw conflict('Remarks cannot be added to a withdrawn statement.');
     const isInsurance = input.type === 'insurance';
+    const remarkBody = input.body?.trim() || (input.attachments?.length ? `[Attached: ${input.attachments.map(a => a.name).join(', ')}]` : '');
     const r = await insertRemark(db, {
       statementId: s.id,
       author: req.user,
       type: input.type,
-      body: input.body,
+      body: remarkBody,
       insuranceName: isInsurance ? input.insuranceName : null,
       insuranceReference: isInsurance && input.insuranceReference ? input.insuranceReference : null,
+      attachments: input.attachments || [],
     });
     await audit(db, req, {
-      action: 'remark.create', targetType: 'remark', targetId: r.id, clinicId: s.clinic_id, details: { remark_type: input.type },
+      action: 'remark.create', targetType: 'remark', targetId: r.id, clinicId: s.clinic_id, details: { remark_type: input.type, attachments_count: (input.attachments || []).length },
     });
     return {
-      id: r.id, type: input.type, body: input.body, author_name: req.user.full_name, author_role: req.user.role,
+      id: r.id, type: input.type, body: remarkBody, author_name: req.user.full_name, author_role: req.user.role,
       insurance_name: isInsurance ? input.insuranceName : null,
-      insurance_reference: isInsurance ? input.insuranceReference || null : null, created_at: r.created_at,
+      insurance_reference: isInsurance ? input.insuranceReference || null : null,
+      attachments: input.attachments || [],
+      created_at: r.created_at,
     };
   });
   res.status(201).json({ remark: remarkView(remark) });

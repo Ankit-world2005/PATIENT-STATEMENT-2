@@ -10,6 +10,7 @@ import { HttpError } from './lib/errors.js';
 import { csrfGuard, noStore, requireRole, requireVerified } from './middleware/guards.js';
 import { loadSession } from './middleware/session.js';
 import { adminRouter } from './routes/admin.js';
+import { attachmentsRouter } from './routes/attachments.js';
 import { authRouter } from './routes/auth.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { importsRouter } from './routes/imports.js';
@@ -59,6 +60,7 @@ export function createApp() {
   app.use('/api/imports', requireVerified, requireRole('specialist'), importsRouter);
   app.use('/api/admin', requireVerified, requireRole('admin'), adminRouter);
   app.use('/api/requests', requireVerified, requestsRouter);
+  app.use('/api/attachments', requireVerified, attachmentsRouter);
   app.use('/api', requireVerified, dashboardRouter);
   app.use('/api', (_req, _res, next) => next(new HttpError(404, "We couldn't find that page.")));
 

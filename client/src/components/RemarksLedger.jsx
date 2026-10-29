@@ -3,6 +3,11 @@ import { api } from '../lib/api.js';
 import { dateTime } from '../lib/format.js';
 import { useToast } from '../lib/toast.jsx';
 import { IconChat } from './Icons.jsx';
+import {
+  RemarkAttachmentBar,
+  RemarkAttachmentViewer,
+  useAttachmentUploader,
+} from './RemarkAttachments.jsx';
 import { Alert, Field } from './ui.jsx';
 
 const TYPE = {
@@ -20,10 +25,20 @@ function RemarkForm({ statementId, role, onAdded }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
+  const {
+    attachments,
+    uploading,
+    uploadError,
+    handleFiles,
+    handlePaste,
+    removeAttachment,
+    clearAttachments,
+  } = useAttachmentUploader();
+
   const submit = async (e) => {
     e.preventDefault();
     const fe = {};
-    if (!body.trim()) fe.body = 'Enter a remark.';
+    if (!body.trim() && attachments.length === 0) fe.body = 'Enter a remark or attach a file.';
     if (body.length > MAX) fe.body = 'Remarks are limited to 2,000 characters.';
     setErrors(fe);
     setError('');
@@ -32,10 +47,11 @@ function RemarkForm({ statementId, role, onAdded }) {
     try {
       const d = await api(`/statements/${statementId}/remarks`, {
         method: 'POST',
-        body: { type, body },
+        body: { type, body: body.trim(), attachments },
       });
       onAdded(d.remark);
       setBody('');
+      clearAttachments();
       toast('Remark added.');
     } catch (err) {
       // Typed text is kept so nothing is lost (App Flow 4.1).
@@ -54,10 +70,26 @@ function RemarkForm({ statementId, role, onAdded }) {
       <p className="add-remark-rule-hint">Remarks can't be edited or deleted after posting.</p>
       <Field label="Remark" error={errors.body}>
         {(p) => (
-          <textarea {...p} className="form-textarea" value={body} onChange={(e) => setBody(e.target.value)}
-            placeholder={role === 'clinic_user' ? 'Share an update or question with US24 Solutions…' : 'Add a note for the clinic…'} />
+          <textarea
+            {...p}
+            className="form-textarea"
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            onPaste={handlePaste}
+            placeholder={role === 'clinic_user' ? 'Share an update or question with US24 Solutions… (Paste photos/files with Ctrl+V)' : 'Add a note for the clinic… (Paste photos/files with Ctrl+V)'}
+          />
         )}
       </Field>
+
+      <RemarkAttachmentBar
+        attachments={attachments}
+        uploading={uploading}
+        uploadError={uploadError}
+        onAddFiles={handleFiles}
+        onRemove={removeAttachment}
+        disabled={busy}
+      />
+
       <div className="char-counter-line">
         <span>{role === 'clinic_user' ? 'Shared with your US24 billing specialist.' : 'Visible to the clinic.'}</span>
         <span className={`char-counter ${len > MAX ? 'danger' : len >= 1800 ? 'warning' : ''}`} aria-live="polite">
@@ -65,7 +97,7 @@ function RemarkForm({ statementId, role, onAdded }) {
         </span>
       </div>
       {error && <Alert tone="error">{error}</Alert>}
-      <button type="submit" className="btn btn-primary btn-block" disabled={busy || len > MAX}>
+      <button type="submit" className="btn btn-primary btn-block" disabled={busy || len > MAX || uploading}>
         {busy ? 'Posting…' : 'Post remark'}
       </button>
     </form>
@@ -106,6 +138,7 @@ export function RemarksLedger({ statementId, remarks, canAdd, role, onAdded, pri
                 </div>
               )}
               <div className="remark-body">{r.body}</div>
+              <RemarkAttachmentViewer attachments={r.attachments} />
             </li>
           );
         })}

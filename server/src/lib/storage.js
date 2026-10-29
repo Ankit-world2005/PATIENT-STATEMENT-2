@@ -9,7 +9,7 @@ import { config } from '../config.js';
 
 import { pool } from '../db/pool.js';
 
-const KEY_PATTERN = /^[a-z0-9-]+(\/[a-z0-9-]+)*\.(pdf|csv|xlsx)$/;
+const KEY_PATTERN = /^[a-z0-9_-]+(\/[a-z0-9_.-]+)*\.(pdf|csv|xlsx|xls|png|jpg|jpeg|gif|webp|doc|docx|txt|bin)$/i;
 
 function resolveKey(key) {
   if (!KEY_PATTERN.test(key)) throw new Error('Invalid storage key');

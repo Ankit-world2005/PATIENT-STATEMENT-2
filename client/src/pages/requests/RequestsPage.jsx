@@ -2,6 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 // Inquiries and communication threads without statement links
 import { IconChat, IconCheck, IconClock, IconInbox, IconSearch, IconSend } from '../../components/Icons.jsx';
+import {
+  RemarkAttachmentBar,
+  RemarkAttachmentViewer,
+  useAttachmentUploader,
+} from '../../components/RemarkAttachments.jsx';
 import { Alert, BackBar, EmptyState, Modal, PageHeader, Pagination, Spinner } from '../../components/ui.jsx';
 import { api } from '../../lib/api.js';
 import { useAuth } from '../../lib/auth.jsx';
@@ -26,6 +31,16 @@ export function NewRequestModal({ onClose, onCreated, clinicId }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const wrapperRef = useRef(null);
+
+  const {
+    attachments,
+    uploading,
+    uploadError,
+    handleFiles,
+    handlePaste,
+    removeAttachment,
+    clearAttachments,
+  } = useAttachmentUploader();
 
   // Live suggestions when typing patient name
   useEffect(() => {
@@ -80,8 +95,8 @@ export function NewRequestModal({ onClose, onCreated, clinicId }) {
       setError('Please enter patient name.');
       return;
     }
-    if (!body.trim()) {
-      setError('Please enter details for your request.');
+    if (!body.trim() && attachments.length === 0) {
+      setError('Please enter request details or attach a file.');
       return;
     }
 
@@ -95,9 +110,11 @@ export function NewRequestModal({ onClose, onCreated, clinicId }) {
           patientName: patientName.trim(),
           priority,
           body: body.trim(),
+          attachments,
         },
       });
       toast('Request submitted to US24 Specialists.', 'success');
+      clearAttachments();
       onCreated();
     } catch (err) {
       setError(err.message || 'Failed to submit request.');
@@ -114,7 +131,7 @@ export function NewRequestModal({ onClose, onCreated, clinicId }) {
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
             Cancel
           </button>
-          <button type="button" className="btn btn-primary" onClick={handleSubmit} disabled={busy || !patientName.trim()}>
+          <button type="button" className="btn btn-primary" onClick={handleSubmit} disabled={busy || !patientName.trim() || uploading}>
             {busy ? 'Submitting…' : 'Submit Request'}
           </button>
         </>
@@ -181,16 +198,24 @@ export function NewRequestModal({ onClose, onCreated, clinicId }) {
         {/* Request Message */}
         <div className="form-group">
           <label className="form-label" htmlFor="req-body">
-            Details / Question for Specialist <span className="req-star" style={{ color: '#dc2626' }}>*</span>
+            Details / Question for Specialist
           </label>
           <textarea
             id="req-body"
             className="form-input form-textarea"
             rows={4}
-            placeholder="Type your inquiry, request, or question for the US24 specialist here…"
+            placeholder="Type your inquiry, request, or question for the US24 specialist here… (Paste photos/files with Ctrl+V)"
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            required
+            onPaste={handlePaste}
+          />
+          <RemarkAttachmentBar
+            attachments={attachments}
+            uploading={uploading}
+            uploadError={uploadError}
+            onAddFiles={handleFiles}
+            onRemove={removeAttachment}
+            disabled={busy}
           />
         </div>
       </div>
@@ -204,10 +229,20 @@ function ReplyModal({ request, onClose, onReplied }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  const {
+    attachments,
+    uploading,
+    uploadError,
+    handleFiles,
+    handlePaste,
+    removeAttachment,
+    clearAttachments,
+  } = useAttachmentUploader();
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!replyText.trim()) {
-      setError('Please enter a response.');
+    if (!replyText.trim() && attachments.length === 0) {
+      setError('Please enter a response or attach a file.');
       return;
     }
     setBusy(true);
@@ -215,9 +250,10 @@ function ReplyModal({ request, onClose, onReplied }) {
     try {
       await api(`/requests/${request.id}/reply`, {
         method: 'POST',
-        body: { body: replyText.trim() },
+        body: { body: replyText.trim(), attachments },
       });
       toast('Response sent to clinic.', 'success');
+      clearAttachments();
       onReplied();
     } catch (err) {
       setError(err.message || 'Failed to send response.');
@@ -234,7 +270,7 @@ function ReplyModal({ request, onClose, onReplied }) {
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
             Cancel
           </button>
-          <button type="button" className="btn btn-primary" onClick={handleSubmit} disabled={busy}>
+          <button type="button" className="btn btn-primary" onClick={handleSubmit} disabled={busy || uploading}>
             {busy ? 'Sending…' : 'Send Response'}
           </button>
         </>
@@ -253,20 +289,30 @@ function ReplyModal({ request, onClose, onReplied }) {
         <div className="original-req-body">
           {request.body}
         </div>
+        <RemarkAttachmentViewer attachments={request.attachments} />
       </div>
 
       <div className="form-group" style={{ marginTop: 16 }}>
         <label className="form-label" htmlFor="reply-text">
-          US24 Specialist Response <span className="req-star">*</span>
+          US24 Specialist Response
         </label>
         <textarea
           id="reply-text"
           className="form-input form-textarea"
           rows={4}
-          placeholder="Type your response to the clinic here…"
+          placeholder="Type your response to the clinic here… (Paste photos/files with Ctrl+V)"
           value={replyText}
           onChange={(e) => setReplyText(e.target.value)}
+          onPaste={handlePaste}
           autoFocus
+        />
+        <RemarkAttachmentBar
+          attachments={attachments}
+          uploading={uploading}
+          uploadError={uploadError}
+          onAddFiles={handleFiles}
+          onRemove={removeAttachment}
+          disabled={busy}
         />
         <div className="form-hint" style={{ marginTop: 4 }}>
           This response will be visible to clinic users and will resolve the "Awaiting reply" flag.
@@ -587,6 +633,7 @@ export function RequestsContent({ clinicId: propClinicId, embedded = false }) {
                     <span className="conv-msg-date">{dateTime(r.createdAt)}</span>
                   </div>
                   <p className="conv-msg-body">{r.body}</p>
+                  <RemarkAttachmentViewer attachments={r.attachments} />
                 </div>
 
                 {/* Specialist Replies (in the same box) */}
@@ -601,6 +648,7 @@ export function RequestsContent({ clinicId: propClinicId, embedded = false }) {
                       <span className="conv-msg-date">{dateTime(rep.createdAt)}</span>
                     </div>
                     <p className="conv-msg-body">{rep.body}</p>
+                    <RemarkAttachmentViewer attachments={rep.attachments} />
                   </div>
                 ))}
 
