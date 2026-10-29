@@ -2186,6 +2186,46 @@ a.hub-card { text-decoration: none; color: inherit; }
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
+button.stat-kpi-card,
+.stat-kpi-card.interactive {
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font: inherit;
+  transition: all var(--transition-fast, 0.15s ease);
+}
+
+button.stat-kpi-card:hover,
+.stat-kpi-card.interactive:hover {
+  border-color: var(--color-primary, #0d5c63);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.stat-kpi-card.interactive.active {
+  border-color: var(--color-primary, #0d5c63);
+  background: rgba(13, 92, 99, 0.05);
+  box-shadow: 0 0 0 2px rgba(13, 92, 99, 0.25);
+}
+
+.stat-kpi-card.interactive.card-plum.active {
+  border-color: #7e22ce;
+  background: rgba(107, 33, 168, 0.05);
+  box-shadow: 0 0 0 2px rgba(107, 33, 168, 0.25);
+}
+
+.stat-kpi-card.interactive.card-teal.active {
+  border-color: #0f766e;
+  background: rgba(13, 148, 136, 0.05);
+  box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.25);
+}
+
+.stat-kpi-card.interactive.card-blue.active {
+  border-color: #1d4ed8;
+  background: rgba(29, 78, 216, 0.05);
+  box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.25);
+}
+
 .kpi-icon-wrap {
   width: 42px;
   height: 42px;

@@ -14,14 +14,38 @@ export function AdminHome() {
     api('/admin/summary').then(setSummary).catch(() => {});
   }, []);
   const cards = [
-    { to: '/manage/clinics', icon: IconBuilding, title: 'Clinics', desc: 'Add clinics, assign specialists and manage clinic access.',
-      stat: summary && `${summary.active_clinics} active` },
-    { to: '/manage/users', icon: IconUsers, title: 'Users', desc: 'Invite users, reset 2-step verification and deactivate accounts.',
-      stat: summary && `${summary.active_users} active · ${summary.invited_users} invited` },
-    { to: '/manage/audit', icon: IconShield, title: 'Audit log', desc: 'Review and export who viewed, uploaded or downloaded what.',
-      stat: summary && `${summary.blocked_7d} blocked attempts (7 days)` },
-    { to: '/manage/remarks', icon: IconChat, title: 'Clinic updates & remarks', desc: 'Track clinic remarks, patient status notes and ledger updates.',
-      stat: summary && `${summary.total_remarks ?? 0} remarks${summary.awaiting_remarks ? ` · ${summary.awaiting_remarks} awaiting reply` : ''}` },
+    {
+      to: '/manage/clinics',
+      icon: IconBuilding,
+      title: 'Clinics',
+      desc: 'Add clinics, assign specialists and manage clinic access.',
+      stat: summary ? `${summary.active_clinics} active` : 'Loading…',
+      badgeClass: 'badge-open',
+    },
+    {
+      to: '/manage/users',
+      icon: IconUsers,
+      title: 'Users',
+      desc: 'Invite users, reset 2-step verification and deactivate accounts.',
+      stat: summary ? `${summary.active_users} active · ${summary.invited_users} invited` : 'Loading…',
+      badgeClass: 'badge-open',
+    },
+    {
+      to: '/manage/audit',
+      icon: IconShield,
+      title: 'Audit log',
+      desc: 'Review and export who viewed, uploaded or downloaded what.',
+      stat: summary ? `${summary.blocked_7d} blocked (7d) · ${summary.total_audit_events ?? 0} events` : 'Loading…',
+      badgeClass: summary?.blocked_7d > 0 ? 'badge-warning' : 'badge-open',
+    },
+    {
+      to: '/manage/remarks',
+      icon: IconChat,
+      title: 'Clinic updates & remarks',
+      desc: 'Track clinic remarks, patient status notes and ledger updates.',
+      stat: summary ? `${summary.total_remarks ?? 0} remarks${summary.awaiting_remarks ? ` · ${summary.awaiting_remarks} awaiting reply` : ''}` : 'Loading…',
+      badgeClass: summary?.awaiting_remarks > 0 ? 'badge-plum' : 'badge-open',
+    },
   ];
   return (
     <div className="container">
@@ -29,7 +53,11 @@ export function AdminHome() {
         <BackBar to="/home" label="Back to portal home" />
         <div className="hub-welcome-banner">
           <h1 className="hub-clinic-headline">Administration</h1>
-          <p className="hub-subheadline">{summary ? `${summary.active_statements.toLocaleString('en-US')} active statements across all clinics` : ' '}</p>
+          <p className="hub-subheadline">
+            {summary
+              ? `${summary.active_statements.toLocaleString('en-US')} active statements across all clinics`
+              : 'Loading system overview…'}
+          </p>
         </div>
         <div className="admin-cards-grid">
           {cards.map((c) => (
@@ -37,7 +65,9 @@ export function AdminHome() {
               <div className="hub-card-icon-wrap"><c.icon size={30} /></div>
               <h2 className="hub-card-title">{c.title}</h2>
               <p className="hub-card-desc">{c.desc}</p>
-              <div className="hub-card-tag">{c.stat && <span className="badge badge-open">{c.stat}</span>}</div>
+              <div className="hub-card-tag">
+                <span className={`badge ${c.badgeClass}`}>{c.stat}</span>
+              </div>
             </Link>
           ))}
         </div>
