@@ -94,7 +94,7 @@ requestsRouter.get('/', async (req, res) => {
   const offset = (page - 1) * limit;
 
   const scope = getUserClinicScope(req.user);
-  const where = ['TRUE', scope.sql, "r.type = 'clinic'"];
+  const where = ['TRUE', scope.sql, "r.type = 'clinic'", "st.status = 'active'"];
   const params = [...scope.params];
 
   if (clinicId && isUuid(clinicId) && req.user.role !== 'clinic_user') {
@@ -126,7 +126,7 @@ requestsRouter.get('/', async (req, res) => {
 
   // Metrics query
   const metricsScope = getUserClinicScope(req.user);
-  const metricsWhere = ['TRUE', metricsScope.sql, "r.type = 'clinic'"];
+  const metricsWhere = ['TRUE', metricsScope.sql, "r.type = 'clinic'", "st.status = 'active'"];
   const metricsParams = [...metricsScope.params];
   if (clinicId && isUuid(clinicId) && req.user.role !== 'clinic_user') {
     metricsParams.push(clinicId);
