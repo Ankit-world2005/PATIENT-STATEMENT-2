@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
-import { IconChat, IconDocument, IconDownload, IconSearch, IconTable } from '../../components/Icons.jsx';
-import { Alert, BackBar, EmptyState, PageHeader, Pagination, Spinner, StatusBadge } from '../../components/ui.jsx';
+import { IconChat, IconDocument, IconDownload, IconSearch, IconTable, IconTrash } from '../../components/Icons.jsx';
+import { Alert, BackBar, ConfirmDialog, EmptyState, PageHeader, Pagination, Spinner, StatusBadge } from '../../components/ui.jsx';
 import { api, downloadFile } from '../../lib/api.js';
 import { useAuth } from '../../lib/auth.jsx';
 import { date, money, shortDate } from '../../lib/format.js';
@@ -110,6 +110,33 @@ export function StatementListPage() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [awaitingCount, setAwaitingCount] = useState(0);
+  const [deletingStatement, setDeletingStatement] = useState(null);
+  const [deletingBusy, setDeletingBusy] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleDeleteStatement = async () => {
+    if (!deletingStatement) return;
+    setDeletingBusy(true);
+    try {
+      await api(`/statements/${deletingStatement.id}`, { method: 'DELETE' });
+      toast(`Statement for "${deletingStatement.patientName}" removed successfully.`, 'success');
+      setDeletingStatement(null);
+      setData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          total: Math.max(0, (prev.total || 1) - 1),
+          items: prev.items.filter((item) => item.id !== deletingStatement.id),
+        };
+      });
+      setRefreshKey((k) => k + 1);
+    } catch (err) {
+      toast(err.message || 'Failed to remove statement.', 'error');
+    } finally {
+      setDeletingBusy(false);
+    }
+  };
+
 
   useEffect(() => {
     const query = new URLSearchParams({ limit: '1', status: 'awaiting' });
@@ -200,7 +227,7 @@ export function StatementListPage() {
     return () => {
       ignore = true;
     };
-  }, [q, from, to, sort, page, status, clinicId, isStaff]);
+  }, [q, from, to, sort, page, status, clinicId, isStaff, refreshKey]);
 
   if (error?.status === 404) return <NotFoundPage />;
 
@@ -450,14 +477,30 @@ export function StatementListPage() {
                           </td>
                           <td className="sticky-col-patient">
                             <div className="cell-patient">
-                              <Highlight text={s.patientName} query={q} />
-                              {s.hasFile && (
-                                <span className="badge badge-secondary" style={{ fontSize: '0.68rem', padding: '1px 5px' }} title="Attached PDF statement">
-                                  PDF
-                                </span>
+                              <div className="cell-patient-info">
+                                <Highlight text={s.patientName} query={q} />
+                                {s.hasFile && (
+                                  <span className="badge badge-secondary" style={{ fontSize: '0.68rem', padding: '1px 5px' }} title="Attached PDF statement">
+                                    PDF
+                                  </span>
+                                )}
+                                {s.isNew && <span className="badge badge-new">New</span>}
+                                {s.hasNewerVersion && <span className="badge badge-muted">Earlier</span>}
+                              </div>
+                              {isStaff && (
+                                <button
+                                  type="button"
+                                  className="btn-statement-delete"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeletingStatement(s);
+                                  }}
+                                  title={`Remove statement for ${s.patientName}`}
+                                  aria-label={`Remove statement for ${s.patientName}`}
+                                >
+                                  <IconTrash size={13} />
+                                </button>
                               )}
-                              {s.isNew && <span className="badge badge-new">New</span>}
-                              {s.hasNewerVersion && <span className="badge badge-muted">Earlier</span>}
                             </div>
                           </td>
                           <td className="cell-date">{formatLedgerDate(s.cycle1Date)}</td>
@@ -492,15 +535,32 @@ export function StatementListPage() {
                             <NotePreview text={s.vobNotes} label="AS PER VOB- Notes" />
                           </td>
                           <td className="cell-action text-right">
-                            <Link
-                              to={`/statements/${s.id}`}
-                              className="btn btn-secondary btn-sm"
-                              onClick={(e) => e.stopPropagation()}
-                              state={{ from: `${window.location.pathname}${window.location.search}` }}
-                              aria-label={`Open statement for ${s.patientName}`}
-                            >
-                              Open
-                            </Link>
+                            <div className="cell-action-btns">
+                              <Link
+                                to={`/statements/${s.id}`}
+                                className="btn btn-secondary btn-sm"
+                                onClick={(e) => e.stopPropagation()}
+                                state={{ from: `${window.location.pathname}${window.location.search}` }}
+                                aria-label={`Open statement for ${s.patientName}`}
+                              >
+                                Open
+                              </Link>
+                              {isStaff && (
+                                <button
+                                  type="button"
+                                  className="btn btn-danger-outline btn-sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeletingStatement(s);
+                                  }}
+                                  title={`Remove statement for ${s.patientName}`}
+                                  aria-label={`Remove statement for ${s.patientName}`}
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                                >
+                                  <IconTrash size={13} />
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -519,6 +579,17 @@ export function StatementListPage() {
             )}
           </div>
         </>
+      )}
+      {deletingStatement && (
+        <ConfirmDialog
+          title="Remove this statement?"
+          destructive
+          busy={deletingBusy}
+          confirmLabel={deletingBusy ? 'Removing…' : 'Remove statement'}
+          message={`Are you sure you want to permanently remove the statement data for "${deletingStatement.patientName}" from the database? All associated remarks, inquiries, and files will be deleted.`}
+          onCancel={() => setDeletingStatement(null)}
+          onConfirm={handleDeleteStatement}
+        />
       )}
     </div>
   );
