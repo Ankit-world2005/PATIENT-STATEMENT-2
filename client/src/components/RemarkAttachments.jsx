@@ -138,6 +138,128 @@ export function useAttachmentUploader() {
 }
 
 /**
+ * Unified Remark Input Box with the '+' button and attachment chips seamlessly INSIDE the box.
+ */
+export function RemarkInputBox({
+  id,
+  value,
+  onChange,
+  onPaste,
+  placeholder,
+  rows = 3,
+  disabled = false,
+  autoFocus = false,
+  required = false,
+  attachments = [],
+  uploading = false,
+  uploadError = '',
+  onAddFiles,
+  onRemoveAttachment,
+  name,
+  'aria-invalid': ariaInvalid,
+  'aria-describedby': ariaDescribedby,
+}) {
+  const fileInputRef = useRef(null);
+  const textareaRef = useRef(null);
+
+  return (
+    <div className={`remark-box-container ${disabled ? 'is-disabled' : ''}`}>
+      <textarea
+        id={id}
+        name={name}
+        ref={textareaRef}
+        className="remark-box-textarea"
+        value={value}
+        onChange={onChange}
+        onPaste={onPaste}
+        placeholder={placeholder}
+        rows={rows}
+        disabled={disabled}
+        autoFocus={autoFocus}
+        required={required}
+        aria-invalid={ariaInvalid}
+        aria-describedby={ariaDescribedby}
+      />
+
+      {/* Uploaded draft attachment chips inside the remark box */}
+      {attachments.length > 0 && (
+        <div className="remark-box-chips-row" aria-label="Attachments">
+          {attachments.map((att) => (
+            <div key={att.id} className="attachment-chip">
+              <span className="attachment-chip-icon">
+                <AttachmentIcon att={att} size={14} />
+              </span>
+              <span className="attachment-chip-name" title={att.name}>
+                {att.name}
+              </span>
+              <span className="attachment-chip-size">
+                ({formatFileSize(att.size)})
+              </span>
+              <button
+                type="button"
+                className="attachment-chip-remove"
+                onClick={() => onRemoveAttachment(att.id)}
+                title="Remove attachment"
+                aria-label={`Remove ${att.name}`}
+                disabled={disabled}
+              >
+                <IconClose size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Inside bottom bar containing '+' button and status */}
+      <div className="remark-box-bottom-bar">
+        <div className="remark-box-bottom-left">
+          <input
+            type="file"
+            ref={fileInputRef}
+            style={{ display: 'none' }}
+            multiple
+            accept="image/*,.pdf,.xlsx,.xls,.csv,.doc,.docx,.txt"
+            onChange={(e) => {
+              if (e.target.files && e.target.files.length > 0) {
+                onAddFiles(e.target.files);
+                e.target.value = '';
+              }
+            }}
+            disabled={disabled || uploading}
+          />
+          <button
+            type="button"
+            className="btn-box-inside-plus"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={disabled || uploading}
+            title="Attach photos, PDF, Excel sheets, or documents"
+            aria-label="Add attachment"
+          >
+            <IconPlus size={16} />
+            <span className="inside-plus-text">Add / paste files</span>
+          </button>
+          {uploading ? (
+            <span className="remark-box-uploading">
+              <Spinner label="Uploading…" /> Uploading…
+            </span>
+          ) : (
+            <span className="remark-box-paste-hint">
+              Paste photos / files with Ctrl+V
+            </span>
+          )}
+        </div>
+      </div>
+
+      {uploadError && (
+        <div className="remark-box-error-msg" role="alert">
+          {uploadError}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * The '+' attachment control bar placed under or inside the remark/request box.
  */
 export function RemarkAttachmentBar({
@@ -360,3 +482,4 @@ export function RemarkAttachmentViewer({ attachments = [] }) {
     </div>
   );
 }
+

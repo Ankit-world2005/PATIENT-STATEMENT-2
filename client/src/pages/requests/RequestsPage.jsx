@@ -5,6 +5,7 @@ import { IconChat, IconCheck, IconClock, IconInbox, IconSearch, IconSend } from 
 import {
   RemarkAttachmentBar,
   RemarkAttachmentViewer,
+  RemarkInputBox,
   useAttachmentUploader,
 } from '../../components/RemarkAttachments.jsx';
 import { Alert, BackBar, EmptyState, Modal, PageHeader, Pagination, Spinner } from '../../components/ui.jsx';
@@ -200,22 +201,19 @@ export function NewRequestModal({ onClose, onCreated, clinicId }) {
           <label className="form-label" htmlFor="req-body">
             Details / Question for Specialist
           </label>
-          <textarea
+          <RemarkInputBox
             id="req-body"
-            className="form-input form-textarea"
-            rows={4}
-            placeholder="Type your inquiry, request, or question for the US24 specialist here… (Paste photos/files with Ctrl+V)"
             value={body}
             onChange={(e) => setBody(e.target.value)}
             onPaste={handlePaste}
-          />
-          <RemarkAttachmentBar
+            placeholder="Type your inquiry, request, or question for the US24 specialist here…"
             attachments={attachments}
             uploading={uploading}
             uploadError={uploadError}
             onAddFiles={handleFiles}
-            onRemove={removeAttachment}
+            onRemoveAttachment={removeAttachment}
             disabled={busy}
+            rows={4}
           />
         </div>
       </div>
@@ -296,23 +294,20 @@ function ReplyModal({ request, onClose, onReplied }) {
         <label className="form-label" htmlFor="reply-text">
           US24 Specialist Response
         </label>
-        <textarea
+        <RemarkInputBox
           id="reply-text"
-          className="form-input form-textarea"
-          rows={4}
-          placeholder="Type your response to the clinic here… (Paste photos/files with Ctrl+V)"
           value={replyText}
           onChange={(e) => setReplyText(e.target.value)}
           onPaste={handlePaste}
+          placeholder="Type your response to the clinic here…"
           autoFocus
-        />
-        <RemarkAttachmentBar
           attachments={attachments}
           uploading={uploading}
           uploadError={uploadError}
           onAddFiles={handleFiles}
-          onRemove={removeAttachment}
+          onRemoveAttachment={removeAttachment}
           disabled={busy}
+          rows={4}
         />
         <div className="form-hint" style={{ marginTop: 4 }}>
           This response will be visible to clinic users and will resolve the "Awaiting reply" flag.

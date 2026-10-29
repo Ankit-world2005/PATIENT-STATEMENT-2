@@ -6,6 +6,7 @@ import { IconChat } from './Icons.jsx';
 import {
   RemarkAttachmentBar,
   RemarkAttachmentViewer,
+  RemarkInputBox,
   useAttachmentUploader,
 } from './RemarkAttachments.jsx';
 import { Alert, Field } from './ui.jsx';
@@ -70,25 +71,21 @@ function RemarkForm({ statementId, role, onAdded }) {
       <p className="add-remark-rule-hint">Remarks can't be edited or deleted after posting.</p>
       <Field label="Remark" error={errors.body}>
         {(p) => (
-          <textarea
+          <RemarkInputBox
             {...p}
-            className="form-textarea"
             value={body}
             onChange={(e) => setBody(e.target.value)}
             onPaste={handlePaste}
-            placeholder={role === 'clinic_user' ? 'Share an update or question with US24 Solutions… (Paste photos/files with Ctrl+V)' : 'Add a note for the clinic… (Paste photos/files with Ctrl+V)'}
+            placeholder={role === 'clinic_user' ? 'Share an update or question with US24 Solutions…' : 'Add a note for the clinic…'}
+            attachments={attachments}
+            uploading={uploading}
+            uploadError={uploadError}
+            onAddFiles={handleFiles}
+            onRemoveAttachment={removeAttachment}
+            disabled={busy}
           />
         )}
       </Field>
-
-      <RemarkAttachmentBar
-        attachments={attachments}
-        uploading={uploading}
-        uploadError={uploadError}
-        onAddFiles={handleFiles}
-        onRemove={removeAttachment}
-        disabled={busy}
-      />
 
       <div className="char-counter-line">
         <span>{role === 'clinic_user' ? 'Shared with your US24 billing specialist.' : 'Visible to the clinic.'}</span>
