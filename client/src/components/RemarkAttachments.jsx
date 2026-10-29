@@ -232,19 +232,14 @@ export function RemarkInputBox({
             className="btn-box-inside-plus"
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled || uploading}
-            title="Attach photos, PDF, Excel sheets, or documents"
+            title="Attach photos, PDF, Excel sheets, or documents (or paste with Ctrl+V)"
             aria-label="Add attachment"
           >
             <IconPlus size={16} />
-            <span className="inside-plus-text">Add / paste files</span>
           </button>
-          {uploading ? (
+          {uploading && (
             <span className="remark-box-uploading">
               <Spinner label="Uploading…" /> Uploading…
-            </span>
-          ) : (
-            <span className="remark-box-paste-hint">
-              Paste photos / files with Ctrl+V
             </span>
           )}
         </div>
@@ -294,15 +289,11 @@ export function RemarkAttachmentBar({
           className="btn-remark-plus"
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled || uploading}
-          title="Add or paste photos, PDF, Excel, documents"
+          title="Add attachment"
           aria-label="Add attachment"
         >
           <IconPlus size={15} />
-          <span className="plus-label">Add / paste files</span>
         </button>
-        <span className="attachment-tip">
-          Paste (Ctrl+V) photos, PDFs, or Excel sheets directly into the box
-        </span>
         {uploading && (
           <span className="attachment-uploading-indicator">
             <Spinner label="Uploading…" /> Uploading…
