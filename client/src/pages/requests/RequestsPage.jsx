@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { useSearchParams } from 'react-router';
 import { IconChat, IconClock, IconSearch, IconSend } from '../../components/Icons.jsx';
 import { Alert, BackBar, EmptyState, Modal, PageHeader, Pagination, Spinner } from '../../components/ui.jsx';
 import { api } from '../../lib/api.js';
@@ -153,17 +153,6 @@ export function NewRequestModal({ onClose, onCreated, clinicId }) {
                   aria-selected={statementId === s.id}
                 >
                   <div className="autocomplete-name">{s.patientName}</div>
-                  <div className="autocomplete-meta">
-                    <span className="col-mono">{s.accountNumber}</span>
-                    {s.currentBalance != null && (
-                      <>
-                        <span className="pipe-sep">·</span>
-                        <span>Balance: {money(s.currentBalance)}</span>
-                      </>
-                    )}
-                    <span className="pipe-sep">·</span>
-                    <span>{date(s.statementDate)}</span>
-                  </div>
                 </div>
               ))}
             </div>
@@ -252,7 +241,7 @@ function ReplyModal({ request, onClose, onReplied }) {
       {error && <Alert tone="error">{error}</Alert>}
       <div className="reply-modal-original">
         <div className="original-req-meta">
-          <strong>{request.patientName}</strong> {request.accountNumber && <span className="col-mono">· {request.accountNumber}</span>} · Submitted by {request.authorName} ({dateTime(request.createdAt)})
+          <strong>{request.patientName}</strong> · Submitted by {request.authorName} ({dateTime(request.createdAt)})
         </div>
         <div className="original-req-badge">
           <span className={`badge-priority priority-${request.priority?.toLowerCase() || 'normal'}`}>
@@ -524,23 +513,10 @@ export function RequestsContent({ clinicId: propClinicId, embedded = false }) {
                 </div>
               </div>
 
-              {/* Patient and Statement context bar */}
+              {/* Patient context bar */}
               <div className="request-patient-bar">
                 <div className="patient-context-info">
-                  <strong>{r.patientName}</strong>
-                  {r.accountNumber && <span className="col-mono" style={{ marginLeft: 8 }}>Account: {r.accountNumber}</span>}
-                  {r.statementDate && (
-                    <>
-                      <span className="pipe-sep">·</span>
-                      <span>Date: {date(r.statementDate)}</span>
-                    </>
-                  )}
-                  {r.currentBalance != null && (
-                    <>
-                      <span className="pipe-sep">·</span>
-                      <span>Balance: <strong className="col-mono">{money(r.currentBalance)}</strong></span>
-                    </>
-                  )}
+                  <span className="patient-req-name">Patient: <strong>{r.patientName}</strong></span>
                   {isStaff && (
                     <>
                       <span className="pipe-sep">·</span>
@@ -548,11 +524,6 @@ export function RequestsContent({ clinicId: propClinicId, embedded = false }) {
                     </>
                   )}
                 </div>
-                {r.statementId && (
-                  <Link to={`/statements/${r.statementId}`} className="btn btn-secondary btn-sm" title="View Full Statement Document">
-                    View Statement →
-                  </Link>
-                )}
               </div>
 
               {/* Request message */}
@@ -586,11 +557,6 @@ export function RequestsContent({ clinicId: propClinicId, embedded = false }) {
                   >
                     <IconChat size={13} /> Reply to Clinic
                   </button>
-                  {r.statementId && (
-                    <Link to={`/statements/${r.statementId}`} className="btn btn-secondary btn-sm">
-                      Open Statement Details
-                    </Link>
-                  )}
                 </div>
               )}
             </div>
