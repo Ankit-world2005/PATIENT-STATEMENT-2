@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 // Inquiries and communication threads without statement links
-import { IconChat, IconClock, IconSearch, IconSend } from '../../components/Icons.jsx';
+import { IconChat, IconCheck, IconClock, IconInbox, IconSearch, IconSend } from '../../components/Icons.jsx';
 import { Alert, BackBar, EmptyState, Modal, PageHeader, Pagination, Spinner } from '../../components/ui.jsx';
 import { api } from '../../lib/api.js';
 import { useAuth } from '../../lib/auth.jsx';
@@ -378,27 +378,72 @@ export function RequestsContent({ clinicId: propClinicId, embedded = false }) {
       {/* Metric Cards Row */}
       {data?.metrics && (
         <div className="requests-stats-grid">
-          <div className="stat-card" onClick={() => update({ status: 'all' })} style={{ cursor: 'pointer' }}>
-            <div className="stat-label">Total Requests</div>
+          <div
+            className={'stat-card stat-card-total ' + (status === 'all' ? 'stat-card-active' : '')}
+            onClick={() => update({ status: 'all' })}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                update({ status: 'all' });
+              }
+            }}
+            title="Filter to all requests"
+          >
+            <div className="stat-card-header">
+              <span className="stat-label">Total Requests</span>
+              <span className="stat-icon-wrap stat-icon-total">
+                <IconInbox size={16} />
+              </span>
+            </div>
             <div className="stat-value">{data.metrics.totalRequests}</div>
             <div className="stat-sub">Across statements</div>
           </div>
+
           <div
-            className={`stat-card ${status === 'awaiting' ? 'stat-card-active' : ''}`}
+            className={'stat-card stat-card-awaiting ' + (status === 'awaiting' ? 'stat-card-active' : '')}
             onClick={() => update({ status: 'awaiting' })}
-            style={{ cursor: 'pointer', borderLeft: '4px solid #f59e0b' }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                update({ status: 'awaiting' });
+              }
+            }}
+            title="Filter to requests awaiting specialist"
           >
-            <div className="stat-label">Awaiting US24 Specialist</div>
-            <div className="stat-value" style={{ color: '#d97706' }}>{data.metrics.awaitingCount}</div>
+            <div className="stat-card-header">
+              <span className="stat-label">Awaiting US24 Specialist</span>
+              <span className="stat-icon-wrap stat-icon-awaiting">
+                <IconClock size={16} />
+              </span>
+            </div>
+            <div className="stat-value stat-value-awaiting">{data.metrics.awaitingCount}</div>
             <div className="stat-sub">Pending response</div>
           </div>
+
           <div
-            className={`stat-card ${status === 'answered' ? 'stat-card-active' : ''}`}
+            className={'stat-card stat-card-answered ' + (status === 'answered' ? 'stat-card-active' : '')}
             onClick={() => update({ status: 'answered' })}
-            style={{ cursor: 'pointer', borderLeft: '4px solid #10b981' }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                update({ status: 'answered' });
+              }
+            }}
+            title="Filter to answered requests"
           >
-            <div className="stat-label">Answered / Resolved</div>
-            <div className="stat-value" style={{ color: '#059669' }}>{data.metrics.answeredCount}</div>
+            <div className="stat-card-header">
+              <span className="stat-label">Answered / Resolved</span>
+              <span className="stat-icon-wrap stat-icon-answered">
+                <IconCheck size={16} />
+              </span>
+            </div>
+            <div className="stat-value stat-value-answered">{data.metrics.answeredCount}</div>
             <div className="stat-sub">Specialist responded</div>
           </div>
         </div>
