@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
-import { IconBuilding, IconChat, IconShield, IconUsers } from '../../components/Icons.jsx';
+import { IconBuilding, IconChat, IconShield, IconTrash, IconUsers } from '../../components/Icons.jsx';
 import { Alert, BackBar, ConfirmDialog, EmptyState, Field, PageHeader, Spinner, StatusBadge } from '../../components/ui.jsx';
 import { api } from '../../lib/api.js';
 import { shortDate } from '../../lib/format.js';
@@ -82,13 +82,35 @@ export function ClinicsPage() {
   const [status, setStatus] = useState('all');
   const [clinics, setClinics] = useState(null);
   const [error, setError] = useState('');
+  const [deletingClinic, setDeletingClinic] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+
+  const loadClinics = useCallback(() => {
+    api(`/admin/clinics?${new URLSearchParams({ q, status })}`)
+      .then((d) => setClinics(d.clinics))
+      .catch((e) => setError(e.message));
+  }, [q, status]);
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      api(`/admin/clinics?${new URLSearchParams({ q, status })}`).then((d) => setClinics(d.clinics)).catch((e) => setError(e.message));
-    }, q ? 250 : 0);
+    const t = setTimeout(loadClinics, q ? 250 : 0);
     return () => clearTimeout(t);
-  }, [q, status]);
+  }, [loadClinics, q]);
+
+  const handleDelete = async () => {
+    if (!deletingClinic) return;
+    setBusy(true);
+    try {
+      await api(`/admin/clinics/${deletingClinic.id}`, { method: 'DELETE' });
+      toast(`Clinic "${deletingClinic.name}" has been deleted from the database.`, 'success');
+      setDeletingClinic(null);
+      loadClinics();
+    } catch (err) {
+      toast(err.message || 'Failed to delete clinic.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="container">
@@ -118,7 +140,14 @@ export function ClinicsPage() {
           <div className="table-responsive table-always">
             <table className="statements-table">
               <thead>
-                <tr><th scope="col">Clinic</th><th scope="col">Clinic ID</th><th scope="col">Status</th><th scope="col">Users</th><th scope="col">Specialists</th></tr>
+                <tr>
+                  <th scope="col">Clinic</th>
+                  <th scope="col">Clinic ID</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Users</th>
+                  <th scope="col">Specialists</th>
+                  <th scope="col" style={{ textAlign: 'center', width: 100 }}>Delete</th>
+                </tr>
               </thead>
               <tbody>
                 {clinics.map((c) => (
@@ -128,6 +157,17 @@ export function ClinicsPage() {
                     <td><StatusBadge status={c.isActive ? 'active' : 'deactivated'} /></td>
                     <td>{c.userCount}</td>
                     <td>{c.specialists || <span className="text-warning">None assigned</span>}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        className="btn btn-danger-outline btn-xs"
+                        onClick={() => setDeletingClinic(c)}
+                        title={`Delete ${c.name} from database`}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      >
+                        <IconTrash size={13} /> Delete
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -135,6 +175,18 @@ export function ClinicsPage() {
           </div>
         )}
       </div>
+
+      {deletingClinic && (
+        <ConfirmDialog
+          title="Delete clinic from database?"
+          destructive
+          busy={busy}
+          confirmLabel={busy ? 'Deleting…' : 'Delete clinic'}
+          message={`Are you sure you want to permanently delete "${deletingClinic.name}" (${deletingClinic.clinicCode}) from the database? All statements, remarks, files, and clinic users will be removed.`}
+          onCancel={() => !busy && setDeletingClinic(null)}
+          onConfirm={handleDelete}
+        />
+      )}
     </div>
   );
 }
@@ -143,6 +195,7 @@ export function ClinicsPage() {
 export function ClinicDetailPage() {
   const { id } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const toast = useToast();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -188,6 +241,9 @@ export function ClinicDetailPage() {
         ) : (
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog('reactivate')}>Reactivate clinic</button>
         )}
+        <button type="button" className="btn btn-danger-outline btn-sm" onClick={() => setDialog('delete')} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <IconTrash size={14} /> Delete clinic
+        </button>
       </PageHeader>
 
       <div className="detail-columns-grid admin-grid">
@@ -265,6 +321,27 @@ export function ClinicDetailPage() {
           message={`${c.name}'s active users will be able to sign in again.`}
           onCancel={() => setDialog(null)}
           onConfirm={() => run(() => api(`/admin/clinics/${id}/reactivate`, { method: 'POST' }), 'Clinic reactivated.')} />
+      )}
+      {dialog === 'delete' && (
+        <ConfirmDialog
+          title="Delete this clinic permanently?"
+          destructive
+          busy={busy}
+          confirmLabel={busy ? 'Deleting…' : 'Delete clinic'}
+          message={`Are you sure you want to permanently delete "${c.name}" (${c.clinicCode}) from the database? All statements, remarks, files, and clinic users will be removed.`}
+          onCancel={() => setDialog(null)}
+          onConfirm={async () => {
+            setBusy(true);
+            try {
+              await api(`/admin/clinics/${id}`, { method: 'DELETE' });
+              toast(`Clinic "${c.name}" deleted from database.`, 'success');
+              navigate('/manage/clinics');
+            } catch (err) {
+              toast(err.message || 'Failed to delete clinic.', 'error');
+              setBusy(false);
+            }
+          }}
+        />
       )}
       {dialog?.unassign && (
         <ConfirmDialog title="Unassign specialist?" destructive busy={busy} confirmLabel="Unassign"

@@ -80,11 +80,11 @@ export async function findDuplicate(db, clinicId, accountNumber, statementDate) 
  * Adds a remark and maintains the derived flags in one locked step (schema T8).
  * A clinic remark starts "awaiting reply"; any specialist remark clears it (FR-11.7).
  */
-export async function insertRemark(db, { statementId, author, type, body, insuranceName, insuranceReference }) {
+export async function insertRemark(db, { statementId, author, type, body, insuranceName, insuranceReference, attachments = [] }) {
   const { rows } = await db.query(
-    `INSERT INTO remark (statement_id, author_id, author_role, type, body, insurance_name, insurance_reference)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at`,
-    [statementId, author.id, author.role, type, body, insuranceName ?? null, insuranceReference ?? null],
+    `INSERT INTO remark (statement_id, author_id, author_role, type, body, insurance_name, insurance_reference, attachments)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, created_at, attachments`,
+    [statementId, author.id, author.role, type, body, insuranceName ?? null, insuranceReference ?? null, JSON.stringify(attachments || [])],
   );
   const remark = rows[0];
   await db.query(

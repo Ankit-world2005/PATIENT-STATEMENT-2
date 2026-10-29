@@ -158,6 +158,7 @@ requestsRouter.get('/', async (req, res) => {
       r.type,
       r.author_role,
       r.created_at,
+      r.attachments,
       u.full_name AS author_name,
       st.patient_name,
       st.account_number,
@@ -171,6 +172,7 @@ requestsRouter.get('/', async (req, res) => {
       c.clinic_code,
       latest_reply.body AS latest_reply_body,
       latest_reply.created_at AS latest_reply_at,
+      latest_reply.attachments AS latest_reply_attachments,
       reply_u.full_name AS latest_reply_author,
       thread_replies.replies_list AS replies_json
     FROM remark r
@@ -178,7 +180,7 @@ requestsRouter.get('/', async (req, res) => {
     JOIN clinic c ON c.id = st.clinic_id
     LEFT JOIN app_user u ON u.id = r.author_id
     LEFT JOIN LATERAL (
-      SELECT r2.body, r2.created_at, r2.author_id
+      SELECT r2.body, r2.created_at, r2.author_id, r2.attachments
         FROM remark r2
        WHERE r2.statement_id = r.statement_id
          AND r2.type = 'specialist'
@@ -200,7 +202,8 @@ requestsRouter.get('/', async (req, res) => {
           'id', r3.id,
           'body', r3.body,
           'createdAt', r3.created_at,
-          'authorName', COALESCE(r3_u.full_name, 'US24 Specialist')
+          'authorName', COALESCE(r3_u.full_name, 'US24 Specialist'),
+          'attachments', COALESCE(r3.attachments, '[]'::jsonb)
         ) ORDER BY r3.created_at ASC
       ) AS replies_list
       FROM remark r3
@@ -272,20 +275,26 @@ requestsRouter.get('/', async (req, res) => {
         priority,
         rawBody: r.body,
         body: cleanBody || r.body,
+        attachments: Array.isArray(r.attachments) ? r.attachments : [],
         authorName: r.author_name || (r.type === 'clinic' ? 'Clinic User' : 'US24 Specialist'),
         authorRole: r.author_role,
         createdAt: r.created_at,
         isAwaiting: Boolean(r.awaiting_reply_since),
         awaitingReplySince: r.awaiting_reply_since,
-        replies: r.replies_json || (r.latest_reply_body ? [{
+        replies: (r.replies_json || (r.latest_reply_body ? [{
           body: r.latest_reply_body,
           authorName: r.latest_reply_author || 'US24 Specialist',
           createdAt: r.latest_reply_at,
-        }] : []),
+          attachments: r.latest_reply_attachments || [],
+        }] : [])).map((rep) => ({
+          ...rep,
+          attachments: Array.isArray(rep.attachments) ? rep.attachments : [],
+        })),
         latestReply: r.latest_reply_body ? {
           body: r.latest_reply_body,
           authorName: r.latest_reply_author || 'US24 Specialist',
           createdAt: r.latest_reply_at,
+          attachments: Array.isArray(r.latest_reply_attachments) ? r.latest_reply_attachments : [],
         } : null,
       };
     }),
@@ -308,9 +317,13 @@ const requestCreateSchema = z.object({
   patientName: z.string().trim().min(1, 'Please enter patient name.').max(200).optional().nullable(),
   accountNumber: z.string().trim().max(64).optional().nullable(),
   priority: z.enum(['Normal', 'High', 'Urgent']).optional().default('Normal'),
-  body: z.string().trim().min(1, 'Please enter request details.').max(2000, 'Requests are limited to 2,000 characters.'),
+  body: z.string().trim().max(2000, 'Requests are limited to 2,000 characters.').optional().default(''),
+  attachments: z.array(z.any()).optional().default([]),
   isReply: z.boolean().optional().default(false),
   clinicId: z.string().uuid().optional().nullable(),
+}).refine((v) => v.body?.trim().length > 0 || (v.attachments && v.attachments.length > 0), {
+  message: 'Please enter request details or attach a file.',
+  path: ['body'],
 });
 
 requestsRouter.post('/', async (req, res) => {
@@ -404,12 +417,14 @@ requestsRouter.post('/', async (req, res) => {
     // Inquiries submitted to specialists are clinic requests
     const remarkType = 'clinic';
     const authorRole = 'clinic_user';
-    const formattedBody = `(${input.priority}) ${input.body}`;
+    const cleanBody = input.body?.trim() || (input.attachments?.length ? `[Attached: ${input.attachments.map((a) => a.name).join(', ')}]` : '');
+    const formattedBody = `(${input.priority}) ${cleanBody}`;
     const remark = await insertRemark(db, {
       statementId: statement.id,
       author: { ...req.user, role: authorRole },
       type: remarkType,
       body: formattedBody,
+      attachments: input.attachments || [],
     });
 
     await audit(db, req, {
@@ -421,6 +436,7 @@ requestsRouter.post('/', async (req, res) => {
         is_request: true,
         priority: input.priority,
         is_reply: input.isReply || remarkType === 'specialist',
+        attachments_count: (input.attachments || []).length,
       },
     });
 
@@ -432,6 +448,7 @@ requestsRouter.post('/', async (req, res) => {
       body: formattedBody,
       type: remarkType,
       authorName: req.user.full_name,
+      attachments: input.attachments || [],
       createdAt: remark.created_at,
     };
   });
@@ -445,7 +462,11 @@ requestsRouter.post('/:id/reply', async (req, res) => {
   if (!remarkId || isNaN(remarkId)) throw badRequest('Invalid request ID.');
 
   const bodySchema = z.object({
-    body: z.string().trim().min(1, 'Please enter a reply.').max(2000),
+    body: z.string().trim().max(2000).optional().default(''),
+    attachments: z.array(z.any()).optional().default([]),
+  }).refine((v) => v.body?.trim().length > 0 || (v.attachments && v.attachments.length > 0), {
+    message: 'Please enter a reply or attach a file.',
+    path: ['body'],
   });
   const input = parseOrThrow(bodySchema, req.body);
 
@@ -463,12 +484,14 @@ requestsRouter.post('/:id/reply', async (req, res) => {
 
     const replyType = req.user.role === 'clinic_user' ? 'clinic' : 'specialist';
     const authorRole = req.user.role === 'clinic_user' ? 'clinic_user' : 'specialist';
+    const replyBody = input.body?.trim() || (input.attachments?.length ? `[Attached: ${input.attachments.map((a) => a.name).join(', ')}]` : '');
 
     const replyRemark = await insertRemark(db, {
       statementId: orig.statement_id,
       author: { ...req.user, role: authorRole },
       type: replyType,
-      body: input.body,
+      body: replyBody,
+      attachments: input.attachments || [],
     });
 
     await audit(db, req, {
@@ -479,13 +502,15 @@ requestsRouter.post('/:id/reply', async (req, res) => {
       details: {
         is_reply: true,
         reply_to_remark_id: orig.id,
+        attachments_count: (input.attachments || []).length,
       },
     });
 
     return {
       id: String(replyRemark.id),
       statementId: orig.statement_id,
-      body: input.body,
+      body: replyBody,
+      attachments: input.attachments || [],
       createdAt: replyRemark.created_at,
       authorName: req.user.full_name,
     };

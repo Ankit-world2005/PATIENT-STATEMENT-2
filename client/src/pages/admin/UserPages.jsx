@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
+import { IconTrash } from '../../components/Icons.jsx';
 import { Alert, BackBar, ConfirmDialog, EmptyState, Field, PageHeader, Spinner, StatusBadge } from '../../components/ui.jsx';
 import { api } from '../../lib/api.js';
 import { ROLE_LABELS, dateTime, shortDate } from '../../lib/format.js';
@@ -20,13 +21,35 @@ export function UsersPage() {
   const [filters, setFilters] = useState({ q: '', role: '', status: '', clinicId: '' });
   const [users, setUsers] = useState(null);
   const [error, setError] = useState('');
+  const [deletingUser, setDeletingUser] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+
+  const loadUsers = useCallback(() => {
+    api(`/admin/users?${new URLSearchParams(filters)}`)
+      .then((d) => setUsers(d.users))
+      .catch((e) => setError(e.message));
+  }, [filters]);
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      api(`/admin/users?${new URLSearchParams(filters)}`).then((d) => setUsers(d.users)).catch((e) => setError(e.message));
-    }, filters.q ? 250 : 0);
+    const t = setTimeout(loadUsers, filters.q ? 250 : 0);
     return () => clearTimeout(t);
-  }, [filters]);
+  }, [loadUsers, filters.q]);
+
+  const handleDelete = async () => {
+    if (!deletingUser) return;
+    setBusy(true);
+    try {
+      await api(`/admin/users/${deletingUser.id}`, { method: 'DELETE' });
+      toast(`User "${deletingUser.fullName}" has been deleted from the database.`, 'success');
+      setDeletingUser(null);
+      loadUsers();
+    } catch (err) {
+      toast(err.message || 'Failed to delete user.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const set = (k) => (e) => setFilters((f) => ({ ...f, [k]: e.target.value }));
 
@@ -67,7 +90,15 @@ export function UsersPage() {
           <div className="table-responsive table-always">
             <table className="statements-table">
               <thead>
-                <tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Clinic</th><th scope="col">Status</th><th scope="col">Last sign-in</th></tr>
+                <tr>
+                  <th scope="col">Name</th>
+                  <th scope="col">Email</th>
+                  <th scope="col">Role</th>
+                  <th scope="col">Clinic</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Last sign-in</th>
+                  <th scope="col" style={{ textAlign: 'center', width: 100 }}>Delete</th>
+                </tr>
               </thead>
               <tbody>
                 {users.map((u) => (
@@ -78,6 +109,17 @@ export function UsersPage() {
                     <td>{u.clinic?.name ?? '—'}</td>
                     <td><StatusBadge status={u.status} /></td>
                     <td className="col-date">{u.lastLogin ? shortDate(u.lastLogin) : 'Never'}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        className="btn btn-danger-outline btn-xs"
+                        onClick={() => setDeletingUser(u)}
+                        title={`Delete ${u.fullName} from database`}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      >
+                        <IconTrash size={13} /> Delete
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -85,6 +127,18 @@ export function UsersPage() {
           </div>
         )}
       </div>
+
+      {deletingUser && (
+        <ConfirmDialog
+          title="Delete user from database?"
+          destructive
+          busy={busy}
+          confirmLabel={busy ? 'Deleting…' : 'Delete user'}
+          message={`Are you sure you want to permanently delete "${deletingUser.fullName}" (${deletingUser.email}) from the database? This action cannot be undone.`}
+          onCancel={() => !busy && setDeletingUser(null)}
+          onConfirm={handleDelete}
+        />
+      )}
     </div>
   );
 }
@@ -175,6 +229,7 @@ export function InviteUserPage() {
 export function UserDetailPage() {
   const { id } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const toast = useToast();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -228,6 +283,16 @@ export function UserDetailPage() {
         )}
         {u.status === 'deactivated' && (
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDialog('reactivate')}>Reactivate</button>
+        )}
+        {!data.isSelf && (
+          <button
+            type="button"
+            className="btn btn-danger-outline btn-sm"
+            onClick={() => setDialog('delete')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+          >
+            <IconTrash size={14} /> Delete user
+          </button>
         )}
       </PageHeader>
 
@@ -286,6 +351,27 @@ export function UserDetailPage() {
           message="The user will be able to sign in again (or accept a new invitation if they never set a password)."
           onCancel={() => setDialog(null)}
           onConfirm={() => run(() => api(`/admin/users/${id}/reactivate`, { method: 'POST' }), 'User reactivated.')} />
+      )}
+      {dialog === 'delete' && (
+        <ConfirmDialog
+          title={`Delete ${u.fullName} permanently?`}
+          destructive
+          busy={busy}
+          confirmLabel={busy ? 'Deleting…' : 'Delete user'}
+          message={`Are you sure you want to permanently delete "${u.fullName}" (${u.email}) from the database? This action cannot be undone.`}
+          onCancel={() => setDialog(null)}
+          onConfirm={async () => {
+            setBusy(true);
+            try {
+              await api(`/admin/users/${id}`, { method: 'DELETE' });
+              toast(`User "${u.fullName}" deleted from database.`, 'success');
+              navigate('/manage/users');
+            } catch (err) {
+              toast(err.message || 'Failed to delete user.', 'error');
+              setBusy(false);
+            }
+          }}
+        />
       )}
       {dialog === 'reset' && (
         <ConfirmDialog title="Reset 2-step verification?" busy={busy} confirmLabel="Reset"
