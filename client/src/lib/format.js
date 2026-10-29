@@ -12,6 +12,7 @@ export function money(value, { credit = true } = {}) {
 /** Calendar dates ('YYYY-MM-DD') shown without time-zone shifting. */
 export function date(iso) {
   if (!iso) return '—';
+  if (iso instanceof Date) return `${MONTHS[iso.getMonth()]} ${String(iso.getDate()).padStart(2, '0')}, ${iso.getFullYear()}`;
   const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
   return `${MONTHS[m - 1]} ${String(d).padStart(2, '0')}, ${y}`;
 }
@@ -54,9 +55,7 @@ export function initials(name = '') {
 
 export function landingPath(user) {
   if (!user) return '/login';
-  if (user.role === 'clinic_user') return '/home';
-  if (user.role === 'specialist') return '/dashboard';
-  return '/admin';
+  return '/home';
 }
 
 export function fileSize(bytes) {

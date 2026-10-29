@@ -24,10 +24,10 @@ const PAGE_SIZE = 25; // FR-9.5
 const SORTS = {
   name_asc: 'lower(s.patient_name) ASC, s.statement_date DESC',
   name_desc: 'lower(s.patient_name) DESC, s.statement_date DESC',
-  date_desc: 's.statement_date DESC, s.version DESC, s.id',
-  date_asc: 's.statement_date ASC, s.version DESC, s.id',
-  balance_desc: 'COALESCE(s.current_balance, s.balance_due) DESC, s.statement_date DESC',
-  balance_asc: 'COALESCE(s.current_balance, s.balance_due) ASC, s.statement_date DESC',
+  date_desc: 'COALESCE(s.cycle3_date, s.cycle2_date, s.cycle1_date, s.statement_date) DESC, s.statement_date DESC, s.version DESC, s.id',
+  date_asc: 'COALESCE(s.cycle1_date, s.statement_date) ASC, s.statement_date ASC, s.version DESC, s.id',
+  balance_desc: 'COALESCE(s.current_balance, s.cycle1_balance, s.balance_due) DESC, s.statement_date DESC',
+  balance_asc: 'COALESCE(s.current_balance, s.cycle1_balance, s.balance_due) ASC, s.statement_date DESC',
 };
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a valid date.');
@@ -54,36 +54,74 @@ export function remarkView(r) {
   };
 }
 
+export function buildStatementWhere(req, f, clinic) {
+  let fromDate = f.from || '';
+  let toDate = f.to || '';
+  if (fromDate && toDate && fromDate > toDate) {
+    [fromDate, toDate] = [toDate, fromDate];
+  }
+
+  const params = [clinic.id];
+  const where = ['s.clinic_id = $1', statementScope(req.user, 's', params), 's.is_request_only = false'];
+
+  if (req.user.role !== 'clinic_user' && f.status && f.status !== 'all') {
+    params.push(f.status);
+    where.push(`s.status = $${params.length}`);
+  }
+
+  if (f.q) {
+    const rawTerms = f.q.trim().split(/\s+/).filter(Boolean);
+    const searchableExpr = `LOWER(CONCAT_WS(' ', s.patient_name, s.account_number, s.location_name, s.pr_type, s.ledger_status, s.status, s.insurance_name, s.us24_notes, s.client_response, s.vob_notes))`;
+    for (const term of rawTerms) {
+      const cleanTerm = term.replace(/^[^\w$]+|[^\w$]+$/g, '').toLowerCase();
+      const termToMatch = cleanTerm || term.toLowerCase();
+      params.push(`%${termToMatch.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
+      where.push(`${searchableExpr} LIKE $${params.length}`);
+    }
+  }
+
+  if (fromDate && toDate) {
+    params.push(fromDate, toDate);
+    const pFrom = params.length - 1;
+    const pTo = params.length;
+    where.push(`(
+      (s.statement_date >= $${pFrom} AND s.statement_date <= $${pTo}) OR
+      (s.cycle1_date >= $${pFrom} AND s.cycle1_date <= $${pTo}) OR
+      (s.cycle2_date >= $${pFrom} AND s.cycle2_date <= $${pTo}) OR
+      (s.cycle3_date >= $${pFrom} AND s.cycle3_date <= $${pTo})
+    )`);
+  } else if (fromDate) {
+    params.push(fromDate);
+    const pFrom = params.length;
+    where.push(`(
+      s.statement_date >= $${pFrom} OR
+      s.cycle1_date >= $${pFrom} OR
+      s.cycle2_date >= $${pFrom} OR
+      s.cycle3_date >= $${pFrom}
+    )`);
+  } else if (toDate) {
+    params.push(toDate);
+    const pTo = params.length;
+    where.push(`(
+      s.statement_date <= $${pTo} OR
+      s.cycle1_date <= $${pTo} OR
+      s.cycle2_date <= $${pTo} OR
+      s.cycle3_date <= $${pTo}
+    )`);
+  }
+
+  return { whereSql: where.join(' AND '), params };
+}
+
 // --- P1: list and search (F9) ------------------------------------------------
 statementsRouter.get('/', async (req, res) => {
   const f = parseOrThrow(listSchema, req.query);
-  if (f.from && f.to && f.from > f.to) {
-    throw badRequest("The 'from' date must be before the 'to' date.", { from: "The 'from' date must be before the 'to' date." });
-  }
 
   // Clinic users always see their own clinic; staff choose one of theirs.
   const clinicId = req.user.role === 'clinic_user' ? req.user.clinic_id : f.clinicId;
   const clinic = await getVisibleClinic(pool, req, clinicId);
 
-  const params = [clinic.id];
-  const where = ['s.clinic_id = $1', statementScope(req.user, 's', params)];
-  if (req.user.role !== 'clinic_user' && f.status !== 'all') {
-    params.push(f.status);
-    where.push(`s.status = $${params.length}`);
-  }
-  if (f.q) {
-    params.push(`%${f.q.toLowerCase().replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
-    where.push(`(lower(s.patient_name) LIKE $${params.length} OR lower(s.account_number) LIKE $${params.length})`);
-  }
-  if (f.from) {
-    params.push(f.from);
-    where.push(`s.statement_date >= $${params.length}`);
-  }
-  if (f.to) {
-    params.push(f.to);
-    where.push(`s.statement_date <= $${params.length}`);
-  }
-  const whereSql = where.join(' AND ');
+  const { whereSql, params } = buildStatementWhere(req, f, clinic);
 
   const { rows: countRows } = await query(`SELECT count(*)::int AS total FROM statement s WHERE ${whereSql}`, params);
   const total = countRows[0].total;
@@ -173,32 +211,11 @@ statementsRouter.get('/', async (req, res) => {
 // --- P1.5: export 17-column Excel workbook -----------------------------------
 statementsRouter.get('/export', async (req, res) => {
   const f = parseOrThrow(listSchema.omit({ page: true }), req.query);
-  if (f.from && f.to && f.from > f.to) {
-    throw badRequest("The 'from' date must be before the 'to' date.", { from: "The 'from' date must be before the 'to' date." });
-  }
 
   const clinicId = req.user.role === 'clinic_user' ? req.user.clinic_id : f.clinicId;
   const clinic = await getVisibleClinic(pool, req, clinicId);
 
-  const params = [clinic.id];
-  const where = ['s.clinic_id = $1', statementScope(req.user, 's', params)];
-  if (req.user.role !== 'clinic_user' && f.status !== 'all') {
-    params.push(f.status);
-    where.push(`s.status = $${params.length}`);
-  }
-  if (f.q) {
-    params.push(`%${f.q.toLowerCase().replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
-    where.push(`(lower(s.patient_name) LIKE $${params.length} OR lower(s.account_number) LIKE $${params.length})`);
-  }
-  if (f.from) {
-    params.push(f.from);
-    where.push(`s.statement_date >= $${params.length}`);
-  }
-  if (f.to) {
-    params.push(f.to);
-    where.push(`s.statement_date <= $${params.length}`);
-  }
-  const whereSql = where.join(' AND ');
+  const { whereSql, params } = buildStatementWhere(req, f, clinic);
 
   const { rows } = await query(
     `SELECT s.id, s.clinic_id, COALESCE(s.location_name, c.name) AS location_name,
@@ -464,6 +481,7 @@ statementsRouter.get('/:id', async (req, res) => {
         // Withdrawal reasons may contain PHI and are for staff only.
         withdrawalReason: req.user.role === 'clinic_user' ? null : s.withdrawal_reason,
         uploadedAt: s.uploaded_at,
+        uploaded_at: s.uploaded_at,
         uploadedByName: nameOf[s.uploaded_by_id],
         wasNew,
         file: file.rows[0] ? { name: file.rows[0].original_filename, sizeBytes: file.rows[0].size_bytes } : null,

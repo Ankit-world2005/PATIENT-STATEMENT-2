@@ -13,6 +13,7 @@ import { AcceptInvitePage, ForgotPasswordPage, ResetPasswordPage } from './pages
 import { VerifyPage } from './pages/auth/VerifyPage.jsx';
 import { ClinicHome } from './pages/clinic/ClinicHome.jsx';
 import { NotFoundPage } from './pages/NotFoundPage.jsx';
+import { RequestsPage } from './pages/requests/RequestsPage.jsx';
 import { DashboardPage } from './pages/specialist/DashboardPage.jsx';
 import { ImportNewPage, ImportPreviewPage, ImportResultPage } from './pages/specialist/ImportPages.jsx';
 import { UploadPage } from './pages/specialist/UploadPage.jsx';
@@ -44,13 +45,14 @@ export function App() {
 
         <Route element={<RequireAuth />}>
           <Route path="/" element={<Landing />} />
+          <Route path="/home" element={<ClinicHome />} />
           <Route path="/account/authenticator" element={<AuthenticatorPage />} />
           <Route path="/statements/:id" element={<StatementDetailPage />} />
           <Route path="/statements/:id/print" element={<StatementPrintPage />} />
+          <Route path="/requests" element={<RequestsPage />} />
         </Route>
 
         <Route element={<RequireAuth roles={['clinic_user']} />}>
-          <Route path="/home" element={<ClinicHome />} />
           <Route path="/statements" element={<StatementListPage />} />
         </Route>
 

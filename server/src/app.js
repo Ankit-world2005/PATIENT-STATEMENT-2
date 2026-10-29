@@ -13,6 +13,7 @@ import { adminRouter } from './routes/admin.js';
 import { authRouter } from './routes/auth.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { importsRouter } from './routes/imports.js';
+import { requestsRouter } from './routes/requests.js';
 import { statementsRouter } from './routes/statements.js';
 import { uploadsRouter } from './routes/uploads.js';
 
@@ -57,6 +58,7 @@ export function createApp() {
   app.use('/api/uploads', requireVerified, requireRole('specialist'), uploadsRouter);
   app.use('/api/imports', requireVerified, requireRole('specialist'), importsRouter);
   app.use('/api/admin', requireVerified, requireRole('admin'), adminRouter);
+  app.use('/api/requests', requireVerified, requestsRouter);
   app.use('/api', requireVerified, dashboardRouter);
   app.use('/api', (_req, _res, next) => next(new HttpError(404, "We couldn't find that page.")));
 

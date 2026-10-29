@@ -4,19 +4,71 @@ import { requireRole } from '../middleware/guards.js';
 
 export const dashboardRouter = Router();
 
-// C1: clinic home, with the count of unopened statements (N4) and total active statements.
-dashboardRouter.get('/home', requireRole('clinic_user'), async (req, res) => {
-  const { rows } = await query(
-    `SELECT count(*)::int AS total_count,
-            count(*) FILTER (WHERE first_opened_by_clinic_at IS NULL)::int AS new_count
-       FROM statement
-      WHERE clinic_id = $1 AND status = 'active'`,
-    [req.user.clinic_id],
-  );
+// C1: portal home, with the count of unopened statements (N4) and total active statements.
+dashboardRouter.get('/home', requireRole('clinic_user', 'specialist', 'admin'), async (req, res) => {
+  let countQuery;
+  let params = [];
+
+  if (req.user.role === 'clinic_user') {
+    countQuery = `
+      SELECT count(*)::int AS total_count,
+             count(*) FILTER (WHERE first_opened_by_clinic_at IS NULL)::int AS new_count
+        FROM statement
+       WHERE clinic_id = $1 AND status = 'active' AND is_request_only = false
+    `;
+    params = [req.user.clinic_id];
+  } else if (req.user.role === 'specialist') {
+    countQuery = `
+      SELECT count(s.id)::int AS total_count,
+             count(s.id) FILTER (WHERE s.first_opened_by_clinic_at IS NULL)::int AS new_count
+        FROM statement s
+        JOIN specialist_assignment a ON a.clinic_id = s.clinic_id
+        JOIN clinic c ON c.id = a.clinic_id
+       WHERE a.specialist_id = $1 AND c.is_active AND s.status = 'active' AND s.is_request_only = false
+    `;
+    params = [req.user.id];
+  } else if (req.user.role === 'admin') {
+    countQuery = `
+      SELECT count(s.id)::int AS total_count,
+             count(s.id) FILTER (WHERE s.first_opened_by_clinic_at IS NULL)::int AS new_count
+        FROM statement s
+        JOIN clinic c ON c.id = s.clinic_id
+       WHERE c.is_active AND s.status = 'active' AND s.is_request_only = false
+    `;
+    params = [];
+  }
+
+  const { rows } = await query(countQuery, params);
+  let awaitingCount = 0;
+  if (req.user.role === 'clinic_user') {
+    const { rows: aw } = await query(
+      "SELECT count(*)::int AS count FROM statement WHERE clinic_id = $1 AND status = 'active' AND awaiting_reply_since IS NOT NULL",
+      [req.user.clinic_id],
+    );
+    awaitingCount = aw[0]?.count ?? 0;
+  } else if (req.user.role === 'specialist') {
+    const { rows: aw } = await query(
+      `SELECT count(s.id)::int AS count
+         FROM statement s
+         JOIN specialist_assignment a ON a.clinic_id = s.clinic_id
+        WHERE a.specialist_id = $1 AND s.status = 'active' AND s.awaiting_reply_since IS NOT NULL`,
+      [req.user.id],
+    );
+    awaitingCount = aw[0]?.count ?? 0;
+  } else if (req.user.role === 'admin') {
+    const { rows: aw } = await query(
+      "SELECT count(*)::int AS count FROM statement WHERE status = 'active' AND awaiting_reply_since IS NOT NULL",
+    );
+    awaitingCount = aw[0]?.count ?? 0;
+  }
+
   res.json({
-    clinic: { id: req.user.clinic_id, name: req.user.clinic_name, code: req.user.clinic_code },
-    totalCount: rows[0]?.total_count || 0,
-    newCount: rows[0]?.new_count || 0,
+    clinic: req.user.clinic_id
+      ? { id: req.user.clinic_id, name: req.user.clinic_name, code: req.user.clinic_code }
+      : null,
+    totalCount: rows[0]?.total_count ?? 0,
+    newCount: rows[0]?.new_count ?? 0,
+    awaitingCount,
   });
 });
 
@@ -26,8 +78,8 @@ dashboardRouter.get('/dashboard', requireRole('specialist'), async (req, res) =>
   const [clinics, uploads, imports, unanswered] = await Promise.all([
     query(
       `SELECT c.id, c.name, c.clinic_code, c.is_active,
-              count(s.id) FILTER (WHERE s.status = 'active')::int AS statement_count,
-              count(s.id) FILTER (WHERE s.status = 'active' AND s.first_opened_by_clinic_at IS NULL)::int AS unopened_count,
+              count(s.id) FILTER (WHERE s.status = 'active' AND s.is_request_only = false)::int AS statement_count,
+              count(s.id) FILTER (WHERE s.status = 'active' AND s.is_request_only = false AND s.first_opened_by_clinic_at IS NULL)::int AS unopened_count,
               count(s.id) FILTER (WHERE s.status = 'active' AND s.awaiting_reply_since IS NOT NULL)::int AS awaiting_count
          FROM specialist_assignment a
          JOIN clinic c ON c.id = a.clinic_id
