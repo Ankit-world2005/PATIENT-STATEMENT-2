@@ -171,7 +171,8 @@ requestsRouter.get('/', async (req, res) => {
       c.clinic_code,
       latest_reply.body AS latest_reply_body,
       latest_reply.created_at AS latest_reply_at,
-      reply_u.full_name AS latest_reply_author
+      reply_u.full_name AS latest_reply_author,
+      thread_replies.replies_list AS replies_json
     FROM remark r
     JOIN statement st ON st.id = r.statement_id
     JOIN clinic c ON c.id = st.clinic_id
@@ -186,6 +187,21 @@ requestsRouter.get('/', async (req, res) => {
        LIMIT 1
     ) latest_reply ON true
     LEFT JOIN app_user reply_u ON reply_u.id = latest_reply.author_id
+    LEFT JOIN LATERAL (
+      SELECT json_agg(
+        json_build_object(
+          'id', r3.id,
+          'body', r3.body,
+          'createdAt', r3.created_at,
+          'authorName', COALESCE(r3_u.full_name, 'US24 Specialist')
+        ) ORDER BY r3.created_at ASC
+      ) AS replies_list
+      FROM remark r3
+      LEFT JOIN app_user r3_u ON r3_u.id = r3.author_id
+      WHERE r3.statement_id = r.statement_id
+        AND r3.type = 'specialist'
+        AND r3.created_at > r.created_at
+    ) thread_replies ON true
     WHERE ${where.join(' AND ')}
     ORDER BY (st.awaiting_reply_since IS NOT NULL) DESC, r.created_at DESC
     LIMIT $${params.length - 1} OFFSET $${params.length}
@@ -247,6 +263,11 @@ requestsRouter.get('/', async (req, res) => {
         createdAt: r.created_at,
         isAwaiting: Boolean(r.awaiting_reply_since),
         awaitingReplySince: r.awaiting_reply_since,
+        replies: r.replies_json || (r.latest_reply_body ? [{
+          body: r.latest_reply_body,
+          authorName: r.latest_reply_author || 'US24 Specialist',
+          createdAt: r.latest_reply_at,
+        }] : []),
         latestReply: r.latest_reply_body ? {
           body: r.latest_reply_body,
           authorName: r.latest_reply_author || 'US24 Specialist',

@@ -573,26 +573,45 @@ export function RequestsContent({ clinicId: propClinicId, embedded = false }) {
                 </div>
               </div>
 
-              {/* Request message */}
-              <div className="request-body-section">
-                <div className="request-meta-author">
-                  <strong>{r.authorName}</strong> ({r.type === 'clinic' ? 'Clinic' : 'Specialist'}):
-                </div>
-                <p className="request-text-content">{r.body}</p>
-              </div>
-
-              {/* Latest Specialist Response preview (if present) */}
-              {r.latestReply && (
-                <div className="request-reply-box">
-                  <div className="reply-header">
-                    <span className="reply-author-label">
-                      <IconChat size={13} /> {r.latestReply.authorName} (US24 Specialist):
-                    </span>
-                    <span className="reply-time">{dateTime(r.latestReply.createdAt)}</span>
+              {/* Unified Conversation Box (1st request + all replies in the SAME box) */}
+              <div className="request-conversation-box">
+                {/* 1st Request from Clinic */}
+                <div className="conv-message conv-message-original">
+                  <div className="conv-msg-header">
+                    <div className="conv-author-info">
+                      <strong className="conv-author-name">{r.authorName}</strong>
+                      <span className="conv-role-tag clinic-tag">
+                        {r.type === 'clinic' ? 'Clinic' : 'Inquiry'}
+                      </span>
+                    </div>
+                    <span className="conv-msg-date">{dateTime(r.createdAt)}</span>
                   </div>
-                  <p className="reply-body">{r.latestReply.body}</p>
+                  <p className="conv-msg-body">{r.body}</p>
                 </div>
-              )}
+
+                {/* Specialist Replies (in the same box) */}
+                {(r.replies && r.replies.length > 0 ? r.replies : (r.latestReply ? [r.latestReply] : [])).map((rep, idx) => (
+                  <div key={rep.id || idx} className="conv-message conv-message-reply">
+                    <div className="conv-msg-header">
+                      <div className="conv-author-info">
+                        <IconChat size={13} className="conv-reply-icon" />
+                        <strong className="conv-author-name">{rep.authorName}</strong>
+                        <span className="conv-role-tag specialist-tag">US24 Specialist</span>
+                      </div>
+                      <span className="conv-msg-date">{dateTime(rep.createdAt)}</span>
+                    </div>
+                    <p className="conv-msg-body">{rep.body}</p>
+                  </div>
+                ))}
+
+                {/* Awaiting Specialist response indicator within same box */}
+                {r.isAwaiting && (!r.replies || r.replies.length === 0) && !r.latestReply && (
+                  <div className="conv-awaiting-bar">
+                    <IconClock size={13} />
+                    <span>Awaiting response from US24 Specialist</span>
+                  </div>
+                )}
+              </div>
 
               {/* Specialist quick reply button */}
               {isStaff && (
