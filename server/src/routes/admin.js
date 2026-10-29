@@ -444,6 +444,42 @@ adminRouter.post('/users/:id/reactivate', async (req, res) => {
   res.json({ ok: true });
 });
 
+// Admin user permanent deletion: cascades sessions, assignments, drafts, and removes the user from the database.
+adminRouter.delete('/users/:id', async (req, res) => {
+  const id = requireUuid(req.params.id);
+  if (id === req.user.id) throw badRequest("You can't delete your own account.");
+
+  const { rows } = await query('SELECT id, full_name, email, role, clinic_id FROM app_user WHERE id = $1', [id]);
+  if (!rows[0]) throw notFound('User not found.');
+  const targetUser = rows[0];
+
+  if (targetUser.role === 'admin') {
+    const { rows: admins } = await query("SELECT id FROM app_user WHERE role = 'admin' AND status = 'active'");
+    if (admins.filter((a) => a.id !== id).length === 0) {
+      throw badRequest("You can't delete the last active admin.");
+    }
+  }
+
+  // Find a fallback admin (other than the target user)
+  const { rows: fallbackAdmins } = await query(
+    "SELECT id FROM app_user WHERE role = 'admin' AND id != $1 AND status = 'active' LIMIT 1",
+    [id],
+  );
+  const fallbackAdminId = fallbackAdmins[0]?.id || req.user.id;
+
+  await withTransaction(async (db) => {
+    await db.query('SELECT admin_delete_user($1, $2)', [id, fallbackAdminId]);
+    await audit(db, req, {
+      action: 'user.deactivate',
+      targetType: 'app_user',
+      targetId: id,
+      details: { deleted: true, name: targetUser.full_name, email: targetUser.email, role: targetUser.role },
+    }).catch(() => {});
+  });
+
+  res.json({ ok: true, message: `User "${targetUser.full_name}" has been deleted from the database.` });
+});
+
 adminRouter.post('/users/:id/clinics', async (req, res) => {
   await assign(req, req.params.id, req.body?.clinicId);
   res.status(201).json({ ok: true });
