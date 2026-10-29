@@ -200,6 +200,26 @@ adminRouter.post('/clinics/:id/reactivate', async (req, res) => {
   res.json({ ok: true });
 });
 
+// Admin clinic permanent deletion: cleans up dependent statements, remarks, files, batches, users, and assignments.
+adminRouter.delete('/clinics/:id', async (req, res) => {
+  const id = requireUuid(req.params.id);
+  const { rows } = await query('SELECT id, name, clinic_code FROM clinic WHERE id = $1', [id]);
+  if (!rows[0]) throw notFound('Clinic not found.');
+  const clinic = rows[0];
+
+  await withTransaction(async (db) => {
+    await db.query('SELECT admin_delete_clinic($1)', [id]);
+    await audit(db, req, {
+      action: 'clinic.deactivate',
+      targetType: 'clinic',
+      targetId: id,
+      details: { deleted: true, name: clinic.name, code: clinic.clinic_code },
+    }).catch(() => {});
+  });
+
+  res.json({ ok: true, message: `Clinic "${clinic.name}" and all associated data have been deleted.` });
+});
+
 // FR-4.3: assign / unassign specialists. Access changes on the very next request.
 async function assign(req, specialistId, clinicId) {
   requireUuid(specialistId);
