@@ -2937,3 +2937,86 @@ a.hub-card { text-decoration: none; color: inherit; }
   align-items: center;
   gap: 6px;
 }
+
+/* Request Modal Form Spacing & Layout */
+.request-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.request-modal-form .form-group {
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.request-modal-form .form-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 0;
+}
+
+.request-modal-form .form-input,
+.request-modal-form .form-textarea {
+  font-size: 0.95rem;
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.request-modal-form .form-input:focus,
+.request-modal-form .form-textarea:focus {
+  border-color: #2563eb;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.request-modal-form .priority-pills-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.request-modal-form .priority-pill-btn {
+  padding: 7px 16px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  border-radius: 20px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.request-modal-form .priority-pill-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.request-modal-form .priority-pill-btn.active.priority-normal {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.request-modal-form .priority-pill-btn.active.priority-high {
+  background: #fffbeb;
+  border-color: #f59e0b;
+  color: #b45309;
+  font-weight: 600;
+}
+
+.request-modal-form .priority-pill-btn.active.priority-urgent {
+  background: #fef2f2;
+  border-color: #ef4444;
+  color: #b91c1c;
+  font-weight: 600;
+}

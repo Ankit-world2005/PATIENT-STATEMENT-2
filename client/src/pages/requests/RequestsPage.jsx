@@ -16,7 +16,6 @@ const PRIORITIES = [
 export function NewRequestModal({ onClose, onCreated, clinicId }) {
   const toast = useToast();
   const [patientName, setPatientName] = useState('');
-  const [accountNumber, setAccountNumber] = useState('');
   const [statementId, setStatementId] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -69,7 +68,6 @@ export function NewRequestModal({ onClose, onCreated, clinicId }) {
 
   const selectSuggestion = (s) => {
     setPatientName(s.patientName);
-    setAccountNumber(s.accountNumber);
     setStatementId(s.id);
     setShowSuggestions(false);
   };
@@ -93,7 +91,6 @@ export function NewRequestModal({ onClose, onCreated, clinicId }) {
         body: {
           statementId: statementId || undefined,
           patientName: patientName.trim(),
-          accountNumber: accountNumber.trim() || undefined,
           priority,
           body: body.trim(),
         },
@@ -124,73 +121,57 @@ export function NewRequestModal({ onClose, onCreated, clinicId }) {
       {error && <Alert tone="error">{error}</Alert>}
 
       <div className="request-modal-form">
-        {/* Patient Name and Account Number Row */}
-        <div className="form-row-2">
-          <div className="form-group patient-autocomplete-wrap" ref={wrapperRef} style={{ position: 'relative' }}>
-            <label className="form-label" htmlFor="req-patient-name">
-              Patient Name <span className="req-star">*</span>
-            </label>
-            <input
-              id="req-patient-name"
-              type="text"
-              className="form-input"
-              placeholder="e.g. John Doe"
-              value={patientName}
-              onChange={(e) => {
-                setPatientName(e.target.value);
-                setStatementId(null);
-              }}
-              autoComplete="off"
-              autoFocus
-              required
-            />
+        {/* Patient Name Input */}
+        <div className="form-group patient-autocomplete-wrap" ref={wrapperRef}>
+          <label className="form-label" htmlFor="req-patient-name">
+            Patient Name <span className="req-star" style={{ color: '#dc2626' }}>*</span>
+          </label>
+          <input
+            id="req-patient-name"
+            type="text"
+            className="form-input"
+            placeholder="Enter patient name (e.g. John Doe)"
+            value={patientName}
+            onChange={(e) => {
+              setPatientName(e.target.value);
+              setStatementId(null);
+            }}
+            autoComplete="off"
+            autoFocus
+            required
+          />
 
-            {/* Clean autocomplete dropdown if matching patients exist */}
-            {showSuggestions && suggestions.length > 0 && (
-              <div className="patient-autocomplete-dropdown" role="listbox">
-                {suggestions.map((s) => (
-                  <div
-                    key={s.id}
-                    className="patient-autocomplete-item"
-                    onClick={() => selectSuggestion(s)}
-                    role="option"
-                    aria-selected={statementId === s.id}
-                  >
-                    <div className="autocomplete-name">{s.patientName}</div>
-                    <div className="autocomplete-meta">
-                      <span className="col-mono">{s.accountNumber}</span>
-                      {s.currentBalance != null && (
-                        <>
-                          <span className="pipe-sep">·</span>
-                          <span>Balance: {money(s.currentBalance)}</span>
-                        </>
-                      )}
-                      <span className="pipe-sep">·</span>
-                      <span>{date(s.statementDate)}</span>
-                    </div>
+          {/* Clean autocomplete dropdown if matching patients exist */}
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="patient-autocomplete-dropdown" role="listbox">
+              {suggestions.map((s) => (
+                <div
+                  key={s.id}
+                  className="patient-autocomplete-item"
+                  onClick={() => selectSuggestion(s)}
+                  role="option"
+                  aria-selected={statementId === s.id}
+                >
+                  <div className="autocomplete-name">{s.patientName}</div>
+                  <div className="autocomplete-meta">
+                    <span className="col-mono">{s.accountNumber}</span>
+                    {s.currentBalance != null && (
+                      <>
+                        <span className="pipe-sep">·</span>
+                        <span>Balance: {money(s.currentBalance)}</span>
+                      </>
+                    )}
+                    <span className="pipe-sep">·</span>
+                    <span>{date(s.statementDate)}</span>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="req-account-no">
-              Account # <span className="form-hint" style={{ display: 'inline', marginLeft: 4 }}>(optional)</span>
-            </label>
-            <input
-              id="req-account-no"
-              type="text"
-              className="form-input col-mono"
-              placeholder="e.g. ACC-1234"
-              value={accountNumber}
-              onChange={(e) => setAccountNumber(e.target.value)}
-            />
-          </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Priority Selection */}
-        <div className="form-group" style={{ marginTop: 8 }}>
+        <div className="form-group">
           <label className="form-label">Priority</label>
           <div className="priority-pills-row">
             {PRIORITIES.map((p) => (
@@ -207,9 +188,9 @@ export function NewRequestModal({ onClose, onCreated, clinicId }) {
         </div>
 
         {/* Request Message */}
-        <div className="form-group" style={{ marginTop: 8 }}>
+        <div className="form-group">
           <label className="form-label" htmlFor="req-body">
-            Details / Question for Specialist <span className="req-star">*</span>
+            Details / Question for Specialist <span className="req-star" style={{ color: '#dc2626' }}>*</span>
           </label>
           <textarea
             id="req-body"
