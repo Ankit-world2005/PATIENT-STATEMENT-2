@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
+// Inquiries and communication threads without statement links
 import { IconChat, IconClock, IconSearch, IconSend } from '../../components/Icons.jsx';
 import { Alert, BackBar, EmptyState, Modal, PageHeader, Pagination, Spinner } from '../../components/ui.jsx';
 import { api } from '../../lib/api.js';
@@ -7,6 +8,7 @@ import { useAuth } from '../../lib/auth.jsx';
 import { date, dateTime, money } from '../../lib/format.js';
 import { useToast } from '../../lib/toast.jsx';
 
+export const REQUESTS_VIEW_VERSION = '1.0.2';
 const PRIORITIES = [
   { value: 'Normal', label: 'Normal', cls: 'priority-normal' },
   { value: 'High', label: 'High Priority', cls: 'priority-high' },
@@ -490,7 +492,7 @@ export function RequestsContent({ clinicId: propClinicId, embedded = false }) {
           )}
         </EmptyState>
       ) : (
-        <div className="requests-list">
+        <div className="requests-list" data-rev="no-stmt-nav">
           {data.requests.map((r) => (
             <div key={r.id} className={`request-item-card ${r.isAwaiting ? 'awaiting-border' : ''}`}>
               <div className="request-card-header">
