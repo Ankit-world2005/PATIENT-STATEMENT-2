@@ -94,7 +94,7 @@ requestsRouter.get('/', async (req, res) => {
   const offset = (page - 1) * limit;
 
   const scope = getUserClinicScope(req.user);
-  const where = ['TRUE', scope.sql];
+  const where = ['TRUE', scope.sql, "r.type = 'clinic'"];
   const params = [...scope.params];
 
   if (clinicId && isUuid(clinicId) && req.user.role !== 'clinic_user') {
@@ -126,7 +126,7 @@ requestsRouter.get('/', async (req, res) => {
 
   // Metrics query
   const metricsScope = getUserClinicScope(req.user);
-  const metricsWhere = ['TRUE', metricsScope.sql];
+  const metricsWhere = ['TRUE', metricsScope.sql, "r.type = 'clinic'"];
   const metricsParams = [...metricsScope.params];
   if (clinicId && isUuid(clinicId) && req.user.role !== 'clinic_user') {
     metricsParams.push(clinicId);
@@ -182,7 +182,14 @@ requestsRouter.get('/', async (req, res) => {
         FROM remark r2
        WHERE r2.statement_id = r.statement_id
          AND r2.type = 'specialist'
-         AND r2.created_at > r.created_at
+         AND r2.created_at >= r.created_at
+         AND NOT EXISTS (
+           SELECT 1 FROM remark r_next
+            WHERE r_next.statement_id = r.statement_id
+              AND r_next.type = 'clinic'
+              AND r_next.created_at > r.created_at
+              AND r2.created_at > r_next.created_at
+         )
        ORDER BY r2.created_at DESC
        LIMIT 1
     ) latest_reply ON true
@@ -200,7 +207,14 @@ requestsRouter.get('/', async (req, res) => {
       LEFT JOIN app_user r3_u ON r3_u.id = r3.author_id
       WHERE r3.statement_id = r.statement_id
         AND r3.type = 'specialist'
-        AND r3.created_at > r.created_at
+        AND r3.created_at >= r.created_at
+        AND NOT EXISTS (
+          SELECT 1 FROM remark r_next
+           WHERE r_next.statement_id = r.statement_id
+             AND r_next.type = 'clinic'
+             AND r_next.created_at > r.created_at
+             AND r3.created_at > r_next.created_at
+        )
     ) thread_replies ON true
     WHERE ${where.join(' AND ')}
     ORDER BY (st.awaiting_reply_since IS NOT NULL) DESC, r.created_at DESC
@@ -387,16 +401,10 @@ requestsRouter.post('/', async (req, res) => {
       statement = newStRows[0];
     }
 
-    // Determine remark type: if specialist/admin, type is specialist. If clinic_user, type is clinic.
-    const remarkType = req.user.role === 'clinic_user' ? 'clinic' : 'specialist';
-
-    // Format body with priority if it's a new request from clinic (no category!)
-    let formattedBody = input.body;
-    if (remarkType === 'clinic' && !input.isReply) {
-      formattedBody = `(${input.priority}) ${input.body}`;
-    }
-
-    const authorRole = req.user.role === 'clinic_user' ? 'clinic_user' : 'specialist';
+    // Inquiries submitted to specialists are clinic requests
+    const remarkType = 'clinic';
+    const authorRole = 'clinic_user';
+    const formattedBody = `(${input.priority}) ${input.body}`;
     const remark = await insertRemark(db, {
       statementId: statement.id,
       author: { ...req.user, role: authorRole },
