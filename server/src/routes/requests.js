@@ -390,11 +390,11 @@ requestsRouter.post('/', async (req, res) => {
         `INSERT INTO statement (
            clinic_id, patient_name, account_number, statement_date, balance_due,
            source, import_batch_id, import_row_number, version, supersedes_id,
-           uploaded_by_id, status, ledger_status, awaiting_reply_since
+           uploaded_by_id, status, ledger_status, awaiting_reply_since, is_request_only
          ) VALUES (
            $1, $2, $3, CURRENT_DATE, 0.00,
            'pdf_upload', NULL, NULL, 1, NULL,
-           $4, 'active', 'Active', now()
+           $4, 'active', 'Active', now(), true
          ) RETURNING id, clinic_id, patient_name, account_number, status, awaiting_reply_since`,
         [clinicId, pName, accNum, uploaderId],
       );

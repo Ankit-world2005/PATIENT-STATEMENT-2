@@ -458,7 +458,6 @@ export function StatementListPage() {
                               )}
                               {s.isNew && <span className="badge badge-new">New</span>}
                               {s.hasNewerVersion && <span className="badge badge-muted">Earlier</span>}
-                              {s.awaitingReply && <span className="badge badge-plum">Awaiting reply</span>}
                             </div>
                           </td>
                           <td className="cell-date">{formatLedgerDate(s.cycle1Date)}</td>

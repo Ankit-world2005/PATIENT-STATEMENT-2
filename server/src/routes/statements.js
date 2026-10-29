@@ -62,7 +62,7 @@ export function buildStatementWhere(req, f, clinic) {
   }
 
   const params = [clinic.id];
-  const where = ['s.clinic_id = $1', statementScope(req.user, 's', params)];
+  const where = ['s.clinic_id = $1', statementScope(req.user, 's', params), 's.is_request_only = false'];
 
   if (req.user.role !== 'clinic_user' && f.status && f.status !== 'all') {
     params.push(f.status);
