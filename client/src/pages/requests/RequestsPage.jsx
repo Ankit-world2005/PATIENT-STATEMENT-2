@@ -13,7 +13,7 @@ const PRIORITIES = [
   { value: 'Urgent', label: 'Urgent Attention', cls: 'priority-urgent' },
 ];
 
-function NewRequestModal({ onClose, onCreated, clinicId }) {
+export function NewRequestModal({ onClose, onCreated, clinicId }) {
   const toast = useToast();
   const [patientName, setPatientName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');

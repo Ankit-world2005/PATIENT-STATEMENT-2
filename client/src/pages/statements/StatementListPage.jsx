@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
-import { IconDownload, IconSearch, IconTable } from '../../components/Icons.jsx';
+import { IconChat, IconDocument, IconDownload, IconSearch, IconTable } from '../../components/Icons.jsx';
 import { Alert, BackBar, EmptyState, PageHeader, Pagination, Spinner, StatusBadge } from '../../components/ui.jsx';
 import { api, downloadFile } from '../../lib/api.js';
 import { useAuth } from '../../lib/auth.jsx';
 import { date, money, shortDate } from '../../lib/format.js';
 import { useToast } from '../../lib/toast.jsx';
 import { NotFoundPage } from '../NotFoundPage.jsx';
+import { RequestsContent } from '../requests/RequestsPage.jsx';
 
 function Highlight({ text, query }) {
   if (!text || !query) return text || '';
@@ -93,6 +94,8 @@ export function StatementListPage() {
   const [params, setParams] = useSearchParams();
   const isStaff = user.role !== 'clinic_user';
 
+  const tabParam = params.get('tab');
+  const tab = tabParam === 'requests' || tabParam === 'request' ? 'requests' : 'statements';
   const q = params.get('q') ?? '';
   const from = params.get('from') ?? '';
   const to = params.get('to') ?? '';
@@ -106,6 +109,15 @@ export function StatementListPage() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [awaitingCount, setAwaitingCount] = useState(0);
+
+  useEffect(() => {
+    const query = new URLSearchParams({ limit: '1', status: 'awaiting' });
+    if (isStaff && clinicId) query.set('clinicId', clinicId);
+    api(`/requests?${query.toString()}`)
+      .then((res) => setAwaitingCount(res.metrics?.awaitingCount || 0))
+      .catch(() => {});
+  }, [clinicId, isStaff, tab]);
 
   const handleExportExcel = async () => {
     setExporting(true);
@@ -137,7 +149,8 @@ export function StatementListPage() {
         v === null ||
         (k === 'page' && v === 1) ||
         (k === 'sort' && v === 'name_asc') ||
-        (k === 'status' && v === 'active')
+        (k === 'status' && v === 'active') ||
+        (k === 'tab' && (v === 'statements' || !v))
       ) {
         next.delete(k);
       } else {
@@ -214,26 +227,52 @@ export function StatementListPage() {
         trail={isStaff ? [data?.clinic.name ?? 'Clinic', 'Statements'] : ['Home', 'Patient statements']}
       />
       <PageHeader
-        title="Patient statements"
+        title={tab === 'requests' ? 'Requests & Inquiries' : 'Patient statements'}
         subtitle={
           data
             ? `${data.clinic.name} (${data.clinic.code})${isStaff ? '' : ' · Managed by US24 Solutions'}`
             : ' '
         }
       >
-        <div className="btn-group">
-          {data && (
+        <div className="header-actions-group" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {tab === 'statements' && data && (
             <button
               type="button"
               className="btn btn-secondary btn-sm"
               onClick={handleExportExcel}
               disabled={exporting}
               title="Download 17-column medical billing ledger in Excel (.xlsx) format"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
               <IconDownload size={14} /> {exporting ? 'Exporting…' : 'Export Excel'}
             </button>
           )}
-          {user.role === 'specialist' && data?.clinic.isActive && (
+
+          <div className="statement-page-tabs" role="tablist" aria-label="Statement section tabs" style={{ margin: 0 }}>
+            <button
+              type="button"
+              className={`statement-page-tab ${tab === 'statements' ? 'active' : ''}`}
+              onClick={() => update({ tab: 'statements' })}
+              role="tab"
+              aria-selected={tab === 'statements'}
+            >
+              <IconDocument size={14} />
+              <span>Statements</span>
+            </button>
+            <button
+              type="button"
+              className={`statement-page-tab ${tab === 'requests' ? 'active' : ''}`}
+              onClick={() => update({ tab: 'requests' })}
+              role="tab"
+              aria-selected={tab === 'requests'}
+            >
+              <IconChat size={14} />
+              <span>Request</span>
+              {awaitingCount > 0 && <span className="tab-unread-count">{awaitingCount}</span>}
+            </button>
+          </div>
+
+          {tab === 'statements' && user.role === 'specialist' && data?.clinic.isActive && (
             <Link to={`/imports/new?clinicId=${clinicId}`} className="btn btn-primary btn-sm">
               <IconTable size={14} /> Upload Excel
             </Link>
@@ -246,297 +285,242 @@ export function StatementListPage() {
         </Alert>
       )}
 
-      <div className="filter-bar-sheet">
-        <div className={`filter-grid ${isStaff ? 'filter-grid-staff' : ''}`}>
-          <div className="filter-item">
-            <label htmlFor="f-search">Search patient or account</label>
-            <div className="input-with-icon">
-              <IconSearch className="input-icon" />
-              <input
-                id="f-search"
-                type="search"
-                className="form-input"
-                placeholder="Name, account, location, PR type…"
-                autoComplete="off"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="filter-item">
-            <label htmlFor="f-from">From date</label>
-            <input
-              id="f-from"
-              type="date"
-              className="form-input"
-              value={from}
-              max={to || undefined}
-              onChange={(e) => update({ from: e.target.value })}
-            />
-          </div>
-          <div className="filter-item">
-            <label htmlFor="f-to">To date</label>
-            <input
-              id="f-to"
-              type="date"
-              className="form-input"
-              value={to}
-              min={from || undefined}
-              onChange={(e) => update({ to: e.target.value })}
-            />
-          </div>
-          <div className="filter-item">
-            <label htmlFor="f-sort">Sort by</label>
-            <select
-              id="f-sort"
-              className="form-select"
-              value={sort}
-              onChange={(e) => update({ sort: e.target.value })}
-            >
-              <option value="name_asc">Patient name (A–Z)</option>
-              <option value="name_desc">Patient name (Z–A)</option>
-              <option value="date_desc">Statement date (newest first)</option>
-              <option value="date_asc">Statement date (oldest first)</option>
-              <option value="balance_desc">Outstanding balance (high–low)</option>
-              <option value="balance_asc">Outstanding balance (low–high)</option>
-            </select>
-          </div>
-          {isStaff && (
-            <div className="filter-item">
-              <label htmlFor="f-status">Status</label>
-              <select
-                id="f-status"
-                className="form-select"
-                value={status}
-                onChange={(e) => update({ status: e.target.value })}
-              >
-                <option value="active">Active</option>
-                <option value="withdrawn">Withdrawn</option>
-                <option value="all">All</option>
-              </select>
-            </div>
-          )}
-          <div className="filter-item">
-            <button
-              type="button"
-              className="btn btn-secondary btn-block"
-              onClick={clearFilters}
-              disabled={!filtered}
-            >
-              Clear filters
-            </button>
-          </div>
+      {tab === 'requests' ? (
+        <div className="embedded-requests-workspace">
+          <RequestsContent clinicId={clinicId || data?.clinic?.id} embedded />
         </div>
-      </div>
-
-      {error && error.status !== 404 && <Alert tone="error">{error.message}</Alert>}
-
-      <div className="results-meta-bar">
-        <div>
-          <span className="results-count-bold">{data?.total ?? 0}</span> patient record{data?.total === 1 ? '' : 's'}
-          {filtered && <span className="muted-inline"> (filtered)</span>}
-        </div>
-        <div className="legend">
-          <span className="badge badge-new">New</span> = not yet opened by the clinic
-        </div>
-      </div>
-
-      <div className="table-sheet-card" aria-busy={loading}>
-        {loading && !data ? (
-          <Spinner label="Loading patient records…" />
-        ) : data.items.length === 0 ? (
-          filtered ? (
-            <EmptyState
-              title="No patient records match your search"
-              action={
-                <button type="button" className="btn btn-secondary btn-sm" onClick={clearFilters}>
+      ) : (
+        <>
+          <div className="filter-bar-sheet">
+            <div className={`filter-grid ${isStaff ? 'filter-grid-staff' : ''}`}>
+              <div className="filter-item">
+                <label htmlFor="f-search">Search patient or account</label>
+                <div className="input-with-icon">
+                  <IconSearch className="input-icon" />
+                  <input
+                    id="f-search"
+                    type="search"
+                    className="form-input"
+                    placeholder="Name, account, location, PR type…"
+                    autoComplete="off"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="filter-item">
+                <label htmlFor="f-from">From date</label>
+                <input
+                  id="f-from"
+                  type="date"
+                  className="form-input"
+                  value={from}
+                  max={to || undefined}
+                  onChange={(e) => update({ from: e.target.value })}
+                />
+              </div>
+              <div className="filter-item">
+                <label htmlFor="f-to">To date</label>
+                <input
+                  id="f-to"
+                  type="date"
+                  className="form-input"
+                  value={to}
+                  min={from || undefined}
+                  onChange={(e) => update({ to: e.target.value })}
+                />
+              </div>
+              <div className="filter-item">
+                <label htmlFor="f-sort">Sort by</label>
+                <select
+                  id="f-sort"
+                  className="form-select"
+                  value={sort}
+                  onChange={(e) => update({ sort: e.target.value })}
+                >
+                  <option value="name_asc">Patient name (A–Z)</option>
+                  <option value="name_desc">Patient name (Z–A)</option>
+                  <option value="date_desc">Statement date (newest first)</option>
+                  <option value="date_asc">Statement date (oldest first)</option>
+                  <option value="balance_desc">Outstanding balance (high–low)</option>
+                  <option value="balance_asc">Outstanding balance (low–high)</option>
+                </select>
+              </div>
+              {isStaff && (
+                <div className="filter-item">
+                  <label htmlFor="f-status">Status</label>
+                  <select
+                    id="f-status"
+                    className="form-select"
+                    value={status}
+                    onChange={(e) => update({ status: e.target.value })}
+                  >
+                    <option value="active">Active</option>
+                    <option value="withdrawn">Withdrawn</option>
+                    <option value="all">All</option>
+                  </select>
+                </div>
+              )}
+              <div className="filter-item">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-block"
+                  onClick={clearFilters}
+                  disabled={!filtered}
+                >
                   Clear filters
                 </button>
-              }
-            >
-              Try a different name, account number or date range.
-            </EmptyState>
-          ) : (
-            <EmptyState
-              title={
-                isStaff
-                  ? 'No patient statements for this clinic yet'
-                  : 'No patient statements have been shared with your clinic yet'
-              }
-            />
-          )
-        ) : (
-          <>
-            {/* Desktop / Tablet: Full 17-Column Medical Billing Ledger Table */}
-            <div className="patient-ledger-scroll">
-              <table className="patient-ledger-table">
-                <caption className="sr-only">Patient statements ledger, {data.total} results</caption>
-                <thead>
-                  <tr>
-                    <th scope="col" className="th-left sticky-col-location">LOCATION</th>
-                    <th scope="col" className="th-left sticky-col-patient">PATIENT NAME</th>
-                    <th scope="col">1ST ELECTRONIC STATEMENT</th>
-                    <th scope="col" className="th-right">BALANCE DUE AMOUNT</th>
-                    <th scope="col" className="th-right">PAYMENT RECEIVED</th>
-                    <th scope="col">2ND ELECTRONIC STATEMENT</th>
-                    <th scope="col" className="th-right">BALANCE DUE AMOUNT</th>
-                    <th scope="col" className="th-right">PAYMENT RECEIVED</th>
-                    <th scope="col">3RD ELECTRONIC STATEMENT</th>
-                    <th scope="col" className="th-right">BALANCE DUE AMOUNT</th>
-                    <th scope="col" className="th-right">PAYMENT RECEIVED</th>
-                    <th scope="col" className="th-right">CURRENT OUTSTANDING BALANCE</th>
-                    <th scope="col">PR TYPE</th>
-                    <th scope="col">STATUS</th>
-                    <th scope="col" className="th-left" title="Specialist remarks and ledger notes">REMARKS</th>
-                    <th scope="col" className="th-left">CLIENT RESPONSE</th>
-                    <th scope="col" className="th-left">AS PER VOB- Notes</th>
-                    <th scope="col"><span className="sr-only">Open</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.items.map((s) => (
-                    <tr
-                      key={s.id}
-                      onClick={() => open(s.id)}
-                      className={s.status === 'withdrawn' ? 'row-withdrawn' : undefined}
-                    >
-                      <td className="sticky-col-location cell-location" title={s.location || data?.clinic.name}>
-                        <Highlight text={s.location || data?.clinic.name} query={q} />
-                      </td>
-                      <td className="sticky-col-patient">
-                        <div className="cell-patient">
-                          <Highlight text={s.patientName} query={q} />
-                          {s.hasFile && (
-                            <span className="badge badge-secondary" style={{ fontSize: '0.68rem', padding: '1px 5px' }} title="Attached PDF statement">
-                              PDF
-                            </span>
-                          )}
-                          {s.isNew && <span className="badge badge-new">New</span>}
-                          {s.hasNewerVersion && <span className="badge badge-muted">Earlier</span>}
-                          {s.awaitingReply && <span className="badge badge-plum">Awaiting reply</span>}
-                        </div>
-                      </td>
-                      <td className="cell-date">{formatLedgerDate(s.cycle1Date)}</td>
-                      <td className="cell-amount">{formatMoneyVal(s.cycle1Balance)}</td>
-                      <td className="cell-payment">{formatPaymentVal(s.cycle1Payment)}</td>
-                      <td className="cell-date">{formatLedgerDate(s.cycle2Date)}</td>
-                      <td className="cell-amount">{formatMoneyVal(s.cycle2Balance)}</td>
-                      <td className="cell-payment">{formatPaymentVal(s.cycle2Payment)}</td>
-                      <td className="cell-date">{formatLedgerDate(s.cycle3Date)}</td>
-                      <td className="cell-amount">{formatMoneyVal(s.cycle3Balance)}</td>
-                      <td className="cell-payment">{formatPaymentVal(s.cycle3Payment)}</td>
-                      <td className="cell-outstanding">
-                        {formatMoneyVal(
-                          s.currentBalance !== null && s.currentBalance !== undefined
-                            ? s.currentBalance
-                            : s.balanceDue,
-                        )}
-                      </td>
-                      <td className="text-center">
-                        <PrBadge type={s.prType} />
-                      </td>
-                      <td className="text-center">
-                        <LedgerStatus status={s.status} />
-                      </td>
-                      <td className="cell-note">
-                        <NotePreview text={s.remarks || s.us24Notes} label="Remarks" />
-                      </td>
-                      <td className="cell-note">
-                        <NotePreview text={s.clientResponse} label="Client Response" />
-                      </td>
-                      <td className="cell-note">
-                        <NotePreview text={s.vobNotes} label="AS PER VOB- Notes" />
-                      </td>
-                      <td className="cell-action text-right">
-                        <Link
-                          to={`/statements/${s.id}`}
-                          className="btn btn-secondary btn-sm"
-                          onClick={(e) => e.stopPropagation()}
-                          state={{ from: `${window.location.pathname}${window.location.search}` }}
-                          aria-label={`Open statement for ${s.patientName}`}
-                        >
-                          Open
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              </div>
             </div>
+          </div>
 
-            {/* Mobile View: High-density card listing */}
-            <ul className="mobile-statements-list">
-              {data.items.map((s) => (
-                <li key={s.id}>
-                  <Link
-                    to={`/statements/${s.id}`}
-                    className="mobile-ledger-card"
-                    state={{ from: `${window.location.pathname}${window.location.search}` }}
-                  >
-                    <div className="mobile-ledger-top">
-                      <div>
-                        <div className="mobile-ledger-patient">
-                          <Highlight text={s.patientName} query={q} />
-                        </div>
-                        <div className="mobile-ledger-location">
-                          <Highlight text={s.location || data.clinic.name} query={q} />
-                        </div>
-                      </div>
-                      <div className="mobile-badges">
-                        <PrBadge type={s.prType} />
-                        <LedgerStatus status={s.status} />
-                      </div>
-                    </div>
+          {error && error.status !== 404 && <Alert tone="error">{error.message}</Alert>}
 
-                    <div className="mobile-cycles-grid">
-                      <div className="mobile-cycle-box">
-                        <span className="mobile-cycle-title">1st Cycle</span>
-                        <span>{formatLedgerDate(s.cycle1Date)}</span>
-                        <span className="mobile-cycle-val">{formatMoneyVal(s.cycle1Balance)}</span>
-                        <span className="mobile-cycle-paid">Paid: {formatPaymentVal(s.cycle1Payment)}</span>
-                      </div>
-                      <div className="mobile-cycle-box">
-                        <span className="mobile-cycle-title">2nd Cycle</span>
-                        <span>{formatLedgerDate(s.cycle2Date)}</span>
-                        <span className="mobile-cycle-val">{formatMoneyVal(s.cycle2Balance)}</span>
-                        <span className="mobile-cycle-paid">Paid: {formatPaymentVal(s.cycle2Payment)}</span>
-                      </div>
-                      <div className="mobile-cycle-box">
-                        <span className="mobile-cycle-title">3rd Cycle</span>
-                        <span>{formatLedgerDate(s.cycle3Date)}</span>
-                        <span className="mobile-cycle-val">{formatMoneyVal(s.cycle3Balance)}</span>
-                        <span className="mobile-cycle-paid">Paid: {formatPaymentVal(s.cycle3Payment)}</span>
-                      </div>
-                    </div>
+          <div className="results-meta-bar">
+            <div>
+              <span className="results-count-bold">{data?.total ?? 0}</span> patient record{data?.total === 1 ? '' : 's'}
+              {filtered && <span className="muted-inline"> (filtered)</span>}
+            </div>
+            <div className="legend">
+              <span className="badge badge-new">New</span> = not yet opened by the clinic
+            </div>
+          </div>
 
-                    <div className="mobile-ledger-footer">
-                      <div>
-                        <span className="form-hint">Current Balance</span>
-                        <div className="mobile-ledger-balance">
-                          {formatMoneyVal(
-                            s.currentBalance !== null && s.currentBalance !== undefined
-                              ? s.currentBalance
-                              : s.balanceDue,
-                          )}
-                        </div>
-                      </div>
-                      <span className="btn btn-secondary btn-sm">Open</span>
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+          <div className="table-sheet-card" aria-busy={loading}>
+            {loading && !data ? (
+              <Spinner label="Loading patient records…" />
+            ) : data.items.length === 0 ? (
+              filtered ? (
+                <EmptyState
+                  title="No patient records match your search"
+                  action={
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={clearFilters}>
+                      Clear filters
+                    </button>
+                  }
+                >
+                  Try a different name, account number or date range.
+                </EmptyState>
+              ) : (
+                <EmptyState
+                  title={
+                    isStaff
+                      ? 'No patient statements for this clinic yet'
+                      : 'No patient statements have been shared with your clinic yet'
+                  }
+                />
+              )
+            ) : (
+              <>
+                {/* Desktop / Tablet: Full 17-Column Medical Billing Ledger Table */}
+                <div className="patient-ledger-scroll">
+                  <table className="patient-ledger-table">
+                    <caption className="sr-only">Patient statements ledger, {data.total} results</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col" className="th-left sticky-col-location">LOCATION</th>
+                        <th scope="col" className="th-left sticky-col-patient">PATIENT NAME</th>
+                        <th scope="col">1ST ELECTRONIC STATEMENT</th>
+                        <th scope="col" className="th-right">BALANCE DUE AMOUNT</th>
+                        <th scope="col" className="th-right">PAYMENT RECEIVED</th>
+                        <th scope="col">2ND ELECTRONIC STATEMENT</th>
+                        <th scope="col" className="th-right">BALANCE DUE AMOUNT</th>
+                        <th scope="col" className="th-right">PAYMENT RECEIVED</th>
+                        <th scope="col">3RD ELECTRONIC STATEMENT</th>
+                        <th scope="col" className="th-right">BALANCE DUE AMOUNT</th>
+                        <th scope="col" className="th-right">PAYMENT RECEIVED</th>
+                        <th scope="col" className="th-right">CURRENT OUTSTANDING BALANCE</th>
+                        <th scope="col">PR TYPE</th>
+                        <th scope="col">STATUS</th>
+                        <th scope="col" className="th-left" title="Specialist remarks and ledger notes">REMARKS</th>
+                        <th scope="col" className="th-left">CLIENT RESPONSE</th>
+                        <th scope="col" className="th-left">AS PER VOB- Notes</th>
+                        <th scope="col"><span className="sr-only">Open</span></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.items.map((s) => (
+                        <tr
+                          key={s.id}
+                          onClick={() => open(s.id)}
+                          className={s.status === 'withdrawn' ? 'row-withdrawn' : undefined}
+                        >
+                          <td className="sticky-col-location cell-location" title={s.location || data?.clinic.name}>
+                            <Highlight text={s.location || data?.clinic.name} query={q} />
+                          </td>
+                          <td className="sticky-col-patient">
+                            <div className="cell-patient">
+                              <Highlight text={s.patientName} query={q} />
+                              {s.hasFile && (
+                                <span className="badge badge-secondary" style={{ fontSize: '0.68rem', padding: '1px 5px' }} title="Attached PDF statement">
+                                  PDF
+                                </span>
+                              )}
+                              {s.isNew && <span className="badge badge-new">New</span>}
+                              {s.hasNewerVersion && <span className="badge badge-muted">Earlier</span>}
+                              {s.awaitingReply && <span className="badge badge-plum">Awaiting reply</span>}
+                            </div>
+                          </td>
+                          <td className="cell-date">{formatLedgerDate(s.cycle1Date)}</td>
+                          <td className="cell-amount">{formatMoneyVal(s.cycle1Balance)}</td>
+                          <td className="cell-payment">{formatPaymentVal(s.cycle1Payment)}</td>
+                          <td className="cell-date">{formatLedgerDate(s.cycle2Date)}</td>
+                          <td className="cell-amount">{formatMoneyVal(s.cycle2Balance)}</td>
+                          <td className="cell-payment">{formatPaymentVal(s.cycle2Payment)}</td>
+                          <td className="cell-date">{formatLedgerDate(s.cycle3Date)}</td>
+                          <td className="cell-amount">{formatMoneyVal(s.cycle3Balance)}</td>
+                          <td className="cell-payment">{formatPaymentVal(s.cycle3Payment)}</td>
+                          <td className="cell-outstanding">
+                            {formatMoneyVal(
+                              s.currentBalance !== null && s.currentBalance !== undefined
+                                ? s.currentBalance
+                                : s.balanceDue,
+                            )}
+                          </td>
+                          <td className="text-center">
+                            <PrBadge type={s.prType} />
+                          </td>
+                          <td className="text-center">
+                            <LedgerStatus status={s.status} />
+                          </td>
+                          <td className="cell-note">
+                            <NotePreview text={s.remarks || s.us24Notes} label="Remarks" />
+                          </td>
+                          <td className="cell-note">
+                            <NotePreview text={s.clientResponse} label="Client Response" />
+                          </td>
+                          <td className="cell-note">
+                            <NotePreview text={s.vobNotes} label="AS PER VOB- Notes" />
+                          </td>
+                          <td className="cell-action text-right">
+                            <Link
+                              to={`/statements/${s.id}`}
+                              className="btn btn-secondary btn-sm"
+                              onClick={(e) => e.stopPropagation()}
+                              state={{ from: `${window.location.pathname}${window.location.search}` }}
+                              aria-label={`Open statement for ${s.patientName}`}
+                            >
+                              Open
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-            <Pagination
-              page={data.page}
-              totalPages={data.totalPages}
-              total={data.total}
-              pageSize={data.pageSize}
-              onPage={(p) => update({ page: p })}
-            />
-          </>
-        )}
-      </div>
+                <Pagination
+                  page={data.page}
+                  totalPages={data.totalPages}
+                  total={data.total}
+                  pageSize={data.pageSize}
+                  onPage={(p) => update({ page: p })}
+                />
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
