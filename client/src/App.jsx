@@ -11,7 +11,7 @@ import { AuthenticatorPage } from './pages/auth/AuthenticatorPage.jsx';
 import { LoginPage } from './pages/auth/LoginPage.jsx';
 import { AcceptInvitePage, ForgotPasswordPage, ResetPasswordPage } from './pages/auth/PasswordPages.jsx';
 import { VerifyPage } from './pages/auth/VerifyPage.jsx';
-import { ClinicHome } from './pages/clinic/ClinicHome.jsx';
+// ClinicHome removed - redirected to direct landing path
 import { NotFoundPage } from './pages/NotFoundPage.jsx';
 import { RequestsPage } from './pages/requests/RequestsPage.jsx';
 import { DashboardPage } from './pages/specialist/DashboardPage.jsx';
@@ -36,16 +36,16 @@ function StaffStatementList() {
 export function App() {
   return (
     <Routes>
-      <Route element={<Layout />}>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/login/verify" element={<VerifyPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/login/verify" element={<VerifyPage />} />
+      <Route element={<Layout />} >
         <Route path="/password/forgot" element={<ForgotPasswordPage />} />
         <Route path="/password/reset/:token" element={<ResetPasswordPage />} />
         <Route path="/invite/:token" element={<AcceptInvitePage />} />
 
         <Route element={<RequireAuth />}>
           <Route path="/" element={<Landing />} />
-          <Route path="/home" element={<ClinicHome />} />
+          <Route path="/home" element={<Landing />} />
           <Route path="/account/authenticator" element={<AuthenticatorPage />} />
           <Route path="/statements/:id" element={<StatementDetailPage />} />
           <Route path="/statements/:id/print" element={<StatementPrintPage />} />

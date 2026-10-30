@@ -12,6 +12,7 @@ import { loadSession } from './middleware/session.js';
 import { adminRouter } from './routes/admin.js';
 import { attachmentsRouter } from './routes/attachments.js';
 import { authRouter } from './routes/auth.js';
+import { collectionsRouter } from './routes/collections.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { importsRouter } from './routes/imports.js';
 import { requestsRouter } from './routes/requests.js';
@@ -61,6 +62,7 @@ export function createApp() {
   app.use('/api/admin', requireVerified, requireRole('admin'), adminRouter);
   app.use('/api/requests', requireVerified, requestsRouter);
   app.use('/api/attachments', requireVerified, attachmentsRouter);
+  app.use('/api/collections', requireVerified, collectionsRouter);
   app.use('/api', requireVerified, dashboardRouter);
   app.use('/api', (_req, _res, next) => next(new HttpError(404, "We couldn't find that page.")));
 

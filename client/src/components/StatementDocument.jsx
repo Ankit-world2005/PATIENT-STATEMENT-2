@@ -71,35 +71,35 @@ export function StatementDocument({ statement: s, clinic: c }) {
       {/* 1. Patient & Account Information (All Core Patient Columns) */}
       <dl className="doc-summary-grid">
         <div className="doc-meta-item">
-          <dt>Patient Name</dt>
-          <dd>{s.patientName}</dd>
+          <dt>LOCATION</dt>
+          <dd>{locationDisplay || '—'}</dd>
         </div>
         <div className="doc-meta-item">
-          <dt>Location</dt>
-          <dd>{locationDisplay}</dd>
+          <dt>ACCT. #:</dt>
+          <dd className="col-mono">{s.accountNumber || s.account_number || (s.id ? `ACC-${s.id.slice(0, 6).toUpperCase()}` : '—')}</dd>
         </div>
         <div className="doc-meta-item">
-          <dt>PR Type</dt>
-          <dd><PrBadge type={s.prType} /></dd>
+          <dt>PATIENT NAME</dt>
+          <dd><strong>{s.patientName || s.patient_name || '—'}</strong></dd>
         </div>
         <div className="doc-meta-item">
-          <dt>Status</dt>
-          <dd><LedgerStatusBadge status={s.ledgerStatus || s.status} /></dd>
+          <dt>DOB</dt>
+          <dd>{(s.patientDob || s.patient_dob) ? date(s.patientDob || s.patient_dob) : '—'}</dd>
         </div>
         <div className="doc-meta-item">
-          <dt>Date of birth</dt>
-          <dd>{date(s.patientDob)}</dd>
+          <dt>INSURANCE NAME</dt>
+          <dd>{s.insuranceName || s.insurance_name || 'Self-pay'}</dd>
         </div>
         <div className="doc-meta-item">
-          <dt>Primary Insurance</dt>
-          <dd>{s.insuranceName || 'Self-pay'}</dd>
+          <dt>PR TYPE</dt>
+          <dd><PrBadge type={s.prType || s.pr_type} /></dd>
         </div>
         <div className="doc-meta-item">
-          <dt>Dates of service</dt>
-          <dd>{s.serviceDateFrom ? `${date(s.serviceDateFrom)} – ${date(s.serviceDateTo)}` : '—'}</dd>
+          <dt>STATUS</dt>
+          <dd><LedgerStatusBadge status={s.ledgerStatus || s.ledger_status || s.status} /></dd>
         </div>
         <div className="doc-meta-item">
-          <dt>Current Outstanding Balance</dt>
+          <dt>CURRENT BALANCE DUE</dt>
           <dd className="col-mono doc-current-balance-hero">{money(currentBal)}</dd>
         </div>
       </dl>
@@ -114,45 +114,45 @@ export function StatementDocument({ statement: s, clinic: c }) {
           <table className="doc-cycle-table">
             <thead>
               <tr>
-                <th scope="col">Statement Cycle</th>
-                <th scope="col">Sent Date</th>
-                <th scope="col">Balance Due Amount</th>
-                <th scope="col">Payment Received</th>
-                <th scope="col">Cycle Tag</th>
+                <th scope="col">STATEMENT CYCLE</th>
+                <th scope="col">STATEMENT DATE</th>
+                <th scope="col" className="text-right">BALANCE DUE</th>
+                <th scope="col" className="text-right">PAYMENT RECEIVED</th>
+                <th scope="col" className="text-center">STATUS</th>
               </tr>
             </thead>
             <tbody>
-              {/* 1st Electronic Statement Cycle */}
+              {/* 1st Statement Cycle */}
               <tr>
-                <td><strong>1st Electronic Statement</strong></td>
+                <td><strong>1ST STATEMENT DATE</strong></td>
                 <td>{formatCycleDate(s.cycle1Date || s.statementDate)}</td>
-                <td className="col-mono">{money(s.cycle1Balance ?? s.balanceDue)}</td>
-                <td className="col-mono text-success">{formatPayment(s.cycle1Payment)}</td>
-                <td><span className="doc-cycle-badge">Cycle 1</span></td>
+                <td className="col-mono text-right">{money(s.cycle1Balance ?? s.balanceDue)}</td>
+                <td className="col-mono text-right text-success">{formatPayment(s.cycle1Payment)}</td>
+                <td className="text-center"><span className="doc-cycle-badge">1st Statement</span></td>
               </tr>
 
-              {/* 2nd Electronic Statement Cycle */}
+              {/* 2nd Statement Cycle */}
               <tr>
-                <td><strong>2nd Electronic Statement</strong></td>
+                <td><strong>2ND  STATEMENT DATE</strong></td>
                 <td>{formatCycleDate(s.cycle2Date)}</td>
-                <td className="col-mono">{money(s.cycle2Balance)}</td>
-                <td className="col-mono text-success">{formatPayment(s.cycle2Payment)}</td>
-                <td><span className="doc-cycle-badge">Cycle 2</span></td>
+                <td className="col-mono text-right">{s.cycle2Balance != null ? money(s.cycle2Balance) : '—'}</td>
+                <td className="col-mono text-right text-success">{formatPayment(s.cycle2Payment)}</td>
+                <td className="text-center"><span className="doc-cycle-badge">2nd Statement</span></td>
               </tr>
 
-              {/* 3rd Electronic Statement Cycle */}
+              {/* 3rd Statement Cycle */}
               <tr>
-                <td><strong>3rd Electronic Statement</strong></td>
+                <td><strong>3RD  STATEMENT DATE</strong></td>
                 <td>{formatCycleDate(s.cycle3Date)}</td>
-                <td className="col-mono">{money(s.cycle3Balance)}</td>
-                <td className="col-mono text-success">{formatPayment(s.cycle3Payment)}</td>
-                <td><span className="doc-cycle-badge">Cycle 3</span></td>
+                <td className="col-mono text-right">{s.cycle3Balance != null ? money(s.cycle3Balance) : '—'}</td>
+                <td className="col-mono text-right text-success">{formatPayment(s.cycle3Payment)}</td>
+                <td className="text-center"><span className="doc-cycle-badge">3rd Statement</span></td>
               </tr>
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan="2"><strong>Current Outstanding Balance</strong></td>
-                <td colSpan="3" className="col-mono doc-current-balance-hero">
+                <td colSpan="2"><strong>CURRENT BALANCE DUE</strong></td>
+                <td colSpan="3" className="col-mono doc-current-balance-hero text-right">
                   {money(currentBal)}
                 </td>
               </tr>
@@ -190,50 +190,6 @@ export function StatementDocument({ statement: s, clinic: c }) {
           </dl>
         </div>
       )}
-
-      {/* 5. Statement Remarks & Ledger Notes Section */}
-      <div className="doc-section-card">
-        <div className="doc-section-header">
-          <h4>Statement Remarks & Ledger Notes</h4>
-          <span>Specialist Remarks, Client Response & VOB</span>
-        </div>
-        <div className="doc-remarks-grid">
-          <div className="doc-remark-item remark-specialist">
-            <div className="doc-remark-header">
-              <span>US24 Specialist Remarks / Notes</span>
-            </div>
-            <p className="doc-remark-body">
-              {s.remarks || s.us24Notes || 'No specialist remarks recorded.'}
-            </p>
-          </div>
-
-          <div className="doc-remark-item remark-client">
-            <div className="doc-remark-header">
-              <span>Client Response</span>
-            </div>
-            <p className="doc-remark-body">
-              {s.clientResponse || 'No client response recorded yet.'}
-            </p>
-          </div>
-
-          <div className="doc-remark-item remark-vob">
-            <div className="doc-remark-header">
-              <span>AS PER VOB- Notes</span>
-            </div>
-            <p className="doc-remark-body">
-              {s.vobNotes || 'No VOB notes recorded.'}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* 6. Payment notice footer */}
-      <div className="doc-patient-notes">
-        <p>
-          <strong>Payment notice:</strong> Please pay within 30 days of the statement date. For questions about this
-          statement or your insurance coverage, contact {c.name} at {c.phone}.
-        </p>
-      </div>
     </div>
   );
 }

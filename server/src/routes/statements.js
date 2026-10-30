@@ -41,7 +41,15 @@ const listSchema = z.object({
   status: z.enum(['active', 'withdrawn', 'all']).optional().default('active'),
 });
 
-export function remarkView(r) {
+export function remarkView(r, attMap = {}) {
+  const atts = (Array.isArray(r.attachments) ? r.attachments : []).map((a) => {
+    const meta = a.id ? attMap[a.id] : null;
+    return {
+      ...a,
+      size: meta?.size_bytes ?? a.size,
+      contentType: meta?.content_type ?? a.contentType,
+    };
+  });
   return {
     id: String(r.id),
     type: r.type,
@@ -50,7 +58,7 @@ export function remarkView(r) {
     authorRole: r.author_role,
     insuranceName: r.insurance_name,
     insuranceReference: r.insurance_reference,
-    attachments: Array.isArray(r.attachments) ? r.attachments : [],
+    attachments: atts,
     createdAt: r.created_at,
   };
 }
@@ -72,7 +80,7 @@ export function buildStatementWhere(req, f, clinic) {
 
   if (f.q) {
     const rawTerms = f.q.trim().split(/\s+/).filter(Boolean);
-    const searchableExpr = `LOWER(CONCAT_WS(' ', s.patient_name, s.account_number, s.location_name, s.pr_type, s.ledger_status, s.status, s.insurance_name, s.us24_notes, s.client_response, s.vob_notes))`;
+    const searchableExpr = `LOWER(CONCAT_WS(' ', s.patient_name, s.account_number, s.location_name, s.pr_type, s.ledger_status, s.status, s.insurance_name, s.patient_dob::text, TO_CHAR(s.patient_dob, 'MM/DD/YYYY'), s.us24_notes, s.client_response, s.vob_notes))`;
     for (const term of rawTerms) {
       const cleanTerm = term.replace(/^[^\w$]+|[^\w$]+$/g, '').toLowerCase();
       const termToMatch = cleanTerm || term.toLowerCase();
@@ -131,7 +139,7 @@ statementsRouter.get('/', async (req, res) => {
 
   const { rows } = await query(
     `SELECT s.id, s.clinic_id, COALESCE(s.location_name, c.name) AS location_name,
-            s.patient_name, s.account_number, s.statement_date, s.balance_due,
+            s.patient_name, s.patient_dob, s.insurance_name, s.account_number, s.statement_date, s.balance_due,
             s.cycle1_date, s.cycle1_balance, s.cycle1_payment,
             s.cycle2_date, s.cycle2_balance, s.cycle2_payment,
             s.cycle3_date, s.cycle3_balance, s.cycle3_payment,
@@ -171,6 +179,10 @@ statementsRouter.get('/', async (req, res) => {
       hasFile: Boolean(r.has_file),
       location: r.location_name,
       patientName: r.patient_name,
+      patientDob: r.patient_dob ? (r.patient_dob instanceof Date ? r.patient_dob.toISOString().slice(0, 10) : String(r.patient_dob).slice(0, 10)) : null,
+      patient_dob: r.patient_dob ? (r.patient_dob instanceof Date ? r.patient_dob.toISOString().slice(0, 10) : String(r.patient_dob).slice(0, 10)) : null,
+      insuranceName: r.insurance_name || '',
+      insurance_name: r.insurance_name || '',
       accountNumber: r.account_number,
       statementDate: r.statement_date,
       balanceDue: r.balance_due,
@@ -423,6 +435,13 @@ statementsRouter.get('/:id', async (req, res) => {
     const earlier = others.rows.find((o) => o.id === s.supersedes_id);
     const c = clinic.rows[0];
 
+    const attIds = remarks.rows.flatMap((r) => (Array.isArray(r.attachments) ? r.attachments.map((a) => a.id).filter(Boolean) : []));
+    let attMap = {};
+    if (attIds.length > 0) {
+      const attRows = await query('SELECT id, size_bytes, content_type FROM attachment WHERE id = ANY($1)', [attIds]);
+      attMap = Object.fromEntries(attRows.rows.map((a) => [a.id, a]));
+    }
+
     return {
       statement: {
         id: s.id,
@@ -506,7 +525,7 @@ statementsRouter.get('/:id', async (req, res) => {
         city: c.city, state: c.state, postalCode: c.postal_code, phone: c.contact_phone,
       },
       remarks: remarks.rows.length > 0
-        ? remarks.rows.map(remarkView)
+        ? remarks.rows.map((r) => remarkView(r, attMap))
         : (s.us24_notes ? [{
             id: 'initial',
             type: 'specialist',

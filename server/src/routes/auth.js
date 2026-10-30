@@ -35,6 +35,7 @@ export function publicUser(u) {
     email: u.email,
     fullName: u.full_name,
     role: u.role,
+    isClinicAdmin: Boolean(u.is_clinic_admin),
     clinic: u.clinic_id ? { id: u.clinic_id, name: u.clinic_name, code: u.clinic_code } : null,
     hasTotp: Boolean(u.has_totp),
   };

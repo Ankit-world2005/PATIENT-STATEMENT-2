@@ -50,7 +50,7 @@ export async function loadSession(req, res, next) {
   const { rows } = await query(
     `SELECT s.id_hash, s.stage, s.otp_hash, s.otp_expires_at, s.otp_sent_at, s.otp_failures,
             s.totp_pending_enc, s.expires_at < now() AS expired,
-            u.id, u.email, u.full_name, u.role, u.clinic_id, u.status, u.totp_secret_enc,
+            u.id, u.email, u.full_name, u.role, u.is_clinic_admin, u.clinic_id, u.status, u.totp_secret_enc,
             u.totp_confirmed_at IS NOT NULL AS has_totp,
             c.name AS clinic_name, c.clinic_code, c.is_active AS clinic_active
        FROM user_session s
@@ -69,7 +69,7 @@ export async function loadSession(req, res, next) {
     id: row.id,
     email: row.email,
     full_name: row.full_name,
-    role: row.role,
+    role: row.role, is_clinic_admin: Boolean(row.is_clinic_admin),
     clinic_id: row.clinic_id,
     clinic_name: row.clinic_name,
     clinic_code: row.clinic_code,
