@@ -130,17 +130,7 @@ export function VerifyPage() {
               <span className="login-geo-tagline">Innovative Technology Driven</span>
             </div>
 
-            <div className="login-geo-divider" aria-hidden="true" />
-
-            <div className="login-geo-portal-pill">
-              <div className="login-geo-portal-icon" aria-hidden="true">
-                <IconDocument size={17} />
-              </div>
-              <div className="login-geo-portal-text">
-                <span className="portal-name">My Patient</span>
-                <span className="portal-type">Statement Portal</span>
-              </div>
-            </div>
+            
           </div>
 
           <button
@@ -387,3 +377,4 @@ export function VerifyPage() {
     </div>
   );
 }
+

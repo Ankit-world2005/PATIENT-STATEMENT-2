@@ -37,14 +37,35 @@ const allowedOrigin = new URL(config.appUrl).origin;
  * sends an Origin, it must be the portal's own. The session cookie is also
  * SameSite=Strict.
  */
+const LOCAL_ORIGINS = new Set([
+  'http://localhost:5173',
+  'http://localhost:4000',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:4000',
+]);
+
 export function csrfGuard(req, _res, next) {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
   if (req.get('x-requested-with') !== 'MyPatient') {
     return next(new HttpError(403, 'Request blocked.'));
   }
   const origin = req.get('origin');
-  if (origin && origin !== allowedOrigin && origin !== `${req.protocol}://${req.get('host')}`) {
-    return next(new HttpError(403, 'Request blocked.'));
+  if (origin) {
+    const isLocalDev = !config.isProduction && (
+      LOCAL_ORIGINS.has(origin) ||
+      origin.startsWith('http://localhost:') ||
+      origin.startsWith('http://127.0.0.1:')
+    );
+
+    const isAllowed =
+      origin === allowedOrigin ||
+      origin === `${req.protocol}://${req.get('host')}` ||
+      isLocalDev;
+
+    if (!isAllowed) {
+      return next(new HttpError(403, 'Request blocked.'));
+    }
   }
   next();
 }

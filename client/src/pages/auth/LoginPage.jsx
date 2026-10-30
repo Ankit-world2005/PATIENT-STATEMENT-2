@@ -72,17 +72,7 @@ export function LoginPage() {
               <span className="login-geo-tagline">Innovative Technology Driven</span>
             </div>
 
-            <div className="login-geo-divider" aria-hidden="true" />
-
-            <div className="login-geo-portal-pill">
-              <div className="login-geo-portal-icon" aria-hidden="true">
-                <IconDocument size={17} />
-              </div>
-              <div className="login-geo-portal-text">
-                <span className="portal-name">My Patient</span>
-                <span className="portal-type">Statement Portal</span>
-              </div>
-            </div>
+            
           </div>
 
           <button
@@ -107,12 +97,12 @@ export function LoginPage() {
               <div className="login-geo-hallmark-ring">
                 <img
                   src={hallmarkImg}
-                  alt="My Patient Hallmark"
+                  alt="Patient Hallmark"
                   className="login-geo-hallmark-img"
                 />
               </div>
               <h1 className="login-geo-title">Welcome Back</h1>
-              <p className="login-geo-subtitle">Sign in to your My Patient Statement Portal</p>
+              <p className="login-geo-subtitle">Sign in to your Patient Statement Portal</p>
               <p className="login-geo-secure-badge">Secure access for US24 Solutions clients</p>
               <div className="login-geo-orange-accent" aria-hidden="true" />
             </div>
@@ -318,3 +308,4 @@ export function LoginPage() {
     </div>
   );
 }
+

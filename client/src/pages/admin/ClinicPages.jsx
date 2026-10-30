@@ -250,7 +250,13 @@ export function ClinicDetailPage() {
           <div className="panel-header"><h2>Details</h2></div>
           <dl className="summary-list">
             <div><dt>Address</dt><dd>{c.addressLine1}{c.addressLine2 && `, ${c.addressLine2}`}<br />{c.city}, {c.state} {c.postalCode}</dd></div>
-            <div><dt>Primary contact</dt><dd>{c.contactName}<br />{c.contactPhone} · {c.contactEmail}</dd></div>
+            <div>
+              <dt>Contact</dt>
+              <dd>
+                {c.contactName ? <>{c.contactName}<br /></> : null}
+                {[c.contactPhone, c.contactEmail].filter(Boolean).join(' · ')}
+              </dd>
+            </div>
             {!c.isActive && <div><dt>Deactivated</dt><dd>{shortDate(c.deactivatedAt)}</dd></div>}
           </dl>
         </section>
@@ -357,7 +363,7 @@ const CLINIC_FIELDS = [
   ['name', 'Clinic name', true], ['clinicCode', 'Clinic ID', true, 'Letters, digits, - or _. Example: CLN-4082'],
   ['addressLine1', 'Street address', true], ['addressLine2', 'Address line 2', false],
   ['city', 'City', true], ['state', 'State', true, '2-letter code, e.g. IL'], ['postalCode', 'ZIP code', true],
-  ['contactName', 'Primary contact name', true], ['contactPhone', 'Contact phone', true], ['contactEmail', 'Contact email', true],
+  ['contactPhone', 'Contact phone', true], ['contactEmail', 'Contact email', true],
 ];
 const BLANK = Object.fromEntries(CLINIC_FIELDS.map(([k]) => [k, '']));
 

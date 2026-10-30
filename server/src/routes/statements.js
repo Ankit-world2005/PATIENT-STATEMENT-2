@@ -132,8 +132,19 @@ statementsRouter.get('/', async (req, res) => {
 
   const { whereSql, params } = buildStatementWhere(req, f, clinic);
 
-  const { rows: countRows } = await query(`SELECT count(*)::int AS total FROM statement s WHERE ${whereSql}`, params);
+  const { rows: countRows } = await query(
+    `SELECT count(*)::int AS total,
+            COALESCE(SUM(COALESCE(s.current_balance, s.cycle1_balance, s.balance_due, 0)), 0)::numeric AS total_current_balance,
+            COUNT(CASE WHEN s.first_opened_by_clinic_at IS NULL AND s.status = 'active' THEN 1 END)::int AS total_new,
+            COUNT(CASE WHEN s.awaiting_reply_since IS NOT NULL THEN 1 END)::int AS total_awaiting
+       FROM statement s
+      WHERE ${whereSql}`,
+    params,
+  );
   const total = countRows[0].total;
+  const totalCurrentBalance = Number(countRows[0].total_current_balance || 0);
+  const totalNew = countRows[0].total_new;
+  const totalAwaiting = countRows[0].total_awaiting;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const page = Math.min(f.page, totalPages); // past the end shows the last page
 
@@ -218,6 +229,9 @@ statementsRouter.get('/', async (req, res) => {
     pageSize: PAGE_SIZE,
     total,
     totalPages,
+    totalCurrentBalance,
+    totalNew,
+    totalAwaiting,
   });
 });
 

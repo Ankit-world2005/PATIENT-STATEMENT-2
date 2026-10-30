@@ -106,6 +106,7 @@ collectionsRouter.post('/upload', upload.single('file'), async (req, res) => {
   const summary = {
     particulars: parsed.particulars,
     promptPosting: parsed.promptPosting,
+    locationSummary: parsed.locationSummary,
   };
 
   const { rows } = await query(

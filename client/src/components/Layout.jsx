@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, Outlet } from 'react-router';
 import { useAuth } from '../lib/auth.jsx';
 import { ROLE_LABELS, initials, landingPath } from '../lib/format.js';
-import { IconBell, IconDocument, IconLock, IconSignOut } from './Icons.jsx';
+import { IconBell, IconLock, IconSignOut } from './Icons.jsx';
 import { SessionTimeout } from './SessionTimeout.jsx';
 
 const LOGO_URL = 'https://us24solutions.com/wp-content/uploads/2022/09/us-24-copyq-2-min-1-e1664550612654.png';
@@ -26,22 +26,12 @@ function Header() {
   return (
     <header className="site-header">
       <div className="header-container">
-        {/* Left Side: Logo + Tagline + Divider + My Patient Portal Title */}
+        {/* Left Side: Logo + Tagline */}
         <div className="header-brand">
-          <Link to={landingPath(user)} className="company-brand-link" aria-label="US24 Solutions — My Patient">
+          <Link to={landingPath(user)} className="company-brand-link" aria-label="US24 Solutions">
             <div className="header-logo-group">
               <Logo />
               <span className="brand-tagline">Innovative Technology Driven</span>
-            </div>
-            <div className="header-vertical-divider" aria-hidden="true" />
-            <div className="header-product-badge">
-              <div className="header-product-icon-tile" aria-hidden="true">
-                <IconDocument size={18} />
-              </div>
-              <div className="header-product-text">
-                <span className="header-product-title">My Patient</span>
-                <span className="header-product-sub">Statement portal</span>
-              </div>
             </div>
           </Link>
         </div>
@@ -107,7 +97,7 @@ export function Layout() {
       <footer className="site-footer">
         <div className="footer-container">
           <div className="footer-left">
-            © 2026 US24 Solutions · My Patient Statement Portal
+            © 2026 US24 Solutions · Patient Statement Portal
           </div>
           <div className="footer-right">
             <IconLock size={15} aria-hidden="true" />

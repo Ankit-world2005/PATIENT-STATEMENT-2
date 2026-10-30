@@ -338,15 +338,17 @@ export function StatementListPage() {
 
   // --- Compute Real KPI Data from Existing Statements State ---
   const totalStatements = data?.total ?? data?.items?.length ?? 0;
-  const newStatementsCount = data?.items?.filter((s) => s.isNew).length ?? 0;
-  const requestSentCount = data?.items?.filter((s) => s.awaitingReply).length ?? 0;
+  const newStatementsCount = data?.totalNew ?? (data?.items?.filter((s) => s.isNew).length ?? 0);
+  const requestSentCount = data?.totalAwaiting ?? (data?.items?.filter((s) => s.awaitingReply).length ?? 0);
   const viewedCount = Math.max(0, (data?.items?.length ?? 0) - newStatementsCount - requestSentCount);
 
-  const totalPatientResponsibility =
-    data?.items?.reduce((acc, s) => {
-      const val = Number(s.currentBalance ?? s.balanceDue ?? 0);
-      return acc + (isNaN(val) ? 0 : val);
-    }, 0) ?? 0;
+  const totalCurrentBalanceDue =
+    data?.totalCurrentBalance !== undefined && data?.totalCurrentBalance !== null
+      ? Number(data.totalCurrentBalance)
+      : (data?.items?.reduce((acc, s) => {
+          const val = Number(s.currentBalance ?? s.balanceDue ?? 0);
+          return acc + (isNaN(val) ? 0 : val);
+        }, 0) ?? 0);
 
   const latestDate = data?.items?.reduce((latest, s) => {
     const d = s.cycle3Date || s.cycle2Date || s.cycle1Date || s.statementDate;
@@ -570,12 +572,12 @@ export function StatementListPage() {
                 {/* KPI Card 3: Patient responsibility */}
                 <div className="kpi-metric-card">
                   <div className="kpi-tile-header">
-                    <span className="kpi-label">Patient responsibility</span>
+                    <span className="kpi-label">Current balance due</span>
                     <div className="kpi-icon-tile tile-tint-green" aria-hidden="true">
                       <IconDollar size={16} />
                     </div>
                   </div>
-                  <div className="kpi-number">{money(totalPatientResponsibility)}</div>
+                  <div className="kpi-number">{money(totalCurrentBalanceDue)}</div>
                   <div className="kpi-caption">Across all shared statements</div>
                 </div>
 
@@ -802,7 +804,6 @@ export function StatementListPage() {
                             <th scope="col" className="th-acct">ACCT. #:</th>
                             <th scope="col" className="th-patient">PATIENT NAME</th>
                             <th scope="col" className="th-dob">DOB</th>
-                            <th scope="col" className="th-insurance">INSURANCE NAME</th>
                             <th scope="col" className="th-pr">PR TYPE</th>
                             <th scope="col" className="th-status">STATUS</th>
                             <th scope="col" className="th-current-balance text-right">CURRENT BALANCE DUE</th>
@@ -860,11 +861,6 @@ export function StatementListPage() {
                                 {/* 4. DOB */}
                                 <td className="cell-dob">
                                   {(s.patientDob || s.patient_dob) ? formatLedgerDate(s.patientDob || s.patient_dob) : '—'}
-                                </td>
-
-                                {/* 5. INSURANCE NAME */}
-                                <td className="cell-insurance" title={s.insuranceName || s.insurance_name || 'Self-pay'}>
-                                  {s.insuranceName || s.insurance_name || 'Self-pay'}
                                 </td>
 
                                 {/* 6. PR TYPE */}

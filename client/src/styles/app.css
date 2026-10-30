@@ -6842,6 +6842,17 @@ button.stat-kpi-card:hover,
   color: #92400E;
 }
 
+.badge-location-pill {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #F0FDF4;
+  color: #166534;
+  border: 1px solid #BBF7D0;
+}
+
 .badge-pr-item.pr-other {
   background: #F1F5F9;
   color: #475569;
@@ -8021,4 +8032,260 @@ button.stat-kpi-card:hover,
     gap: 6px;
     text-align: center;
   }
+}
+
+
+/* --- Payer Remittance Pie Chart Card --- */
+.kpi-card-pie {
+  min-height: 240px;
+}
+
+.payer-pie-container {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex: 1;
+  padding: 6px 0;
+}
+
+@media (max-width: 480px) {
+  .payer-pie-container {
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+.payer-pie-chart-wrap {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.payer-pie-svg {
+  display: block;
+}
+
+.pie-slice {
+  cursor: pointer;
+}
+
+.payer-pie-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  text-align: center;
+  padding: 0 10px;
+}
+
+.pie-center-payer-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1E3A8A;
+  max-width: 95px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
+  margin-bottom: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.pie-center-val {
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #14213D;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  max-width: 95px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pie-center-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748B;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 3px;
+}
+
+/* Floating Tooltip tracking cursor */
+.payer-pie-floating-tooltip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  background: #0F172A;
+  color: #FFFFFF;
+  padding: 6px 10px;
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 50;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.35);
+  white-space: nowrap;
+  transition: opacity 0.12s ease;
+}
+
+.payer-pie-floating-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 5px;
+  border-style: solid;
+  border-color: #0F172A transparent transparent transparent;
+}
+
+.tooltip-payer-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #F8FAFC;
+}
+
+.tooltip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.tooltip-payer-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #94A3B8;
+  margin-top: 2px;
+}
+
+.tooltip-payer-amt {
+  color: #38BDF8;
+  font-weight: 700;
+}
+
+.tooltip-payer-pct {
+  color: #CBD5E1;
+}
+
+.payer-pie-legend {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.payer-legend-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94A3B8;
+  padding: 0 6px 4px;
+  border-bottom: 1px solid #F1F5F9;
+  margin-bottom: 2px;
+}
+
+.payer-legend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.payer-legend-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  font-size: 12px;
+}
+
+.payer-legend-item:hover,
+.payer-legend-item.hovered {
+  background: #F1F5F9;
+}
+
+.payer-legend-left {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  flex: 1;
+}
+
+.payer-color-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.payer-legend-name {
+  font-weight: 600;
+  color: #1E293B;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11.5px;
+}
+
+.payer-legend-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.payer-legend-pct {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #0369A1;
+  background: #E0F2FE;
+  padding: 1px 5px;
+  border-radius: 4px;
+  min-width: 38px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.payer-legend-amt {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #14213D;
+  font-variant-numeric: tabular-nums;
+  min-width: 65px;
+  text-align: right;
+}
+
+.pie-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 10px;
+  text-align: center;
+  color: #94A3B8;
+  font-size: 12px;
 }

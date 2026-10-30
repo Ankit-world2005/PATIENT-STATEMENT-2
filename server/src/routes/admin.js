@@ -52,7 +52,7 @@ const clinicSchema = z.object({
   city: z.string().trim().min(1, 'Enter the city.').max(100),
   state: z.string().trim().regex(/^[A-Za-z]{2}$/, 'Use the 2-letter state code.').transform((s) => s.toUpperCase()),
   postalCode: z.string().trim().regex(/^\d{5}(-\d{4})?$/, 'Use a 5-digit ZIP code.'),
-  contactName: z.string().trim().min(1, 'Enter the primary contact.').max(200),
+  contactName: z.string().trim().max(200).optional().default(''),
   contactPhone: z.string().trim().max(32).refine((v) => v.replace(/\D/g, '').length === 10, 'Enter a 10-digit phone number.'),
   contactEmail: z.email('Enter a valid email address.').max(254).transform((s) => s.toLowerCase()),
 });

@@ -11,6 +11,7 @@ import {
   IconClose,
   IconCheck,
   IconChart,
+  IconPieChart,
   IconFileSpreadsheet,
 } from './Icons.jsx';
 
@@ -19,6 +20,262 @@ function formatMoney(amount) {
   const num = typeof amount === 'number' ? amount : parseFloat(String(amount).replace(/[^0-9.-]/g, ''));
   if (isNaN(num)) return '$0.00';
   return `$${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+
+const PAYER_COLORS = [
+  '#1E3A8A', // Deep Blue
+  '#2563EB', // Royal Blue
+  '#0D9488', // Teal
+  '#EA580C', // Amber Orange
+  '#8B5CF6', // Purple
+  '#DB2777', // Pink
+  '#64748B', // Slate
+];
+
+function PayerPieChart({ checkRows = [], onSelectPayer }) {
+  const [hoveredIdx, setHoveredIdx] = useState(null);
+  const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0 });
+  const chartWrapRef = useRef(null);
+
+  const breakdown = useMemo(() => {
+    if (!checkRows || checkRows.length === 0) return { slices: [], total: 0, count: 0 };
+
+    const map = new Map();
+    let total = 0;
+    let count = 0;
+
+    checkRows.forEach((r) => {
+      const payer = (r.payer || 'Unknown Payer').trim();
+      const amt = Number(r.paymentAmount) || 0;
+      if (amt > 0) {
+        map.set(payer, (map.get(payer) || 0) + amt);
+        total += amt;
+        count++;
+      }
+    });
+
+    if (total === 0) return { slices: [], total: 0, count };
+
+    const sorted = Array.from(map.entries())
+      .map(([payer, amount]) => ({
+        payer,
+        amount,
+        percent: (amount / total) * 100,
+      }))
+      .sort((a, b) => b.amount - a.amount);
+
+    const topLimit = 5;
+    let slices = [];
+
+    if (sorted.length <= topLimit + 1) {
+      slices = sorted.map((item, idx) => ({
+        ...item,
+        color: PAYER_COLORS[idx % PAYER_COLORS.length],
+      }));
+    } else {
+      const top = sorted.slice(0, topLimit);
+      const other = sorted.slice(topLimit);
+      const otherAmt = other.reduce((sum, item) => sum + item.amount, 0);
+
+      slices = [
+        ...top.map((item, idx) => ({
+          ...item,
+          color: PAYER_COLORS[idx % PAYER_COLORS.length],
+        })),
+        {
+          payer: `Other (${other.length} Payers)`,
+          amount: otherAmt,
+          percent: (otherAmt / total) * 100,
+          color: '#94A3B8',
+          isOther: true,
+        },
+      ];
+    }
+
+    return { slices, total, count };
+  }, [checkRows]);
+
+  if (breakdown.slices.length === 0) {
+    return (
+      <div className="pie-empty-state">
+        <IconPieChart size={32} className="text-muted" />
+        <p>No check payment remittances to display.</p>
+      </div>
+    );
+  }
+
+  // SVG Donut calculation
+  const size = 150;
+  const strokeWidth = 20;
+  const radius = (size - strokeWidth) / 2;
+  const center = size / 2;
+  const circumference = 2 * Math.PI * radius;
+
+  let accumulated = 0;
+  const activeItem = hoveredIdx !== null ? breakdown.slices[hoveredIdx] : null;
+
+  const updateTooltip = (e, idx) => {
+    setHoveredIdx(idx);
+    const rect = chartWrapRef.current?.getBoundingClientRect();
+    if (rect) {
+      setTooltip({
+        visible: true,
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      });
+    }
+  };
+
+  const clearTooltip = () => {
+    setHoveredIdx(null);
+    setTooltip({ visible: false, x: 0, y: 0 });
+  };
+
+  return (
+    <div className="payer-pie-container">
+      {/* Donut Chart Visual */}
+      <div className="payer-pie-chart-wrap" ref={chartWrapRef}>
+        <svg
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          className="payer-pie-svg"
+          aria-label="Payer Remittance Share Chart"
+        >
+          {/* Background circle track */}
+          <circle
+            cx={center}
+            cy={center}
+            r={radius}
+            fill="none"
+            stroke="#F1F5F9"
+            strokeWidth={strokeWidth}
+          />
+
+          {/* Slices */}
+          {breakdown.slices.map((slice, idx) => {
+            const strokeLength = Math.max(1, (slice.percent / 100) * circumference);
+            const strokeOffset = -accumulated;
+            accumulated += strokeLength;
+            const isHovered = hoveredIdx === idx;
+
+            return (
+              <circle
+                key={slice.payer}
+                cx={center}
+                cy={center}
+                r={radius}
+                fill="none"
+                stroke={slice.color}
+                strokeWidth={isHovered ? strokeWidth + 4 : strokeWidth}
+                strokeDasharray={`${strokeLength} ${circumference - strokeLength}`}
+                strokeDashoffset={strokeOffset}
+                transform={`rotate(-90 ${center} ${center})`}
+                className="pie-slice"
+                style={{
+                  transition: 'stroke-width 0.18s ease, opacity 0.18s ease',
+                  opacity: hoveredIdx !== null && !isHovered ? 0.45 : 1,
+                  cursor: 'pointer',
+                }}
+                onMouseEnter={(e) => updateTooltip(e, idx)}
+                onMouseMove={(e) => updateTooltip(e, idx)}
+                onMouseLeave={clearTooltip}
+                onClick={() => !slice.isOther && onSelectPayer?.(slice.payer)}
+              >
+                <title>{`${slice.payer}: ${formatMoney(slice.amount)} (${slice.percent.toFixed(1)}%)`}</title>
+              </circle>
+            );
+          })}
+        </svg>
+
+        {/* Center overlay in donut */}
+        <div className="payer-pie-center">
+          {activeItem ? (
+            <>
+              <div className="pie-center-payer-name" title={activeItem.payer}>
+                {activeItem.payer}
+              </div>
+              <div className="pie-center-val">
+                {formatMoney(activeItem.amount)}
+              </div>
+              <div className="pie-center-lbl">
+                {activeItem.percent.toFixed(1)}% Share
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="pie-center-val">
+                {formatMoney(breakdown.total)}
+              </div>
+              <div className="pie-center-lbl">
+                {breakdown.count} Checks
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Floating Tooltip tracking cursor */}
+        {tooltip.visible && activeItem && (
+          <div
+            className="payer-pie-floating-tooltip"
+            style={{
+              left: `${tooltip.x}px`,
+              top: `${tooltip.y - 12}px`,
+            }}
+          >
+            <div className="tooltip-payer-header">
+              <span className="tooltip-dot" style={{ backgroundColor: activeItem.color }} />
+              <span className="tooltip-payer-name">{activeItem.payer}</span>
+            </div>
+            <div className="tooltip-payer-meta">
+              <span className="tooltip-payer-amt">{formatMoney(activeItem.amount)}</span>
+              <span className="tooltip-payer-pct">({activeItem.percent.toFixed(1)}%)</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Legend & Breakdown Details */}
+      <div className="payer-pie-legend">
+        <div className="payer-legend-header">
+          <span>PAYER</span>
+          <span>SHARE / AMOUNT</span>
+        </div>
+        <div className="payer-legend-list">
+          {breakdown.slices.map((slice, idx) => {
+            const isHovered = hoveredIdx === idx;
+            return (
+              <div
+                key={slice.payer}
+                className={`payer-legend-item ${isHovered ? 'hovered' : ''}`}
+                onMouseEnter={() => setHoveredIdx(idx)}
+                onMouseLeave={() => setHoveredIdx(null)}
+                onClick={() => !slice.isOther && onSelectPayer?.(slice.payer)}
+                title={slice.payer}
+              >
+                <div className="payer-legend-left">
+                  <span
+                    className="payer-color-dot"
+                    style={{ backgroundColor: slice.color }}
+                  />
+                  <span className="payer-legend-name">{slice.payer}</span>
+                </div>
+                <div className="payer-legend-right">
+                  <span className="payer-legend-pct">
+                    {slice.percent.toFixed(1)}%
+                  </span>
+                  <span className="payer-legend-amt">
+                    {formatMoney(slice.amount)}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function ClinicCollectionDashboard({ clinic }) {
@@ -35,6 +292,8 @@ export function ClinicCollectionDashboard({ clinic }) {
   const [checkSearch, setCheckSearch] = useState('');
   const [lineItemSearch, setLineItemSearch] = useState('');
   const [prTypeFilter, setPrTypeFilter] = useState('ALL');
+  const [checkLocationFilter, setCheckLocationFilter] = useState('ALL');
+  const [lineItemLocationFilter, setLineItemLocationFilter] = useState('ALL');
 
   // Upload modal state
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -103,6 +362,26 @@ export function ClinicCollectionDashboard({ clinic }) {
     const set = new Set();
     data.lineItems.forEach(r => {
       if (r.prType) set.add(r.prType);
+    });
+    return Array.from(set);
+  }, [data?.lineItems]);
+
+  // Unique locations for checks
+  const availableCheckLocations = useMemo(() => {
+    if (!data?.checkRows) return [];
+    const set = new Set();
+    data.checkRows.forEach(r => {
+      if (r.location) set.add(r.location);
+    });
+    return Array.from(set);
+  }, [data?.checkRows]);
+
+  // Unique locations for line items
+  const availableLineItemLocations = useMemo(() => {
+    if (!data?.lineItems) return [];
+    const set = new Set();
+    data.lineItems.forEach(r => {
+      if (r.location) set.add(r.location);
     });
     return Array.from(set);
   }, [data?.lineItems]);
@@ -202,28 +481,6 @@ export function ClinicCollectionDashboard({ clinic }) {
           </div>
 
           <div className="collection-actions-cluster">
-            {isSpecialist && (
-              <>
-                <button
-                  type="button"
-                  className="btn-collection-action btn-template"
-                  onClick={handleDownloadTemplate}
-                  title="Download standardized 3-sheet blank Excel template"
-                >
-                  <IconFileSpreadsheet size={15} />
-                  <span>Template</span>
-                </button>
-                <button
-                  type="button"
-                  className="btn-collection-action btn-upload"
-                  onClick={() => setUploadOpen(true)}
-                  title="Upload completed clinic collection Excel file"
-                >
-                  <IconUpload size={15} />
-                  <span>Upload Collection</span>
-                </button>
-              </>
-            )}
           </div>
         </div>
 
@@ -402,16 +659,6 @@ export function ClinicCollectionDashboard({ clinic }) {
           {/* Action buttons */}
           <button
             type="button"
-            className="btn-collection-action btn-template"
-            onClick={handleDownloadTemplate}
-            title="Download standardized 3-sheet blank Excel template"
-          >
-            <IconFileSpreadsheet size={15} />
-            <span>Template</span>
-          </button>
-
-          <button
-            type="button"
             className="btn-collection-action btn-export"
             onClick={handleExportExcel}
             title="Export current collection report and line items to Excel (.xlsx)"
@@ -420,17 +667,7 @@ export function ClinicCollectionDashboard({ clinic }) {
             <span>Export Excel</span>
           </button>
 
-          {isSpecialist && (
-            <button
-              type="button"
-              className="btn-collection-action btn-upload"
-              onClick={() => setUploadOpen(true)}
-              title="Upload completed clinic collection Excel file"
-            >
-              <IconUpload size={15} />
-              <span>Upload Collection</span>
-            </button>
-          )}
+          
         </div>
       </div>
 
@@ -530,36 +767,25 @@ export function ClinicCollectionDashboard({ clinic }) {
           </div>
         </div>
 
-        {/* Card C: Quick Reconciliation Status Tile */}
-        <div className="collection-kpi-card kpi-card-status">
+        {/* Card C: Payer Remittance Distribution (Pie Chart) */}
+        <div className="collection-kpi-card kpi-card-pie">
           <div className="kpi-card-head">
             <div className="kpi-card-title-group">
-              <span className="kpi-card-badge-green">AUDIT STATUS</span>
-              <h3 className="kpi-card-h3">Batch Health</h3>
+              <span className="kpi-card-badge-blue">REMITTANCE SHARE</span>
+              <h3 className="kpi-card-h3">Payer Distribution</h3>
             </div>
-            <div className="kpi-card-icon-bubble bubble-green">
-              <IconCheck size={18} />
+            <div className="kpi-card-icon-bubble bubble-navy">
+              <IconPieChart size={18} />
             </div>
           </div>
 
-          <div className="reconcile-metric-box">
-            <div className="reconcile-score">100%</div>
-            <div className="reconcile-label">Reconciled & Balanced</div>
-            <p className="reconcile-desc">
-              All insurance EFT/checks and patient ledger obligations match the bank batch deposit total.
-            </p>
-          </div>
-
-          <div className="reconcile-stat-pills">
-            <div className="stat-pill">
-              <span className="stat-num">{data?.checkRows?.length || 0}</span>
-              <span className="stat-lbl">Payer Checks</span>
-            </div>
-            <div className="stat-pill">
-              <span className="stat-num">{data?.lineItems?.length || 0}</span>
-              <span className="stat-lbl">Line Items</span>
-            </div>
-          </div>
+          <PayerPieChart
+            checkRows={data?.checkRows || []}
+            onSelectPayer={(payer) => {
+              setActiveSheetTab('checks');
+              setCheckSearch(payer);
+            }}
+          />
         </div>
       </div>
 
@@ -667,7 +893,7 @@ export function ClinicCollectionDashboard({ clinic }) {
               <tbody>
                 {filteredCheckRows.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="table-empty-msg">
+                    <td colSpan={availableCheckLocations.length > 0 ? 11 : 10} className="table-empty-msg">
                       No check records match your filter criteria.
                     </td>
                   </tr>
@@ -696,7 +922,7 @@ export function ClinicCollectionDashboard({ clinic }) {
               </tbody>
               <tfoot>
                 <tr className="table-footer-totals">
-                  <td colSpan={5} className="text-right"><strong>Check Sheet Totals ({filteredCheckRows.length} rows):</strong></td>
+                  <td colSpan={availableCheckLocations.length > 0 ? 6 : 5} className="text-right"><strong>Check Sheet Totals ({filteredCheckRows.length} rows):</strong></td>
                   <td className="text-right col-mono col-bold-navy">{formatMoney(checkTotals.paymentAmount)}</td>
                   <td className="text-right col-mono">{formatMoney(checkTotals.totalPosted)}</td>
                   <td className="text-right col-mono">{formatMoney(checkTotals.unposted)}</td>
@@ -732,7 +958,7 @@ export function ClinicCollectionDashboard({ clinic }) {
               <tbody>
                 {filteredLineItems.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="table-empty-msg">
+                    <td colSpan={availableLineItemLocations.length > 0 ? 14 : 13} className="table-empty-msg">
                       No patient claim line items match your filter criteria.
                     </td>
                   </tr>
@@ -764,7 +990,7 @@ export function ClinicCollectionDashboard({ clinic }) {
               </tbody>
               <tfoot>
                 <tr className="table-footer-totals">
-                  <td colSpan={5} className="text-right"><strong>Line Item Totals ({filteredLineItems.length} claims):</strong></td>
+                  <td colSpan={availableLineItemLocations.length > 0 ? 6 : 5} className="text-right"><strong>Line Item Totals ({filteredLineItems.length} claims):</strong></td>
                   <td className="text-right col-mono">{formatMoney(lineItemTotals.charged)}</td>
                   <td className="text-right col-mono">{formatMoney(lineItemTotals.allowed)}</td>
                   <td className="text-right col-mono col-bold-green">{formatMoney(lineItemTotals.insurancePayment)}</td>

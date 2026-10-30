@@ -27,6 +27,14 @@ function bool(name, fallback) {
 const appSecret = required('APP_SECRET');
 if (appSecret.length < 32) throw new Error('APP_SECRET must be at least 32 characters.');
 
+function resolveAppUrl() {
+  if (env.APP_URL) return env.APP_URL;
+  if (env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  if (env.VERCEL_URL) return `https://${env.VERCEL_URL}`;
+  if (isProduction) return 'https://us24solutions.vercel.app';
+  return 'http://localhost:5173';
+}
+
 export const config = {
   isProduction,
   serverRoot,
@@ -34,7 +42,7 @@ export const config = {
   databaseUrl: required('DATABASE_URL'),
   appSecret,
   // Public URL of the portal, used in invitation and reset links.
-  appUrl: (env.APP_URL || 'http://localhost:5173').replace(/\/$/, ''),
+  appUrl: resolveAppUrl().replace(/\/$/, ''),
   trustProxy: env.TRUST_PROXY || (process.env.NETLIFY || process.env.VERCEL ? 1 : false),
   storageDir: env.STORAGE_DIR
     ? (path.isAbsolute(env.STORAGE_DIR) ? env.STORAGE_DIR : path.resolve(serverRoot, env.STORAGE_DIR))
