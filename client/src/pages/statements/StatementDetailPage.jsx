@@ -456,8 +456,8 @@ export function StatementDetailPage() {
   }, [load]);
 
   if (error?.status === 404) return <NotFoundPage />;
-  if (error) return <div className="container"><Alert tone="error">{error.message}</Alert></div>;
-  if (!data) return <div className="container"><Spinner label="Loading statement…" /></div>;
+  if (error) return <div className="detail-clean-layout"><Alert tone="error">{error.message}</Alert></div>;
+  if (!data) return <div className="detail-clean-layout"><Spinner label="Loading statement…" /></div>;
 
   const { statement: s, clinic, remarks, otherStatements } = data;
   const isStaff = user.role !== 'clinic_user';
@@ -475,7 +475,7 @@ export function StatementDetailPage() {
   };
 
   return (
-    <div className="container">
+    <div className="container detail-clean-layout">
       <BackBar to={backTo} label="Back to statements" trail={[isStaff ? clinic.name : 'Statements', s.patientName]} />
 
       {published && <Alert tone="success" onDismiss={() => setPublished(null)}>Statement published to {published}.</Alert>}
@@ -541,14 +541,12 @@ export function StatementDetailPage() {
           </div>
         </div>
 
-        <div className="detail-actions-bar">
-          <div className="detail-balance-hero">
-            <div className="balance-hero-label">Patient balance due</div>
-            <div className="balance-hero-amount">{money(s.balanceDue)}</div>
-          </div>
-          <div className="detail-buttons">
-            <button type="button" className="btn btn-primary" onClick={download} disabled={downloading}>
-              <IconDownload /> {downloading ? 'Preparing…' : 'Download PDF'}
+        <div className="detail-actions-bar detail-actions-bar-split">
+          <div className="detail-balance-hero-inline">
+            <span className="balance-hero-label-inline">CURRENT BALANCE DUE</span>
+            <span className="balance-hero-amount-inline">{money(s.balanceDue)}</span>
+            <button type="button" className="btn btn-primary btn-hero-download" onClick={download} disabled={downloading}>
+              <IconDownload size={15} /> {downloading ? 'Preparing…' : 'Download PDF'}
             </button>
             {user.role === 'specialist' && s.status?.toLowerCase() !== 'withdrawn' && (
               <button
@@ -576,6 +574,15 @@ export function StatementDetailPage() {
               </button>
             )}
           </div>
+
+          {(s.vobNotes || s.vob_notes) && (
+            <div className="detail-vob-hero-card">
+              <div className="vob-hero-title">AS PER VOB- NOTES</div>
+              <div className="vob-hero-box">
+                {s.vobNotes || s.vob_notes}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

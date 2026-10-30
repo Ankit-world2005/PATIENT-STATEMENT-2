@@ -24,7 +24,12 @@ const PRIORITIES = [
 export function NewRequestModal({ onClose, onCreated, clinicId }) {
   const toast = useToast();
   const [patientName, setPatientName] = useState('');
+  const [patientDob, setPatientDob] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
   const [statementId, setStatementId] = useState(null);
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [isManualFill, setIsManualFill] = useState(false);
+  const [missingDobAlert, setMissingDobAlert] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [priority, setPriority] = useState('Normal');
@@ -32,6 +37,7 @@ export function NewRequestModal({ onClose, onCreated, clinicId }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const wrapperRef = useRef(null);
+  const dobInputRef = useRef(null);
 
   const {
     attachments,
@@ -45,6 +51,8 @@ export function NewRequestModal({ onClose, onCreated, clinicId }) {
 
   // Live suggestions when typing patient name
   useEffect(() => {
+    if (statementId) return;
+
     const q = patientName.trim();
     if (!q || q.length < 2) {
       setSuggestions([]);
@@ -60,8 +68,13 @@ export function NewRequestModal({ onClose, onCreated, clinicId }) {
       api(`/requests/statements?${params.toString()}`)
         .then((res) => {
           if (!ignore) {
-            setSuggestions(res.statements || []);
-            setShowSuggestions((res.statements || []).length > 0);
+            const list = res.statements || [];
+            setSuggestions(list);
+            setShowSuggestions(true);
+            // If user typed 3+ chars and NO patient records match, automatically switch to manual fill mode!
+            if (q.length >= 3 && list.length === 0) {
+              setIsManualFill(true);
+            }
           }
         })
         .catch(() => {});
@@ -71,7 +84,7 @@ export function NewRequestModal({ onClose, onCreated, clinicId }) {
       ignore = true;
       clearTimeout(timer);
     };
-  }, [patientName, clinicId]);
+  }, [patientName, clinicId, statementId]);
 
   // Click outside suggestions closes dropdown
   useEffect(() => {
@@ -87,7 +100,31 @@ export function NewRequestModal({ onClose, onCreated, clinicId }) {
   const selectSuggestion = (s) => {
     setPatientName(s.patientName);
     setStatementId(s.id);
+    setSelectedPatient(s);
+    setAccountNumber(s.accountNumber || '');
     setShowSuggestions(false);
+
+    if (s.patientDob) {
+      setPatientDob(s.patientDob);
+      setMissingDobAlert(false);
+      setIsManualFill(false);
+    } else {
+      // Patient selected, but DOB/details are not available in system!
+      // Automatically switch to manual fill mode for DOB and remaining fields!
+      setPatientDob('');
+      setMissingDobAlert(true);
+      setIsManualFill(true);
+      setTimeout(() => {
+        dobInputRef.current?.focus();
+      }, 100);
+    }
+  };
+
+  const handleClearSelected = () => {
+    setStatementId(null);
+    setSelectedPatient(null);
+    setIsManualFill(true);
+    setMissingDobAlert(false);
   };
 
   const handleSubmit = async (e) => {
@@ -109,6 +146,9 @@ export function NewRequestModal({ onClose, onCreated, clinicId }) {
         body: {
           statementId: statementId || undefined,
           patientName: patientName.trim(),
+          dob: patientDob || undefined,
+          patientDob: patientDob || undefined,
+          accountNumber: accountNumber.trim() || undefined,
           priority,
           body: body.trim(),
           attachments,
@@ -132,7 +172,12 @@ export function NewRequestModal({ onClose, onCreated, clinicId }) {
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
             Cancel
           </button>
-          <button type="button" className="btn btn-primary" onClick={handleSubmit} disabled={busy || !patientName.trim() || uploading}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleSubmit}
+            disabled={busy || !patientName.trim() || uploading}
+          >
             {busy ? 'Submitting…' : 'Submit Request'}
           </button>
         </>
@@ -141,43 +186,166 @@ export function NewRequestModal({ onClose, onCreated, clinicId }) {
       {error && <Alert tone="error">{error}</Alert>}
 
       <div className="request-modal-form">
-        {/* Patient Name Input */}
-        <div className="form-group patient-autocomplete-wrap" ref={wrapperRef}>
-          <label className="form-label" htmlFor="req-patient-name">
-            Patient Name <span className="req-star" style={{ color: '#dc2626' }}>*</span>
-          </label>
-          <input
-            id="req-patient-name"
-            type="text"
-            className="form-input"
-            placeholder="Enter patient name (e.g. John Doe)"
-            value={patientName}
-            onChange={(e) => {
-              setPatientName(e.target.value);
-              setStatementId(null);
-            }}
-            autoComplete="off"
-            autoFocus
-            required
-          />
-
-          {/* Clean autocomplete dropdown if matching patients exist */}
-          {showSuggestions && suggestions.length > 0 && (
-            <div className="patient-autocomplete-dropdown" role="listbox">
-              {suggestions.map((s) => (
-                <div
-                  key={s.id}
-                  className="patient-autocomplete-item"
-                  onClick={() => selectSuggestion(s)}
-                  role="option"
-                  aria-selected={statementId === s.id}
-                >
-                  <div className="autocomplete-name">{s.patientName}</div>
-                </div>
-              ))}
+        {/* Linked / Manual status banner */}
+        {statementId && selectedPatient ? (
+          <div className="req-patient-status-banner banner-linked">
+            <div className="status-banner-lead">
+              <span className="status-badge-linked">✓ Linked Record</span>
+              <span className="status-account-num">{selectedPatient.accountNumber}</span>
+              {selectedPatient.clinicName && (
+                <span className="status-clinic-name">· {selectedPatient.clinicName}</span>
+              )}
             </div>
-          )}
+            <button
+              type="button"
+              className="btn-status-unlink"
+              onClick={handleClearSelected}
+              title="Unlink statement to enter details manually"
+            >
+              Clear / Switch to Manual
+            </button>
+          </div>
+        ) : isManualFill ? (
+          <div className="req-patient-status-banner banner-manual">
+            <span className="status-badge-manual">✍️ Manual Fill Mode</span>
+            <span className="status-manual-hint">
+              {patientName.trim().length >= 3 && suggestions.length === 0
+                ? 'No matching patient record found — please enter details below.'
+                : 'Enter patient details manually.'}
+            </span>
+            {statementId && (
+              <button
+                type="button"
+                className="btn-status-unlink"
+                onClick={() => setIsManualFill(false)}
+              >
+                Search Records
+              </button>
+            )}
+          </div>
+        ) : null}
+
+        {missingDobAlert && (
+          <div className="req-dob-notice-alert" role="status">
+            <span className="notice-icon">ℹ️</span>
+            <span>
+              <strong>Date of Birth not on file</strong> for this patient. Switched to manual fill so you can enter the DOB below.
+            </span>
+          </div>
+        )}
+
+        {/* 2-Column Row: Patient Name & DOB */}
+        <div className="form-row-2col">
+          {/* Patient Name Input */}
+          <div className="form-group patient-autocomplete-wrap" ref={wrapperRef}>
+            <div className="form-label-row">
+              <label className="form-label" htmlFor="req-patient-name">
+                Patient Name <span className="req-star" style={{ color: '#dc2626' }}>*</span>
+              </label>
+              {!isManualFill && !statementId && (
+                <button
+                  type="button"
+                  className="btn-text-mode-toggle"
+                  onClick={() => setIsManualFill(true)}
+                >
+                  Enter manually
+                </button>
+              )}
+            </div>
+            <input
+              id="req-patient-name"
+              type="text"
+              className="form-input"
+              placeholder="Enter patient name (e.g. John Doe)"
+              value={patientName}
+              onChange={(e) => {
+                setPatientName(e.target.value);
+                if (statementId) {
+                  setStatementId(null);
+                  setSelectedPatient(null);
+                  setMissingDobAlert(false);
+                }
+              }}
+              autoComplete="off"
+              autoFocus
+              required
+            />
+
+            {/* Clean autocomplete dropdown if matching patients exist */}
+            {showSuggestions && !statementId && (
+              <div className="patient-autocomplete-dropdown" role="listbox">
+                {suggestions.map((s) => (
+                  <div
+                    key={s.id}
+                    className="patient-autocomplete-item"
+                    onClick={() => selectSuggestion(s)}
+                    role="option"
+                    aria-selected={statementId === s.id}
+                  >
+                    <div className="autocomplete-name">{s.patientName}</div>
+                    <div className="autocomplete-meta">
+                      <span className="col-mono">{s.accountNumber}</span>
+                      {s.patientDob ? (
+                        <span className="autocomplete-dob">DOB: {s.patientDob}</span>
+                      ) : (
+                        <span className="autocomplete-no-dob">No DOB on file (fill manually)</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <div
+                  className="patient-autocomplete-item item-manual-opt"
+                  onClick={() => {
+                    setIsManualFill(true);
+                    setShowSuggestions(false);
+                  }}
+                >
+                  ✍️ Patient not listed? Fill details manually
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* DOB Input */}
+          <div className="form-group">
+            <div className="form-label-row">
+              <label className="form-label" htmlFor="req-patient-dob">
+                DOB (Date of Birth)
+              </label>
+              {missingDobAlert && (
+                <span className="req-label-badge-needed">Fill manually</span>
+              )}
+            </div>
+            <input
+              id="req-patient-dob"
+              ref={dobInputRef}
+              type="date"
+              className={`form-input ${missingDobAlert ? 'input-highlight-needed' : ''}`}
+              value={patientDob}
+              onChange={(e) => {
+                setPatientDob(e.target.value);
+                if (missingDobAlert) setMissingDobAlert(false);
+              }}
+            />
+          </div>
         </div>
+
+        {/* Optional Account # (visible in manual fill mode or when patient selected) */}
+        {(isManualFill || accountNumber) && (
+          <div className="form-group">
+            <label className="form-label" htmlFor="req-account-number">
+              Account # <span className="label-sub-optional">(Optional)</span>
+            </label>
+            <input
+              id="req-account-number"
+              type="text"
+              className="form-input col-mono"
+              placeholder="e.g. ACC-SHARPE-0003"
+              value={accountNumber}
+              onChange={(e) => setAccountNumber(e.target.value)}
+            />
+          </div>
+        )}
 
         {/* Priority Selection */}
         <div className="form-group">
@@ -717,7 +885,7 @@ export function RequestsContent({ clinicId: propClinicId, embedded = false }) {
       ? { to: '/dashboard', label: 'Back to specialist dashboard' }
       : user.role === 'admin'
         ? { to: '/admin', label: 'Back to administration' }
-        : { to: '/home', label: 'Back to portal home' };
+        : { to: '/statements', label: 'Back to statements' };
 
   return (
     <div className="container page-pad">

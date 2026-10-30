@@ -58,9 +58,12 @@ attachmentsRouter.get('/:id', async (req, res) => {
   const buffer = await storage.get(att.storage_key);
   if (!buffer) throw notFound('Attachment file not found.');
 
+  const isDownload = req.query.download === '1' || req.query.download === 'true';
+  const dispositionType = isDownload ? 'attachment' : 'inline';
+
   res.setHeader('Content-Type', att.content_type || 'application/octet-stream');
   res.setHeader('Content-Length', buffer.length);
-  res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(att.filename)}"`);
+  res.setHeader('Content-Disposition', `${dispositionType}; filename="${encodeURIComponent(att.filename)}"`);
   res.setHeader('Cache-Control', 'private, max-age=86400');
   res.send(buffer);
 });

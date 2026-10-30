@@ -30,7 +30,7 @@ export function DashboardPage() {
 
   return (
     <div className="container page-pad">
-      <BackBar to="/home" label="Back to portal home" />
+      
       <PageHeader
         title="Specialist dashboard"
         subtitle={`Welcome back, ${firstName}. Here's what needs your attention.`}

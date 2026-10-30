@@ -53,7 +53,7 @@
   --color-remark-ins-bg: #EDF2FC;
 
   /* Font Families */
-  --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: 'Public Sans', 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, "SF Mono", Consolas, monospace;
   --font-serif: 'Source Serif 4', Georgia, "Times New Roman", serif;
 
@@ -511,11 +511,16 @@ body {
    AUTH SCREENS (A1 Login, A2 Two-Step)
    ========================================================================== */
 .auth-wrapper {
-  min-height: calc(100vh - var(--header-height) - 60px);
+  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 40px 16px;
+  background-color: #F8FAFC;
+  background-image: url('/login-bg.png');
+  background-size: cover;
+  background-position: center center;
+  background-attachment: fixed;
 }
 
 .auth-card {
@@ -1146,13 +1151,13 @@ body {
 
 .doc-summary-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px 20px;
   background: var(--color-surface-sunken);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   padding: 16px 20px;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .doc-meta-item label {

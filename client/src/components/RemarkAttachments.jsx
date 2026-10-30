@@ -8,6 +8,7 @@ import {
   IconFileText,
   IconImage,
   IconPlus,
+  IconPaperclip,
 } from './Icons.jsx';
 import { Spinner } from './ui.jsx';
 
@@ -229,13 +230,14 @@ export function RemarkInputBox({
           />
           <button
             type="button"
-            className="btn-box-inside-plus"
+            className="btn-box-inside-attach"
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled || uploading}
             title="Attach photos, PDF, Excel sheets, or documents (or paste with Ctrl+V)"
-            aria-label="Add attachment"
+            aria-label="Attach file"
           >
-            <IconPlus size={16} />
+            <IconPaperclip size={14} />
+            <span className="attach-btn-label">Attach</span>
           </button>
           {uploading && (
             <span className="remark-box-uploading">
@@ -286,13 +288,14 @@ export function RemarkAttachmentBar({
         />
         <button
           type="button"
-          className="btn-remark-plus"
+          className="btn-remark-attach"
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled || uploading}
-          title="Add attachment"
-          aria-label="Add attachment"
+          title="Attach file"
+          aria-label="Attach file"
         >
-          <IconPlus size={15} />
+          <IconPaperclip size={14} />
+          <span className="attach-btn-label">Attach</span>
         </button>
         {uploading && (
           <span className="attachment-uploading-indicator">
@@ -342,6 +345,70 @@ export function RemarkAttachmentBar({
 /**
  * Displays attachments on posted remarks or request threads.
  */
+function ImageAttachmentCard({ att, onSelectPhoto }) {
+  const [loadError, setLoadError] = useState(false);
+
+  if (loadError) {
+    return (
+      <a
+        href={att.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        download={att.name}
+        className="attachment-file-pill type-image"
+        title={`Download ${att.name} (${formatFileSize(att.size)})`}
+      >
+        <span className="pill-icon">
+          <AttachmentIcon att={att} size={15} />
+        </span>
+        <span className="pill-name" title={att.name}>{att.name}</span>
+        <span className="pill-size">{formatFileSize(att.size)}</span>
+        <span className="pill-action">
+          <IconDownload size={13} />
+        </span>
+      </a>
+    );
+  }
+
+  return (
+    <div className="attachment-image-card">
+      <a
+        href={att.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="attachment-image-preview-wrap"
+        onClick={(e) => {
+          e.preventDefault();
+          onSelectPhoto(att);
+        }}
+        title={`View ${att.name}`}
+      >
+        <img
+          src={att.url}
+          alt={att.name}
+          className="attachment-thumb-img"
+          loading="lazy"
+          onError={() => setLoadError(true)}
+        />
+        <div className="attachment-image-overlay">
+          <span className="overlay-text">Click to view</span>
+        </div>
+      </a>
+      <div className="attachment-image-caption">
+        <span className="caption-name" title={att.name}>{att.name}</span>
+        <a
+          href={att.url}
+          download={att.name}
+          className="caption-download-btn"
+          title="Download image"
+        >
+          <IconDownload size={13} />
+        </a>
+      </div>
+    </div>
+  );
+}
+
 export function RemarkAttachmentViewer({ attachments = [] }) {
   const [selectedPhoto, setSelectedPhoto] = useState(null);
 
@@ -359,63 +426,38 @@ export function RemarkAttachmentViewer({ attachments = [] }) {
 
           if (isImg) {
             return (
-              <div key={att.id || idx} className="attachment-image-card">
-                <a
-                  href={att.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="attachment-image-preview-wrap"
-                  onClick={(e) => {
-                    // Let user open full image modal on click
-                    e.preventDefault();
-                    setSelectedPhoto(att);
-                  }}
-                  title={`View ${att.name}`}
-                >
-                  <img
-                    src={att.url}
-                    alt={att.name}
-                    className="attachment-thumb-img"
-                    loading="lazy"
-                  />
-                  <div className="attachment-image-overlay">
-                    <span className="overlay-text">Click to view</span>
-                  </div>
-                </a>
-                <div className="attachment-image-caption">
-                  <span className="caption-name" title={att.name}>{att.name}</span>
-                  <a
-                    href={att.url}
-                    download={att.name}
-                    className="caption-download-btn"
-                    title="Download image"
-                  >
-                    <IconDownload size={13} />
-                  </a>
-                </div>
-              </div>
+              <ImageAttachmentCard
+                key={att.id || idx}
+                att={att}
+                onSelectPhoto={setSelectedPhoto}
+              />
             );
           }
 
           return (
-            <a
-              key={att.id || idx}
-              href={att.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              download={att.name}
-              className={`attachment-file-pill ${tagClass}`}
-              title={`Download ${att.name} (${formatFileSize(att.size)})`}
-            >
-              <span className="pill-icon">
-                <AttachmentIcon att={att} size={15} />
-              </span>
-              <span className="pill-name" title={att.name}>{att.name}</span>
-              <span className="pill-size">{formatFileSize(att.size)}</span>
-              <span className="pill-action">
+            <div key={att.id || idx} className={`attachment-file-pill ${tagClass}`}>
+              <a
+                href={att.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="pill-main-link"
+                title={`Click to open ${att.name} in new tab`}
+              >
+                <span className="pill-icon">
+                  <AttachmentIcon att={att} size={15} />
+                </span>
+                <span className="pill-name" title={att.name}>{att.name}</span>
+                <span className="pill-size">{formatFileSize(att.size)}</span>
+              </a>
+              <a
+                href={`${att.url}?download=1`}
+                download={att.name}
+                className="pill-action"
+                title={`Download ${att.name}`}
+              >
                 <IconDownload size={13} />
-              </span>
-            </a>
+              </a>
+            </div>
           );
         })}
       </div>

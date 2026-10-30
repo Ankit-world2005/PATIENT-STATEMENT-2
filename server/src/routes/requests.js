@@ -60,7 +60,7 @@ requestsRouter.get('/statements', async (req, res) => {
 
   params.push(limit);
   const sql = `
-    SELECT st.id, st.patient_name, st.account_number, st.statement_date,
+    SELECT st.id, st.patient_name, st.account_number, st.statement_date, st.patient_dob,
            COALESCE(st.current_balance, st.cycle1_balance, st.balance_due) AS current_balance,
            c.name AS clinic_name, c.clinic_code
       FROM statement st
@@ -75,6 +75,7 @@ requestsRouter.get('/statements', async (req, res) => {
     statements: rows.map((r) => ({
       id: r.id,
       patientName: r.patient_name,
+      patientDob: r.patient_dob ? (r.patient_dob instanceof Date ? r.patient_dob.toISOString().slice(0, 10) : String(r.patient_dob).slice(0, 10)) : '',
       accountNumber: r.account_number,
       statementDate: r.statement_date,
       currentBalance: r.current_balance,
@@ -316,6 +317,8 @@ const requestCreateSchema = z.object({
   statementId: z.string().uuid('Please select a valid statement.').optional().nullable(),
   patientName: z.string().trim().min(1, 'Please enter patient name.').max(200).optional().nullable(),
   accountNumber: z.string().trim().max(64).optional().nullable(),
+  dob: z.string().trim().max(64).optional().nullable(),
+  patientDob: z.string().trim().max(64).optional().nullable(),
   priority: z.enum(['Normal', 'High', 'Urgent']).optional().default('Normal'),
   body: z.string().trim().max(2000, 'Requests are limited to 2,000 characters.').optional().default(''),
   attachments: z.array(z.any()).optional().default([]),
@@ -380,6 +383,10 @@ requestsRouter.post('/', async (req, res) => {
       const { rows } = await db.query(matchSql, params);
       if (rows[0]) {
         statement = rows[0];
+        const dobVal = input.dob || input.patientDob;
+        if (dobVal) {
+          await db.query('UPDATE statement SET patient_dob = $1 WHERE id = $2 AND patient_dob IS NULL', [dobVal, statement.id]);
+        }
       }
     }
 
@@ -387,6 +394,7 @@ requestsRouter.post('/', async (req, res) => {
     // create a statement record so foreign key constraint and auditing succeed
     if (!statement) {
       const pName = input.patientName?.trim() || 'Patient';
+      const dobVal = input.dob || input.patientDob || null;
       const cleanInit = pName.replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase() || 'PAT';
       const accNum = input.accountNumber?.trim() || `ACC-${cleanInit}-${Date.now().toString().slice(-4)}`;
 
@@ -401,15 +409,15 @@ requestsRouter.post('/', async (req, res) => {
 
       const { rows: newStRows } = await db.query(
         `INSERT INTO statement (
-           clinic_id, patient_name, account_number, statement_date, balance_due,
+           clinic_id, patient_name, account_number, patient_dob, statement_date, balance_due,
            source, import_batch_id, import_row_number, version, supersedes_id,
            uploaded_by_id, status, ledger_status, awaiting_reply_since, is_request_only
          ) VALUES (
-           $1, $2, $3, CURRENT_DATE, 0.00,
+           $1, $2, $3, $4, CURRENT_DATE, 0.00,
            'pdf_upload', NULL, NULL, 1, NULL,
-           $4, 'active', 'Active', now(), true
+           $5, 'active', 'Active', now(), true
          ) RETURNING id, clinic_id, patient_name, account_number, status, awaiting_reply_since`,
-        [clinicId, pName, accNum, uploaderId],
+        [clinicId, pName, accNum, dobVal, uploaderId],
       );
       statement = newStRows[0];
     }
