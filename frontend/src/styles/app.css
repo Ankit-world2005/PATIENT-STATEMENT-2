@@ -7089,32 +7089,92 @@ button.stat-kpi-card:hover,
 }
 
 /* --- Table Viewport & Layout --- */
-.sheet-table-viewport {
+.collection-top-scroll-track {
   width: 100%;
   overflow-x: auto;
+  overflow-y: hidden;
+  height: 14px;
+  background: #F8FAFC;
+  border-bottom: 1px solid #E2E8F0;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
+.collection-top-scroll-spacer {
+  height: 1px;
+}
+
+.sheet-table-viewport {
+  width: 100%;
+  max-height: calc(100vh - 280px);
+  min-height: 480px;
+  overflow: auto !important;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+  background: #FFFFFF;
+  position: relative;
+}
+
+.sheet-table-viewport:focus-visible {
+  outline: 2px solid #253B80;
+  outline-offset: -2px;
+}
+
+/* High-Visibility Clean Scrollbars for Collection Sheet */
+.sheet-table-viewport::-webkit-scrollbar,
+.collection-top-scroll-track::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.sheet-table-viewport::-webkit-scrollbar-track,
+.collection-top-scroll-track::-webkit-scrollbar-track {
+  background: #F1F5F9;
+  border-radius: 6px;
+}
+
+.sheet-table-viewport::-webkit-scrollbar-thumb,
+.collection-top-scroll-track::-webkit-scrollbar-thumb {
+  background: #94A3B8;
+  border-radius: 6px;
+  border: 2px solid #F1F5F9;
+}
+
+.sheet-table-viewport::-webkit-scrollbar-thumb:hover,
+.collection-top-scroll-track::-webkit-scrollbar-thumb:hover {
+  background: #64748B;
 }
 
 .collection-detail-table {
   width: 100%;
+  min-width: 1350px;
   border-collapse: collapse;
   font-size: 12.5px;
   white-space: nowrap;
 }
 
-.collection-detail-table th {
-  background: #FFFFFF;
-  padding: 7px 12px;
+.collection-detail-table.table-lineitems {
+  min-width: 1750px;
+}
+
+.collection-detail-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #FAFBFD;
+  padding: 9px 12px;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #64748B;
+  color: #5B6478;
   border-bottom: 2px solid #E2E8F0;
   text-align: left;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
 .collection-detail-table td {
-  padding: 7px 12px;
+  padding: 8px 12px;
   color: #1E293B;
   border-bottom: 1px solid #F1F5F9;
   font-size: 12.5px;
@@ -7165,11 +7225,15 @@ button.stat-kpi-card:hover,
 }
 
 .table-footer-totals td {
-  background: #F8FAFC;
+  position: sticky;
+  bottom: 0;
+  z-index: 9;
+  background: #FAFBFD;
   border-top: 2px solid #CBD5E1;
   border-bottom: none;
   font-weight: 700;
-  padding: 12px 14px;
+  padding: 11px 14px;
+  box-shadow: 0 -1px 2px rgba(15, 23, 42, 0.05);
 }
 
 .badge-pr-item {
@@ -8666,7 +8730,7 @@ html, body {
   width: 100% !important;
   max-width: 100% !important;
   display: block !important;
-  overflow-x: auto !important;
+  overflow: auto !important;
   -webkit-overflow-scrolling: touch !important;
 }
 

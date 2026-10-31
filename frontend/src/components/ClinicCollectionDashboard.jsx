@@ -295,6 +295,57 @@ export function ClinicCollectionDashboard({ clinic }) {
   const [checkLocationFilter, setCheckLocationFilter] = useState('ALL');
   const [lineItemLocationFilter, setLineItemLocationFilter] = useState('ALL');
 
+  // Dual horizontal scroll synchronization & measurement refs
+  const topScrollRef = useRef(null);
+  const tableScrollRef = useRef(null);
+  const isSyncingRef = useRef(false);
+  const [tableScrollWidth, setTableScrollWidth] = useState(1500);
+
+  const handleTopScroll = () => {
+    if (isSyncingRef.current) return;
+    isSyncingRef.current = true;
+    if (tableScrollRef.current && topScrollRef.current) {
+      tableScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+    }
+    requestAnimationFrame(() => {
+      isSyncingRef.current = false;
+    });
+  };
+
+  const handleTableScroll = () => {
+    if (isSyncingRef.current) return;
+    isSyncingRef.current = true;
+    if (topScrollRef.current && tableScrollRef.current) {
+      topScrollRef.current.scrollLeft = tableScrollRef.current.scrollLeft;
+    }
+    requestAnimationFrame(() => {
+      isSyncingRef.current = false;
+    });
+  };
+
+  // Sync spacer width with actual table scroll width whenever table content or tab changes
+  useEffect(() => {
+    const updateWidth = () => {
+      if (tableScrollRef.current) {
+        setTableScrollWidth(tableScrollRef.current.scrollWidth);
+      }
+    };
+    updateWidth();
+    if (tableScrollRef.current) tableScrollRef.current.scrollLeft = 0;
+    if (topScrollRef.current) topScrollRef.current.scrollLeft = 0;
+
+    let ro;
+    if (typeof window !== 'undefined' && window.ResizeObserver && tableScrollRef.current) {
+      ro = new ResizeObserver(updateWidth);
+      ro.observe(tableScrollRef.current);
+      const tableEl = tableScrollRef.current.querySelector('table');
+      if (tableEl) ro.observe(tableEl);
+    }
+    return () => {
+      if (ro) ro.disconnect();
+    };
+  }, [activeSheetTab, filteredCheckRows.length, filteredLineItems.length]);
+
   // Upload modal state
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState(null);
@@ -875,10 +926,31 @@ export function ClinicCollectionDashboard({ clinic }) {
           </div>
         </div>
 
-        {/* Tab 1: Check Sheet Table (10 Columns) */}
-        {activeSheetTab === 'checks' && (
-          <div className="sheet-table-viewport">
-            <table className="collection-detail-table">
+        {/* Synchronized Top Horizontal Scrollbar */}
+        <div
+          className="collection-top-scroll-track"
+          ref={topScrollRef}
+          onScroll={handleTopScroll}
+          aria-hidden="true"
+          title="Drag to scroll columns horizontally"
+        >
+          <div
+            className="collection-top-scroll-spacer"
+            style={{ width: `${tableScrollWidth}px` }}
+          />
+        </div>
+
+        {/* Unified Table Viewport with Dual Scroll & Sticky Header */}
+        <div
+          className="sheet-table-viewport"
+          ref={tableScrollRef}
+          onScroll={handleTableScroll}
+          tabIndex={0}
+          role="region"
+          aria-label={activeSheetTab === 'checks' ? 'Prompt check sheet table' : 'Prompt line items table'}
+        >
+          {activeSheetTab === 'checks' ? (
+            <table className="collection-detail-table table-checks">
               <thead>
                 <tr>
                   <th scope="col">Payer</th>
@@ -934,13 +1006,8 @@ export function ClinicCollectionDashboard({ clinic }) {
                 </tr>
               </tfoot>
             </table>
-          </div>
-        )}
-
-        {/* Tab 2: Line Items Table (13 Columns) */}
-        {activeSheetTab === 'lineitems' && (
-          <div className="sheet-table-viewport">
-            <table className="collection-detail-table">
+          ) : (
+            <table className="collection-detail-table table-lineitems">
               <thead>
                 <tr>
                   <th scope="col">Patient Name</th>
@@ -1005,8 +1072,8 @@ export function ClinicCollectionDashboard({ clinic }) {
                 </tr>
               </tfoot>
             </table>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* 4. Upload Collection Modal Dialog (US24 Specialists only) */}
