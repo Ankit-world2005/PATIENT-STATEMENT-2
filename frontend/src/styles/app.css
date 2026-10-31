@@ -863,15 +863,16 @@ a.hub-card { text-decoration: none; color: inherit; }
 .clinic-tiles {
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
 }
 .clinic-tile {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   height: 100%;
-  padding: 14px 16px;
+  padding: 16px;
+  background: var(--color-surface, #fff);
   border: 1px solid var(--color-border);
   border-top: 3px solid var(--color-primary);
   border-radius: var(--radius-sm);
@@ -881,11 +882,52 @@ a.hub-card { text-decoration: none; color: inherit; }
 }
 .clinic-tile:hover { box-shadow: var(--shadow-md); border-color: var(--color-primary); }
 .clinic-tile.inactive { border-top-color: var(--color-border-control); background: var(--color-surface-sunken); }
-.clinic-tile-head { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
-.clinic-tile-name { font-weight: 600; }
-.clinic-tile-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: auto; }
-.clinic-tile-stats dt { font-size: 0.7rem; text-transform: uppercase; color: var(--color-text-subtle); font-weight: 600; }
-.clinic-tile-stats dd { font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.clinic-tile-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+.clinic-tile-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  color: var(--color-text);
+  word-break: break-word;
+  flex: 1;
+  min-width: 0;
+}
+.clinic-tile-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: auto;
+  align-items: stretch;
+}
+.clinic-tile-stats > div {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+}
+.clinic-tile-stats dt {
+  font-size: 0.68rem;
+  line-height: 1.25;
+  text-transform: uppercase;
+  color: var(--color-text-subtle);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  min-height: 2.5em;
+  display: flex;
+  align-items: flex-start;
+}
+.clinic-tile-stats dd {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  margin-top: 4px;
+}
 
 .unanswered-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
 .unanswered-item {
