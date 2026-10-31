@@ -15,6 +15,7 @@ import { authRouter } from './routes/auth.js';
 import { collectionsRouter } from './routes/collections.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { importsRouter } from './routes/imports.js';
+import { notificationsRouter } from './routes/notifications.js';
 import { requestsRouter } from './routes/requests.js';
 import { statementsRouter } from './routes/statements.js';
 import { uploadsRouter } from './routes/uploads.js';
@@ -61,6 +62,7 @@ export function createApp() {
   app.use('/api/imports', requireVerified, requireRole('specialist'), importsRouter);
   app.use('/api/admin', requireVerified, requireRole('admin'), adminRouter);
   app.use('/api/requests', requireVerified, requestsRouter);
+  app.use('/api/notifications', requireVerified, notificationsRouter);
   app.use('/api/attachments', requireVerified, attachmentsRouter);
   app.use('/api/collections', requireVerified, collectionsRouter);
   app.use('/api', requireVerified, dashboardRouter);

@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Link, Outlet } from 'react-router';
 import { useAuth } from '../lib/auth.jsx';
 import { ROLE_LABELS, initials, landingPath } from '../lib/format.js';
-import { IconBell, IconLock, IconSignOut } from './Icons.jsx';
+import { IconLock, IconSignOut } from './Icons.jsx';
+import { NotificationBell } from './NotificationBell.jsx';
 import { SessionTimeout } from './SessionTimeout.jsx';
 
 const LOGO_URL = 'https://us24solutions.com/wp-content/uploads/2022/09/us-24-copyq-2-min-1-e1664550612654.png';
@@ -39,15 +40,7 @@ function Header() {
         {/* Right Side: Bell + User Chip + Outlined Sign Out */}
         {user ? (
           <div className="header-user-actions">
-            <button
-              type="button"
-              className="header-bell-btn"
-              aria-label="Notifications (1 unread)"
-              title="Notifications"
-            >
-              <IconBell size={20} />
-              <span className="header-bell-dot" aria-hidden="true" />
-            </button>
+            <NotificationBell />
 
             <div className="header-user-chip" title={`${user.fullName} (${user.clinic ? user.clinic.name : ROLE_LABELS[user.role]})`}>
               <div className="user-avatar-navy" aria-hidden="true">
