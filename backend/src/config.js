@@ -1,10 +1,16 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const serverRoot = process.env.LAMBDA_TASK_ROOT || process.cwd();
-const envFile = path.join(serverRoot, 'backend', '.env');
-const legacyEnvFile = path.join(serverRoot, 'server', '.env');
-const localEnvFile = path.join(serverRoot, '.env');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const backendRoot = path.resolve(__dirname, '..');
+const projectRoot = path.resolve(backendRoot, '..');
+const serverRoot = process.env.LAMBDA_TASK_ROOT || backendRoot;
+
+const envFile = path.join(backendRoot, '.env');
+const legacyEnvFile = path.join(projectRoot, 'server', '.env');
+const localEnvFile = path.join(projectRoot, '.env');
 if (existsSync(envFile)) {
   try { process.loadEnvFile(envFile); } catch { /* ignore */ }
 } else if (existsSync(legacyEnvFile)) {
@@ -42,6 +48,7 @@ function resolveAppUrl() {
 export const config = {
   isProduction,
   serverRoot,
+  backendRoot,
   port: Number(env.PORT || 4000),
   databaseUrl: required('DATABASE_URL'),
   appSecret,
@@ -49,8 +56,8 @@ export const config = {
   appUrl: resolveAppUrl().replace(/\/$/, ''),
   trustProxy: env.TRUST_PROXY || (process.env.NETLIFY || process.env.VERCEL ? 1 : false),
   storageDir: env.STORAGE_DIR
-    ? (path.isAbsolute(env.STORAGE_DIR) ? env.STORAGE_DIR : path.resolve(serverRoot, env.STORAGE_DIR))
-    : (process.env.NETLIFY || process.env.LAMBDA_TASK_ROOT || process.env.VERCEL ? '/tmp/storage' : path.resolve(serverRoot, 'storage')),
+    ? (path.isAbsolute(env.STORAGE_DIR) ? env.STORAGE_DIR : path.resolve(backendRoot, env.STORAGE_DIR))
+    : (process.env.NETLIFY || process.env.LAMBDA_TASK_ROOT || process.env.VERCEL ? '/tmp/storage' : path.resolve(backendRoot, 'storage')),
   smtp: {
     service: env.SMTP_SERVICE || ((env.SMTP_HOST && env.SMTP_HOST.includes('gmail')) || (env.SMTP_USER && env.SMTP_USER.includes('@gmail.com')) ? 'gmail' : undefined),
     host: env.SMTP_HOST || (env.SMTP_USER && env.SMTP_USER.includes('@gmail.com') ? 'smtp.gmail.com' : 'localhost'),

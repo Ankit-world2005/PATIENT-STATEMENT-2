@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { config } from '../config.js';
 import { pool, query, withTransaction } from '../db/pool.js';
 import { audit } from '../lib/audit.js';
-import { signLink } from '../lib/crypto.js';
+import { hashPassword, signLink } from '../lib/crypto.js';
 import { HttpError, badRequest, conflict, notFound, parseOrThrow } from '../lib/errors.js';
 import { mail } from '../lib/mailer.js';
 import { endAllSessions } from '../middleware/session.js';
@@ -310,10 +310,11 @@ adminRouter.get('/users', async (req, res) => {
 const inviteSchema = z
   .object({
     fullName: z.string().trim().max(200).optional().default(''),
-    email: z.email('Enter a valid email address.').max(254).transform((s) => s.toLowerCase()),
+    email: z.string().trim().email('Enter a valid email address.').max(254).transform((s) => s.toLowerCase()),
     role: z.enum(['admin', 'specialist', 'clinic_user'], { message: 'Choose a role.' }),
     clinicId: z.string().optional().default(''),
     isClinicAdmin: z.boolean().optional().default(false),
+    password: z.string().max(128).optional().default(''),
   })
   .refine((v) => v.role === 'clinic_user' || v.fullName.length >= 1, {
     message: 'Enter the full name.',
@@ -351,18 +352,37 @@ adminRouter.post('/users', async (req, res) => {
       }
     }
     const isClinicAdmin = v.role === 'clinic_user' ? Boolean(v.isClinicAdmin) : false;
+    let status = 'invited';
+    let passwordHash = null;
+    let activatedAt = null;
+
+    if (v.password && v.password.trim().length >= 8) {
+      status = 'active';
+      passwordHash = await hashPassword(v.password.trim());
+      activatedAt = new Date();
+    }
+
     const { rows } = await db.query(
-      `INSERT INTO app_user (email, full_name, role, clinic_id, is_clinic_admin, status, invited_by_id)
-       VALUES ($1, $2, $3, $4, $5, 'invited', $6) RETURNING *`,
-      [v.email, fullName, v.role, clinicId, isClinicAdmin, req.user.id],
+      `INSERT INTO app_user (email, full_name, role, clinic_id, is_clinic_admin, status, password_hash, activated_at, invited_by_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [v.email, fullName, v.role, clinicId, isClinicAdmin, status, passwordHash, activatedAt, req.user.id],
     );
     await audit(db, req, {
-      action: 'user.invite', targetType: 'app_user', targetId: rows[0].id, clinicId: clinicId ?? undefined, details: { role: v.role },
+      action: status === 'active' ? 'user.create' : 'user.invite',
+      targetType: 'app_user',
+      targetId: rows[0].id,
+      clinicId: clinicId ?? undefined,
+      details: { role: v.role, direct: status === 'active' },
     });
     return rows[0];
   });
+
+  if (user.status === 'active') {
+    return res.status(201).json({ id: user.id, status: 'active', direct: true, emailFailed: false });
+  }
+
   const sent = await sendInvitation(user);
-  res.status(201).json({ id: user.id, emailFailed: !sent });
+  res.status(201).json({ id: user.id, status: user.status, direct: false, emailFailed: !sent });
 });
 
 adminRouter.get('/users/:id', async (req, res) => {
@@ -494,6 +514,37 @@ adminRouter.delete('/users/:id', async (req, res) => {
   });
 
   res.json({ ok: true, message: `User "${targetUser.full_name}" has been deleted from the database.` });
+});
+
+
+// Direct password update by admin without email token
+adminRouter.post('/users/:id/set-password', async (req, res) => {
+  const id = requireUuid(req.params.id);
+  const password = String(req.body?.password ?? '').trim();
+  if (password.length < 8) {
+    throw badRequest('Password must be at least 8 characters.', { password: 'Password must be at least 8 characters.' });
+  }
+  const { rows } = await query('SELECT * FROM app_user WHERE id = $1', [id]);
+  if (!rows[0]) throw notFound('User not found.');
+  const user = rows[0];
+  const hash = await hashPassword(password);
+  await withTransaction(async (db) => {
+    await db.query(
+      `UPDATE app_user
+          SET password_hash = $2, password_changed_at = now(), status = 'active',
+              activated_at = COALESCE(activated_at, now()), updated_at = now()
+        WHERE id = $1`,
+      [id, hash],
+    );
+    await audit(db, req, {
+      action: 'user.password_reset',
+      targetType: 'app_user',
+      targetId: id,
+      clinicId: user.clinic_id ?? undefined,
+      details: { direct: true },
+    });
+  });
+  res.json({ ok: true, message: `Password updated for ${user.full_name}. Account is active.` });
 });
 
 adminRouter.post('/users/:id/clinics', async (req, res) => {

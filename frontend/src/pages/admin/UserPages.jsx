@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { IconTrash } from '../../components/Icons.jsx';
-import { Alert, BackBar, ConfirmDialog, EmptyState, Field, PageHeader, Spinner, StatusBadge } from '../../components/ui.jsx';
+import { Alert, BackBar, ConfirmDialog, EmptyState, Field, Modal, PageHeader, Spinner, StatusBadge } from '../../components/ui.jsx';
 import { api } from '../../lib/api.js';
 import { ROLE_LABELS, dateTime, shortDate } from '../../lib/format.js';
 import { useToast } from '../../lib/toast.jsx';
@@ -67,19 +67,19 @@ export function UsersPage() {
       <BackBar to="/admin" label="Back to admin home" trail={['Admin', 'Users']} />
       <PageHeader title="Users" subtitle="Manage clinic portal accounts and internal US24 staff access.">
         {filters.role === 'clinic_user' ? (
-          <Link to="/manage/users/invite?tab=clinic" className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <Link to="/manage/users/add?tab=clinic" className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             + Add Clinic User
           </Link>
         ) : filters.role === 'us24' || filters.role === 'admin' || filters.role === 'specialist' ? (
-          <Link to="/manage/users/invite?tab=us24" className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <Link to="/manage/users/add?tab=us24" className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             + Add US24 User
           </Link>
         ) : (
           <div className="user-header-actions-wrap">
-            <Link to="/manage/users/invite?tab=clinic" className="btn btn-secondary btn-sm">
+            <Link to="/manage/users/add?tab=clinic" className="btn btn-secondary btn-sm">
               + Add Clinic User
             </Link>
-            <Link to="/manage/users/invite?tab=us24" className="btn btn-primary btn-sm">
+            <Link to="/manage/users/add?tab=us24" className="btn btn-primary btn-sm">
               + Add US24 User
             </Link>
           </div>
@@ -125,7 +125,7 @@ export function UsersPage() {
             <select id="u-role" className="form-select" value={filters.role} onChange={set('role')}>
               <option value="">All roles</option>
               <option value="clinic_user">Clinic Users</option>
-              <option value="us24">US24 Users (Admin & Specialist)</option>
+              <option value="us24">US24 Users (Admin &amp; Specialist)</option>
               <option value="admin">Admin (US24)</option>
               <option value="specialist">Specialist (US24)</option>
             </select>
@@ -140,7 +140,10 @@ export function UsersPage() {
           <div className="filter-item">
             <label htmlFor="u-status">Status</label>
             <select id="u-status" className="form-select" value={filters.status} onChange={set('status')}>
-              <option value="">All</option><option value="invited">Invited</option><option value="active">Active</option><option value="deactivated">Deactivated</option>
+              <option value="">All</option>
+              <option value="active">Active</option>
+              <option value="deactivated">Deactivated</option>
+              <option value="invited">Invited</option>
             </select>
           </div>
         </div>
@@ -158,34 +161,27 @@ export function UsersPage() {
                   <th scope="col">Clinic</th>
                   <th scope="col">Status</th>
                   <th scope="col">Last sign-in</th>
-                  <th scope="col" style={{ textAlign: 'center', width: 100 }}>Delete</th>
+                  <th scope="col" style={{ width: 90, textAlign: 'center' }}>Delete</th>
                 </tr>
               </thead>
               <tbody>
                 {users.map((u) => (
-                  <tr key={u.id} className="row-static">
-                    <td><Link to={`/manage/users/${u.id}`} className="strong-link">{u.fullName}</Link></td>
-                    <td>{u.email}</td>
-                    <td>
-                      {u.role === 'clinic_user' && u.isClinicAdmin ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                          Clinic User
-                          <span style={{ fontSize: '0.7rem', padding: '1px 6px', borderRadius: 8, background: '#eff6ff', color: '#1d4ed8', fontWeight: 600, border: '1px solid #bfdbfe' }}>Admin</span>
-                        </span>
-                      ) : (
-                        ROLE_LABELS[u.role]
-                      )}
+                  <tr key={u.id} className="row-interactive">
+                    <td className="col-patient">
+                      <Link to={`/manage/users/${u.id}`} className="patient-name-link">{u.fullName}</Link>
                     </td>
-                    <td>{u.clinic?.name ?? '—'}</td>
+                    <td>{u.email}</td>
+                    <td>{ROLE_LABELS[u.role] ?? u.role}</td>
+                    <td>{u.clinicName || '—'}</td>
                     <td><StatusBadge status={u.status} /></td>
                     <td className="col-date">{u.lastLogin ? shortDate(u.lastLogin) : 'Never'}</td>
-                    <td style={{ textAlign: 'center' }}>
+                    <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
                         className="btn btn-danger-outline btn-xs"
                         onClick={() => setDeletingUser(u)}
-                        title={`Delete ${u.fullName} from database`}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                        title={`Delete ${u.fullName}`}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px' }}
                       >
                         <IconTrash size={13} /> Delete
                       </button>
@@ -200,12 +196,12 @@ export function UsersPage() {
 
       {deletingUser && (
         <ConfirmDialog
-          title="Delete user from database?"
+          title={`Delete ${deletingUser.fullName}?`}
           destructive
           busy={busy}
           confirmLabel={busy ? 'Deleting…' : 'Delete user'}
-          message={`Are you sure you want to permanently delete "${deletingUser.fullName}" (${deletingUser.email}) from the database? This action cannot be undone.`}
-          onCancel={() => !busy && setDeletingUser(null)}
+          message={`Are you sure you want to permanently delete user "${deletingUser.fullName}" (${deletingUser.email}) from the database? This cannot be undone.`}
+          onCancel={() => setDeletingUser(null)}
           onConfirm={handleDelete}
         />
       )}
@@ -213,8 +209,17 @@ export function UsersPage() {
   );
 }
 
-// --- M6: invite user ----------------------------------------------------------------------
-export function InviteUserPage() {
+// --- Helper: Generate clean memorable secure password ---
+function generateSecurePassword() {
+  const words = ['Clinic', 'Secure', 'Portal', 'Patient', 'Medical', 'Care', 'Access', 'Billing'];
+  const w1 = words[Math.floor(Math.random() * words.length)];
+  const w2 = words[Math.floor(Math.random() * words.length)];
+  const num = Math.floor(1000 + Math.random() * 9000);
+  return `${w1}#${w2}${num}!`;
+}
+
+// --- M6: Add User (Direct Account Creation) ----------------------------------
+export function AddUserPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const clinics = useClinicOptions('active').filter((c) => c.isActive);
@@ -228,8 +233,10 @@ export function InviteUserPage() {
     role: isUs24Initial ? (params.get('role') === 'admin' ? 'admin' : 'specialist') : 'clinic_user',
     clinicId: params.get('clinicId') ?? '',
     isClinicAdmin: false,
+    password: '',
   });
 
+  const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -237,6 +244,11 @@ export function InviteUserPage() {
   const backTo = params.get('clinicId')
     ? `/manage/clinics/${params.get('clinicId')}`
     : `/manage/users?role=${activeTab === 'clinic' ? 'clinic_user' : 'us24'}`;
+
+  const handleGenerate = () => {
+    setValues((v) => ({ ...v, password: generateSecurePassword() }));
+    setShowPassword(true);
+  };
 
   const switchTab = (tab) => {
     setActiveTab(tab);
@@ -259,21 +271,26 @@ export function InviteUserPage() {
         ? (selectedClinic ? `${selectedClinic.name}${values.isClinicAdmin ? ' (Clinic Admin)' : ''}` : 'Clinic User')
         : values.fullName;
 
+      if (!values.password || values.password.trim().length < 8) {
+        setErrors((prev) => ({ ...prev, password: 'Enter a password (at least 8 characters).' }));
+        setBusy(false);
+        return;
+      }
+
       const payload = {
         fullName: derivedFullName,
         email: values.email,
         role: activeTab === 'clinic' ? 'clinic_user' : (values.role || 'specialist'),
         clinicId: activeTab === 'clinic' ? values.clinicId : '',
         isClinicAdmin: activeTab === 'clinic' ? Boolean(values.isClinicAdmin) : false,
+        password: values.password.trim(),
       };
       const d = await api('/admin/users', { method: 'POST', body: payload });
       navigate(`/manage/users/${d.id}`, {
         replace: true,
         state: {
-          message: d.emailFailed
-            ? "The user was created, but the invitation couldn't be sent. Use Resend invitation."
-            : `Invitation sent to ${values.email}. It expires in 72 hours.`,
-          tone: d.emailFailed ? 'warning' : 'success',
+          message: `User "${derivedFullName}" added directly! The account is active and can log in immediately.`,
+          tone: 'success',
         },
       });
     } catch (err) {
@@ -290,8 +307,8 @@ export function InviteUserPage() {
         title={activeTab === 'clinic' ? 'Add Clinic User' : 'Add US24 User'}
         subtitle={
           activeTab === 'clinic'
-            ? 'Create a login account for clinic staff to access their patient statements and reports.'
-            : 'Create an internal account for US24 billing specialists or system administrators.'
+            ? 'Directly create and activate a login account for clinic staff to access statements and reports.'
+            : 'Directly create and activate an internal US24 staff account with login credentials.'
         }
       />
 
@@ -387,14 +404,145 @@ export function InviteUserPage() {
           </Field>
         )}
 
+        <Field label="Password" error={errors.password} required hint="Account login password. User can use this to sign in immediately.">
+          {(p) => (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <input
+                  {...p}
+                  type={showPassword ? 'text' : 'password'}
+                  className="form-input"
+                  placeholder="Enter login password (min 8 chars)"
+                  value={values.password}
+                  onChange={set('password')}
+                  style={{ paddingRight: 40 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: 8,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: 14,
+                    color: '#64748b',
+                    padding: 4,
+                  }}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? '🙈' : '👁️'}
+                </button>
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={handleGenerate}
+                style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+              >
+                ⚡ Generate
+              </button>
+            </div>
+          )}
+        </Field>
+
         <div className="form-actions">
           <Link to={backTo} className="btn btn-secondary">Cancel</Link>
           <button type="submit" className="btn btn-primary" disabled={busy}>
-            {busy ? 'Sending…' : activeTab === 'clinic' ? 'Invite Clinic User' : 'Invite US24 User'}
+            {busy ? 'Adding user…' : activeTab === 'clinic' ? '+ Add Clinic User' : '+ Add US24 User'}
           </button>
         </div>
       </form>
     </div>
+  );
+}
+
+// Backwards-compatible export
+export const InviteUserPage = AddUserPage;
+
+// --- Modal for Direct Password Update ---
+function SetPasswordModal({ user, busy, onCancel, onConfirm }) {
+  const [password, setPassword] = useState('');
+  const [show, setShow] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleGen = () => {
+    setPassword(generateSecurePassword());
+    setShow(true);
+    setError('');
+  };
+
+  const handleSave = () => {
+    if (!password || password.trim().length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+    onConfirm(password.trim());
+  };
+
+  return (
+    <Modal
+      title={`Set password for ${user.fullName}`}
+      onClose={onCancel}
+      footer={
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', width: '100%' }}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onCancel} disabled={busy}>
+            Cancel
+          </button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={handleSave} disabled={busy}>
+            {busy ? 'Saving…' : 'Save Password'}
+          </button>
+        </div>
+      }
+    >
+      <p style={{ color: 'var(--color-text-muted)', marginBottom: 16, fontSize: 13 }}>
+        Set a new login password directly for <strong>{user.email}</strong>. The user will be able to log in immediately with this password without waiting for an email link.
+      </p>
+      {error && <Alert tone="error">{error}</Alert>}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
+        <div style={{ position: 'relative', flex: 1 }}>
+          <input
+            type={show ? 'text' : 'password'}
+            className="form-input"
+            placeholder="New password (min 8 chars)"
+            value={password}
+            onChange={(e) => { setPassword(e.target.value); setError(''); }}
+            style={{ paddingRight: 40 }}
+            autoFocus
+          />
+          <button
+            type="button"
+            onClick={() => setShow(!show)}
+            style={{
+              position: 'absolute',
+              right: 8,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 14,
+              color: '#64748b',
+              padding: 4,
+            }}
+            title={show ? 'Hide password' : 'Show password'}
+          >
+            {show ? '🙈' : '👁️'}
+          </button>
+        </div>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          onClick={handleGen}
+          style={{ whiteSpace: 'nowrap' }}
+        >
+          ⚡ Generate
+        </button>
+      </div>
+    </Modal>
   );
 }
 
@@ -442,6 +590,13 @@ export function UserDetailPage() {
       {location.state?.message && <Alert tone={location.state.tone}>{location.state.message}</Alert>}
       <PageHeader title={u.fullName} subtitle={`${ROLE_LABELS[u.role]}${u.clinic ? ` · ${u.clinic.name}` : ''}`}>
         <StatusBadge status={u.status} />
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          onClick={() => setDialog('set-password')}
+        >
+          Set password
+        </button>
         {u.status === 'invited' && (
           <button type="button" className="btn btn-secondary btn-sm" disabled={busy}
             onClick={() => run(() => api(`/admin/users/${id}/resend-invite`, { method: 'POST' }), 'Invitation resent.')}>
@@ -476,7 +631,7 @@ export function UserDetailPage() {
             <div><dt>Email</dt><dd>{u.email}</dd></div>
             <div><dt>Role</dt><dd>{ROLE_LABELS[u.role]}</dd></div>
             {u.clinic && <div><dt>Clinic</dt><dd><Link to={`/manage/clinics/${u.clinic.id}`}>{u.clinic.name}</Link></dd></div>}
-            <div><dt>Invited</dt><dd>{dateTime(u.invitedAt)}</dd></div>
+            <div><dt>Account created</dt><dd>{dateTime(u.invitedAt)}</dd></div>
             <div><dt>Last sign-in</dt><dd>{u.lastLogin ? dateTime(u.lastLogin) : 'Never'}</dd></div>
             <div><dt>2-step method</dt><dd>{u.hasTotp ? 'Authenticator app (email codes also available)' : 'Email code'}</dd></div>
             {u.deactivatedAt && <div><dt>Deactivated</dt><dd>{dateTime(u.deactivatedAt)}</dd></div>}
@@ -513,6 +668,14 @@ export function UserDetailPage() {
         )}
       </div>
 
+      {dialog === 'set-password' && (
+        <SetPasswordModal
+          user={u}
+          busy={busy}
+          onCancel={() => setDialog(null)}
+          onConfirm={(newPass) => run(() => api(`/admin/users/${id}/set-password`, { method: 'POST', body: { password: newPass } }), 'Password updated directly. User is active.')}
+        />
+      )}
       {dialog === 'deactivate' && (
         <ConfirmDialog title={`Deactivate ${u.fullName}?`} destructive busy={busy} confirmLabel="Deactivate"
           message={`${u.fullName} will be signed out now and can't sign in.`}
@@ -521,7 +684,7 @@ export function UserDetailPage() {
       )}
       {dialog === 'reactivate' && (
         <ConfirmDialog title={`Reactivate ${u.fullName}?`} busy={busy} confirmLabel="Reactivate"
-          message="The user will be able to sign in again (or accept a new invitation if they never set a password)."
+          message="The user will be able to sign in again immediately."
           onCancel={() => setDialog(null)}
           onConfirm={() => run(() => api(`/admin/users/${id}/reactivate`, { method: 'POST' }), 'User reactivated.')} />
       )}
