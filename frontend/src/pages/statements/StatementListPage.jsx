@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import {
   IconBuilding,
@@ -186,6 +186,38 @@ export function StatementListPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [newRequestOpen, setNewRequestOpen] = useState(false);
   const [segmentedStatus, setSegmentedStatus] = useState('all'); // 'all' | 'new' | 'viewed' | 'request_sent'
+
+    const topScrollRef = useRef(null);
+  const tableScrollRef = useRef(null);
+  const isSyncingRef = useRef(false);
+
+  const handleTopScroll = () => {
+    if (isSyncingRef.current) return;
+    isSyncingRef.current = true;
+    if (tableScrollRef.current && topScrollRef.current) {
+      tableScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+    }
+    requestAnimationFrame(() => {
+      isSyncingRef.current = false;
+    });
+  };
+
+  const handleTableScroll = () => {
+    if (isSyncingRef.current) return;
+    isSyncingRef.current = true;
+    if (topScrollRef.current && tableScrollRef.current) {
+      topScrollRef.current.scrollLeft = tableScrollRef.current.scrollLeft;
+    }
+    requestAnimationFrame(() => {
+      isSyncingRef.current = false;
+    });
+  };
+
+  const scrollStep = (delta) => {
+    if (tableScrollRef.current) {
+      tableScrollRef.current.scrollBy({ left: delta, behavior: 'smooth' });
+    }
+  };
 
   const monthGroups = buildMonthGroups(data?.items);
 
@@ -786,14 +818,55 @@ export function StatementListPage() {
                       <div className="records-count-text">
                         <strong>{displayedItems.length}</strong> patient record{displayedItems.length === 1 ? '' : 's'}
                       </div>
+                      <div className="table-scroll-controls" aria-label="Table column scroll controls">
+                        <button
+                          type="button"
+                          className="btn-table-scroll"
+                          onClick={() => scrollStep(-350)}
+                          title="Scroll columns left"
+                          aria-label="Scroll table columns left"
+                        >
+                          ◀
+                        </button>
+                        <span className="scroll-controls-label">
+                          ↔ Scroll columns
+                        </span>
+                        <button
+                          type="button"
+                          className="btn-table-scroll"
+                          onClick={() => scrollStep(350)}
+                          title="Scroll columns right"
+                          aria-label="Scroll table columns right"
+                        >
+                          ▶
+                        </button>
+                      </div>
                       <div className="table-legend-notice">
                         <span className="legend-new-pill" aria-hidden="true">NEW</span>
                         <span>= not yet opened by the clinic</span>
                       </div>
                     </div>
 
+                    {/* Synchronized Top Horizontal Scrollbar */}
+                    <div
+                      className="table-top-scroll-track"
+                      ref={topScrollRef}
+                      onScroll={handleTopScroll}
+                      aria-hidden="true"
+                      title="Drag to scroll columns horizontally"
+                    >
+                      <div className="table-top-scroll-spacer" />
+                    </div>
+
                     {/* Table inside overflow wrapper */}
-                    <div className="table-scroll-pane">
+                    <div
+                      className="table-scroll-pane"
+                      ref={tableScrollRef}
+                      onScroll={handleTableScroll}
+                      tabIndex={0}
+                      role="region"
+                      aria-label="Patient statements table, scrollable horizontally and vertically"
+                    >
                       <table className="clinical-clean-table">
                         <caption className="sr-only">
                           Patient statements ledger, {displayedItems.length} results
