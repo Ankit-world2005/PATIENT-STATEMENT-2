@@ -267,7 +267,7 @@ export function parseSingleSheetGrid(grid) {
   const checkRows = [];
   const lineItems = [];
 
-  let state = 'SCAN'; // 'SCAN' | 'LOCATION_WISE' | 'PAYER_TABLE' | 'LINEITEM_TABLE'
+  let state = 'SCAN'; // 'SCAN' | 'LOCATION_WISE' | 'PAYER_TABLE' | 'SUMMARY' | 'LINEITEM_TABLE'
   let payerHeaderIdxs = null;
   let lineItemHeaderIdxs = null;
 
@@ -277,36 +277,65 @@ export function parseSingleSheetGrid(grid) {
 
     const rowStr = row.join(' ').toLowerCase();
 
-    // 1. Detect Report Title and Month/Year
-    if (!monthYear && rowStr.includes('collection report')) {
+    // 1. Detect Report Title and Month/Year anywhere
+    if (rowStr.includes('collection report')) {
       const found = row.find(c => /collection report/i.test(c));
       if (found) {
         reportTitle = found;
-        const match = found.match(/-\s*([A-Za-z]+\s*\d{4})/i) || found.match(/([A-Za-z]+\s+\d{4})/i);
+        const match = found.match(/-s*(?:tills+)?([A-Za-z]+s*d{4})/i) || found.match(/([A-Za-z]+s+d{4})/i);
         if (match) monthYear = match[1];
       }
-    }
-
-    // 2. Detect Particulars Summary items (only in top SCAN stage)
-    if (state === 'SCAN') {
-      for (let c = 0; c < row.length; c++) {
-        const cell = row[c];
-        if (!cell) continue;
-
-        const rest = row.slice(c + 1).filter(v => v !== '');
-        const nextVal = rest.length > 0 ? parseNum(rest[0]) : 0;
-
-        if (/check amount/i.test(cell)) particulars.checkAmount = nextVal;
-        else if (/patient payment/i.test(cell)) particulars.patientPayment = nextVal;
-        else if (/total amount/i.test(cell)) particulars.total = nextVal;
+      if (state === 'PAYER_TABLE') {
+        state = 'SUMMARY';
       }
     }
 
-    // 3. Detect Location Wise Summary Header
+    // 2. Check for Payer / Check table header
+    if (rowStr.includes('payer') && (rowStr.includes('payment method') || rowStr.includes('payment reference'))) {
+      state = 'PAYER_TABLE';
+      payerHeaderIdxs = {
+        payer: row.findIndex(c => /^payer$/i.test(c) || /payer/i.test(c)),
+        method: row.findIndex(c => /method/i.test(c)),
+        reference: row.findIndex(c => /reference/i.test(c)),
+        postedDate: row.findIndex(c => /posted date/i.test(c) || /payment date/i.test(c)),
+        bankDate: row.findIndex(c => /bank date/i.test(c)),
+        createdBy: row.findIndex(c => /created by/i.test(c)),
+        paymentAmount: row.findIndex(c => /payment amount/i.test(c)),
+        totalPosted: row.findIndex(c => /total posted/i.test(c)),
+        unposted: row.findIndex(c => /unposted/i.test(c)),
+        recoupment: row.findIndex(c => /recoup/i.test(c)),
+        location: row.findIndex(c => /location/i.test(c)),
+        remarks: row.findIndex(c => /remark/i.test(c)),
+      };
+      continue;
+    }
+
+    // 3. Check for Line Item Table Header
+    if (rowStr.includes('patient name') && (rowStr.includes('date of service') || rowStr.includes('reference number') || rowStr.includes('claim'))) {
+      state = 'LINEITEM_TABLE';
+      lineItemHeaderIdxs = {
+        patientName: row.findIndex(c => /patient name/i.test(c) || /^patient$/i.test(c)),
+        claimNumber: row.findIndex(c => /claim number/i.test(c) || /prompt claim/i.test(c) || /claims*#/i.test(c)),
+        dos: row.findIndex(c => /date of service/i.test(c) || /^dos$/i.test(c) || /service/i.test(c)),
+        ref: row.findIndex(c => /reference/i.test(c)),
+        bankDate: row.findIndex(c => /remittance bank date/i.test(c) || /bank date/i.test(c)),
+        postingDate: row.findIndex(c => /remittance payment date/i.test(c) || /posting date/i.test(c) || /payment date/i.test(c)),
+        charge: row.findIndex(c => /submitted/i.test(c) || /charge/i.test(c)),
+        allowed: row.findIndex(c => /allowed/i.test(c)),
+        insurancePayment: row.findIndex(c => /paid amount/i.test(c) || /insurance payment/i.test(c)),
+        adjustment: row.findIndex(c => /adjusted/i.test(c) || /adjust/i.test(c)),
+        transferredSec: row.findIndex(c => /transferred to secondary/i.test(c) || /secondary/i.test(c)),
+        transferredPt: row.findIndex(c => /transferred to patient/i.test(c)),
+        patientPayment: row.findIndex(c => /patient payment/i.test(c) || /patient paid/i.test(c)),
+        prType: row.findIndex(c => /pr type/i.test(c)),
+        location: row.findIndex(c => /location/i.test(c)),
+      };
+      continue;
+    }
+
+    // 4. Check for Location Wise Summary Header
     if (rowStr.includes('location wise summary') || (rowStr.includes('payment type') && (rowStr.includes('home-based') || rowStr.includes('spring house')))) {
-      // Find where 'payment type' appears
       let ptCol = row.findIndex(c => /^payment type$/i.test(c) || /payment type/i.test(c));
-      // If there are multiple 'payment type' on this row (e.g. left side and right side), take the second one
       const allPt = [];
       row.forEach((c, idx) => { if (/payment type/i.test(c)) allPt.push(idx); });
       if (allPt.length > 1) ptCol = allPt[1];
@@ -328,9 +357,21 @@ export function parseSingleSheetGrid(grid) {
       }
     }
 
+    // 5. Check for summary section transition
+    const hasSummaryKeywords =
+      rowStr.includes('particular') ||
+      rowStr.includes('prompt posting') ||
+      rowStr.includes('check amount') ||
+      rowStr.includes('patient payment') ||
+      rowStr.includes('recoupment offset');
+
+    if (hasSummaryKeywords && state === 'PAYER_TABLE') {
+      state = 'SUMMARY';
+    }
+
     // If reading Location Wise Summary rows
     if (state === 'LOCATION_WISE') {
-      if (rowStr.includes('payer') && rowStr.includes('payment method')) {
+      if (rowStr.includes('payer') && (rowStr.includes('payment method') || rowStr.includes('payment reference'))) {
         state = 'PAYER_TABLE';
       } else {
         const ptIdx = row.findIndex(c =>
@@ -354,7 +395,6 @@ export function parseSingleSheetGrid(grid) {
           valObj.total = rowTotal;
           locationSummary.rows.push(valObj);
 
-          // Update promptPosting summary metrics
           if (/insurance payment/i.test(type)) promptPosting.insurancePayment = rowTotal;
           else if (/coinsurance/i.test(type)) promptPosting.coinsurance = rowTotal;
           else if (/copay/i.test(type)) promptPosting.copay = rowTotal;
@@ -365,79 +405,72 @@ export function parseSingleSheetGrid(grid) {
       }
     }
 
-    // 4. Detect Payer / Check table header
-    if (rowStr.includes('payer') && (rowStr.includes('payment method') || rowStr.includes('payment reference'))) {
-      state = 'PAYER_TABLE';
-      payerHeaderIdxs = {
-        payer: row.findIndex(c => /^payer$/i.test(c) || /payer/i.test(c)),
-        method: row.findIndex(c => /method/i.test(c)),
-        reference: row.findIndex(c => /reference/i.test(c)),
-        postedDate: row.findIndex(c => /posted date/i.test(c) || /payment date/i.test(c)),
-        bankDate: row.findIndex(c => /bank date/i.test(c)),
-        paymentAmount: row.findIndex(c => /payment amount/i.test(c)),
-        totalPosted: row.findIndex(c => /total posted/i.test(c)),
-        unposted: row.findIndex(c => /unposted/i.test(c)),
-        location: row.findIndex(c => /location/i.test(c)),
-        remarks: row.findIndex(c => /remark/i.test(c)),
-      };
-      continue;
+    // Parse summary blocks (Particulars & Prompt Posting)
+    if (state === 'SCAN' || state === 'SUMMARY') {
+      for (let c = 0; c < row.length; c++) {
+        const cell = row[c];
+        if (!cell) continue;
+
+        const rest = row.slice(c + 1).filter(v => v !== '');
+        const nextVal = rest.length > 0 ? parseNum(rest[0]) : 0;
+
+        if (/check amount/i.test(cell)) {
+          particulars.checkAmount = nextVal;
+        } else if (/patient payment/i.test(cell)) {
+          particulars.patientPayment = nextVal;
+        } else if (/^total(s+amount)?$/i.test(cell)) {
+          particulars.total = nextVal;
+        } else if (/insurance payment/i.test(cell)) {
+          promptPosting.insurancePayment = nextVal;
+        } else if (/recoupment/i.test(cell)) {
+          promptPosting.recoupmentOffset = nextVal;
+        } else if (/deductible/i.test(cell)) {
+          promptPosting.deductible = nextVal;
+        } else if (/coinsurance/i.test(cell)) {
+          promptPosting.coinsurance = nextVal;
+        } else if (/copay/i.test(cell)) {
+          promptPosting.copay = nextVal;
+        } else if (/grand total/i.test(cell)) {
+          promptPosting.grandTotal = nextVal;
+        }
+      }
+      if (hasSummaryKeywords) continue;
     }
 
     // If reading Payer Table rows
     if (state === 'PAYER_TABLE') {
-      if (rowStr.includes('patient name') && rowStr.includes('date of service')) {
+      if (rowStr.includes('patient name') && (rowStr.includes('date of service') || rowStr.includes('reference') || rowStr.includes('claim'))) {
         state = 'LINEITEM_TABLE';
       } else {
-        // Skip totals row
-        const isTotalsRow = !row[payerHeaderIdxs?.payer || 0] && row.some(c => parseNum(c) > 0);
-        if (isTotalsRow) continue;
-
         const payer = row[payerHeaderIdxs?.payer || 0];
-        if (!payer) continue;
+        if (!payer || /^total/i.test(payer)) continue;
 
         checkRows.push({
           payer,
-          paymentMethod: row[payerHeaderIdxs?.method || 1] || 'CHK',
-          paymentReference: row[payerHeaderIdxs?.reference || 2] || '',
-          paymentDate: formatDateVal(row[payerHeaderIdxs?.postedDate || 3]),
-          bankDate: formatDateVal(row[payerHeaderIdxs?.bankDate || 4]),
-          paymentAmount: parseNum(row[payerHeaderIdxs?.paymentAmount || 5]),
-          totalPosted: parseNum(row[payerHeaderIdxs?.totalPosted || 6]),
-          unposted: parseNum(row[payerHeaderIdxs?.unposted || 7]),
-          location: row[payerHeaderIdxs?.location || 8] || '',
-          remarks: row[payerHeaderIdxs?.remarks || 9] || '',
+          paymentMethod: payerHeaderIdxs?.method !== -1 && row[payerHeaderIdxs?.method] ? row[payerHeaderIdxs.method] : 'CHK',
+          paymentReference: payerHeaderIdxs?.reference !== -1 ? row[payerHeaderIdxs?.reference] || '' : '',
+          paymentDate: formatDateVal(payerHeaderIdxs?.postedDate !== -1 ? row[payerHeaderIdxs?.postedDate] : ''),
+          bankDate: formatDateVal(payerHeaderIdxs?.bankDate !== -1 ? row[payerHeaderIdxs?.bankDate] : ''),
+          createdBy: payerHeaderIdxs?.createdBy !== -1 && payerHeaderIdxs?.createdBy != null ? row[payerHeaderIdxs.createdBy] || '' : '',
+          paymentAmount: parseNum(payerHeaderIdxs?.paymentAmount !== -1 ? row[payerHeaderIdxs?.paymentAmount] : 0),
+          totalPosted: parseNum(payerHeaderIdxs?.totalPosted !== -1 ? row[payerHeaderIdxs?.totalPosted] : 0),
+          unposted: parseNum(payerHeaderIdxs?.unposted !== -1 ? row[payerHeaderIdxs?.unposted] : 0),
+          recoupment: payerHeaderIdxs?.recoupment !== -1 && payerHeaderIdxs?.recoupment != null ? parseNum(row[payerHeaderIdxs.recoupment]) : 0,
+          location: payerHeaderIdxs?.location !== -1 && payerHeaderIdxs?.location != null ? row[payerHeaderIdxs.location] || '' : '',
+          remarks: payerHeaderIdxs?.remarks !== -1 && payerHeaderIdxs?.remarks != null ? row[payerHeaderIdxs.remarks] || '' : '',
         });
         continue;
       }
     }
 
-    // 5. Detect Line Item Table Header
-    if (rowStr.includes('patient name') && (rowStr.includes('date of service') || rowStr.includes('reference number'))) {
-      state = 'LINEITEM_TABLE';
-      lineItemHeaderIdxs = {
-        patientName: row.findIndex(c => /patient name/i.test(c) || /^patient$/i.test(c)),
-        dos: row.findIndex(c => /date of service/i.test(c) || /^dos$/i.test(c) || /service/i.test(c)),
-        ref: row.findIndex(c => /reference/i.test(c)),
-        bankDate: row.findIndex(c => /bank date/i.test(c)),
-        postingDate: row.findIndex(c => /posting date/i.test(c) || /payment date/i.test(c)),
-        charge: row.findIndex(c => /charge/i.test(c)),
-        allowed: row.findIndex(c => /allowed/i.test(c)),
-        insurancePayment: row.findIndex(c => /insurance payment/i.test(c)),
-        adjustment: row.findIndex(c => /adjust/i.test(c)),
-        patientPayment: row.findIndex(c => /patient payment/i.test(c) || /patient paid/i.test(c)),
-        prType: row.findIndex(c => /pr type/i.test(c)),
-        location: row.findIndex(c => /location/i.test(c)),
-      };
-      continue;
-    }
-
     // If reading Line Item Table rows
     if (state === 'LINEITEM_TABLE') {
       const patientName = row[lineItemHeaderIdxs?.patientName ?? 0];
-      if (!patientName) continue;
+      if (!patientName || /^total/i.test(patientName)) continue;
 
       lineItems.push({
         patientName,
+        claimNumber: lineItemHeaderIdxs?.claimNumber !== -1 && lineItemHeaderIdxs?.claimNumber != null ? row[lineItemHeaderIdxs.claimNumber] || '' : '',
         dateOfService: formatDateVal(row[lineItemHeaderIdxs?.dos ?? 1]),
         referenceNumber: row[lineItemHeaderIdxs?.ref ?? 2] || '',
         bankDate: formatDateVal(row[lineItemHeaderIdxs?.bankDate ?? 3]),
@@ -446,6 +479,8 @@ export function parseSingleSheetGrid(grid) {
         allowedAmount: lineItemHeaderIdxs?.allowed !== -1 && lineItemHeaderIdxs?.allowed != null ? parseNum(row[lineItemHeaderIdxs.allowed]) : 0,
         insurancePayment: parseNum(row[lineItemHeaderIdxs?.insurancePayment ?? 6]),
         adjustedAmount: parseNum(row[lineItemHeaderIdxs?.adjustment ?? 7]),
+        transferredToSecondary: lineItemHeaderIdxs?.transferredSec !== -1 && lineItemHeaderIdxs?.transferredSec != null ? parseNum(row[lineItemHeaderIdxs.transferredSec]) : 0,
+        transferredToPatient: lineItemHeaderIdxs?.transferredPt !== -1 && lineItemHeaderIdxs?.transferredPt != null ? parseNum(row[lineItemHeaderIdxs.transferredPt]) : 0,
         patientPaid: parseNum(row[lineItemHeaderIdxs?.patientPayment ?? 8]),
         prType: row[lineItemHeaderIdxs?.prType ?? 9] || 'Copay',
         location: row[lineItemHeaderIdxs?.location ?? 10] || '',

@@ -2,8 +2,10 @@ node_modules/
 .env
 .env.*
 !.env.example
+backend/storage/
 server/storage/
 storage/
+frontend/dist/
 client/dist/
 *.log
 .DS_Store

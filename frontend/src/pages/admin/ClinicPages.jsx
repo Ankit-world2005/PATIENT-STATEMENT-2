@@ -10,6 +10,9 @@ import { NotFoundPage } from '../NotFoundPage.jsx';
 // --- M1: admin home ----------------------------------------------------------------
 export function AdminHome() {
   const [summary, setSummary] = useState(null);
+  const [userTab, setUserTab] = useState('clinics');
+  const navigate = useNavigate();
+
   useEffect(() => {
     api('/admin/summary').then(setSummary).catch(() => {});
   }, []);
@@ -59,16 +62,88 @@ export function AdminHome() {
           </p>
         </div>
         <div className="admin-cards-grid">
-          {cards.map((c) => (
-            <Link key={c.to} to={c.to} className="hub-card hub-card-active">
-              <div className="hub-card-icon-wrap"><c.icon size={30} /></div>
-              <h2 className="hub-card-title">{c.title}</h2>
-              <p className="hub-card-desc">{c.desc}</p>
-              <div className="hub-card-tag">
-                <span className={`badge ${c.badgeClass}`}>{c.stat}</span>
-              </div>
-            </Link>
-          ))}
+          {cards.map((c) => {
+            if (c.to === '/manage/users') {
+              const isClinics = userTab === 'clinics';
+              const targetUrl = isClinics ? '/manage/users?role=clinic_user' : '/manage/users?role=us24';
+              const statText = isClinics
+                ? (summary ? `${summary.clinic_active_users ?? 0} active · ${summary.clinic_invited_users ?? 0} invited` : 'Loading…')
+                : (summary ? `${summary.us24_active_users ?? 0} active · ${summary.us24_invited_users ?? 0} invited` : 'Loading…');
+              const cardTitle = isClinics ? 'Clinic Users' : 'US24 Users';
+              const cardDesc = isClinics
+                ? 'Manage clinic portal user logins, access, and deactivations.'
+                : 'Manage US24 billing specialists, administrators, and 2-step verification.';
+
+              return (
+                <div key={c.to} className="hub-card hub-card-active hub-card-with-tabs" style={{ textAlign: 'center' }}>
+                  <div className="hub-card-tabs" role="tablist" aria-label="User types">
+                    <button
+                      type="button"
+                      className={`hub-card-tab ${isClinics ? 'active' : ''}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (isClinics) {
+                          navigate(targetUrl);
+                        } else {
+                          setUserTab('clinics');
+                        }
+                      }}
+                      role="tab"
+                      aria-selected={isClinics}
+                      title="View clinic portal users"
+                    >
+                      <span>Clinics</span>
+                      {summary && (
+                        <span className="tab-pill-badge">{summary.clinic_active_users ?? 0}</span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      className={`hub-card-tab ${!isClinics ? 'active' : ''}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!isClinics) {
+                          navigate(targetUrl);
+                        } else {
+                          setUserTab('us24');
+                        }
+                      }}
+                      role="tab"
+                      aria-selected={!isClinics}
+                      title="View US24 staff users"
+                    >
+                      <span>US24 Users</span>
+                      {summary && (
+                        <span className="tab-pill-badge plum">{summary.us24_active_users ?? 0}</span>
+                      )}
+                    </button>
+                  </div>
+
+                  <Link to={targetUrl} className="hub-card-body-link">
+                    <div className="hub-card-icon-wrap"><IconUsers size={30} /></div>
+                    <h2 className="hub-card-title">{cardTitle}</h2>
+                    <p className="hub-card-desc">{cardDesc}</p>
+                    <div className="hub-card-tag">
+                      <span className="badge badge-open">{statText}</span>
+                    </div>
+                  </Link>
+                </div>
+              );
+            }
+
+            return (
+              <Link key={c.to} to={c.to} className="hub-card hub-card-active">
+                <div className="hub-card-icon-wrap"><c.icon size={30} /></div>
+                <h2 className="hub-card-title">{c.title}</h2>
+                <p className="hub-card-desc">{c.desc}</p>
+                <div className="hub-card-tag">
+                  <span className={`badge ${c.badgeClass}`}>{c.stat}</span>
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </div>
     </div>

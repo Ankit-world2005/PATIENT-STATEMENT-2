@@ -1,0 +1,13 @@
+{
+  "name": "my-patient-database",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "migrate": "node migrate.js",
+    "reset": "node migrate.js --reset"
+  },
+  "dependencies": {
+    "pg": "8.16.3"
+  }
+}

@@ -110,7 +110,7 @@ export function StatementDocument({ statement: s, clinic: c }) {
           <h4>Electronic Statement History & Cycle Balances</h4>
           <span>Multi-cycle billing ledger</span>
         </div>
-        <div className="table-responsive">
+        <div className="table-responsive table-always">
           <table className="doc-cycle-table">
             <thead>
               <tr>

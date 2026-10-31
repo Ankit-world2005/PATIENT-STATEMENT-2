@@ -356,6 +356,9 @@ export function ClinicCollectionDashboard({ clinic }) {
     });
   }, [data?.lineItems, lineItemSearch, prTypeFilter]);
 
+  const hasCreatedBy = useMemo(() => (data?.checkRows || []).some(r => r.createdBy && String(r.createdBy).trim()), [data?.checkRows]);
+  const hasClaimNumber = useMemo(() => (data?.lineItems || []).some(r => r.claimNumber && String(r.claimNumber).trim()), [data?.lineItems]);
+
   // Unique PR types for dropdown
   const availablePrTypes = useMemo(() => {
     if (!data?.lineItems) return [];
@@ -922,7 +925,7 @@ export function ClinicCollectionDashboard({ clinic }) {
               </tbody>
               <tfoot>
                 <tr className="table-footer-totals">
-                  <td colSpan={availableCheckLocations.length > 0 ? 6 : 5} className="text-right"><strong>Check Sheet Totals ({filteredCheckRows.length} rows):</strong></td>
+                  <td colSpan={5 + (hasCreatedBy ? 1 : 0) + (availableCheckLocations.length > 0 ? 1 : 0)} className="text-right"><strong>Check Sheet Totals ({filteredCheckRows.length} rows):</strong></td>
                   <td className="text-right col-mono col-bold-navy">{formatMoney(checkTotals.paymentAmount)}</td>
                   <td className="text-right col-mono">{formatMoney(checkTotals.totalPosted)}</td>
                   <td className="text-right col-mono">{formatMoney(checkTotals.unposted)}</td>
@@ -990,7 +993,7 @@ export function ClinicCollectionDashboard({ clinic }) {
               </tbody>
               <tfoot>
                 <tr className="table-footer-totals">
-                  <td colSpan={availableLineItemLocations.length > 0 ? 6 : 5} className="text-right"><strong>Line Item Totals ({filteredLineItems.length} claims):</strong></td>
+                  <td colSpan={5 + (hasClaimNumber ? 1 : 0) + (availableLineItemLocations.length > 0 ? 1 : 0)} className="text-right"><strong>Line Item Totals ({filteredLineItems.length} claims):</strong></td>
                   <td className="text-right col-mono">{formatMoney(lineItemTotals.charged)}</td>
                   <td className="text-right col-mono">{formatMoney(lineItemTotals.allowed)}</td>
                   <td className="text-right col-mono col-bold-green">{formatMoney(lineItemTotals.insurancePayment)}</td>

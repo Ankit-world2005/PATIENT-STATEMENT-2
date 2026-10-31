@@ -55,7 +55,7 @@ export function csrfGuard(req, _res, next) {
     const isLocalDev = !config.isProduction && (
       LOCAL_ORIGINS.has(origin) ||
       origin.startsWith('http://localhost:') ||
-      origin.startsWith('http://127.0.0.1:')
+      origin.startsWith('http://127.0.0.1:') || origin.startsWith('http://192.168.') || origin.startsWith('http://10.') || origin.startsWith('http://172.')
     );
 
     const isAllowed =

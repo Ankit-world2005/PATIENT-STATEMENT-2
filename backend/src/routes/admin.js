@@ -34,6 +34,10 @@ adminRouter.get('/summary', async (_req, res) => {
     SELECT (SELECT count(*) FROM clinic WHERE is_active)::int AS active_clinics,
            (SELECT count(*) FROM app_user WHERE status = 'active')::int AS active_users,
            (SELECT count(*) FROM app_user WHERE status = 'invited')::int AS invited_users,
+           (SELECT count(*) FROM app_user WHERE role = 'clinic_user' AND status = 'active')::int AS clinic_active_users,
+           (SELECT count(*) FROM app_user WHERE role = 'clinic_user' AND status = 'invited')::int AS clinic_invited_users,
+           (SELECT count(*) FROM app_user WHERE role IN ('admin', 'specialist') AND status = 'active')::int AS us24_active_users,
+           (SELECT count(*) FROM app_user WHERE role IN ('admin', 'specialist') AND status = 'invited')::int AS us24_invited_users,
            (SELECT count(*) FROM statement WHERE status = 'active')::int AS active_statements,
            (SELECT count(*) FROM audit_event)::int AS total_audit_events,
            (SELECT count(*) FROM audit_event WHERE action = 'access.blocked' AND occurred_at > now() - interval '7 days')::int AS blocked_7d,
@@ -266,7 +270,7 @@ adminRouter.delete('/clinics/:id/specialists/:specialistId', async (req, res) =>
 // --- M5-M7: users ---------------------------------------------------------------
 function userView(u) {
   return {
-    id: u.id, fullName: u.full_name, email: u.email, role: u.role, status: u.status,
+    id: u.id, fullName: u.full_name, email: u.email, role: u.role, isClinicAdmin: Boolean(u.is_clinic_admin), status: u.status,
     clinic: u.clinic_id ? { id: u.clinic_id, name: u.clinic_name } : null,
     lastLogin: u.last_login, invitedAt: u.invited_at, activatedAt: u.activated_at, deactivatedAt: u.deactivated_at,
     hasTotp: Boolean(u.totp_confirmed_at),
@@ -281,7 +285,9 @@ adminRouter.get('/users', async (req, res) => {
     params.push(`%${q.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`);
     where.push(`(lower(u.full_name) LIKE $${params.length} OR lower(u.email::text) LIKE $${params.length})`);
   }
-  if (['admin', 'specialist', 'clinic_user'].includes(req.query.role)) {
+  if (req.query.role === 'us24' || req.query.role === 'staff') {
+    where.push("u.role IN ('admin', 'specialist')");
+  } else if (['admin', 'specialist', 'clinic_user'].includes(req.query.role)) {
     params.push(req.query.role);
     where.push(`u.role = $${params.length}`);
   }
@@ -303,10 +309,15 @@ adminRouter.get('/users', async (req, res) => {
 
 const inviteSchema = z
   .object({
-    fullName: z.string().trim().min(1, 'Enter the full name.').max(200),
+    fullName: z.string().trim().max(200).optional().default(''),
     email: z.email('Enter a valid email address.').max(254).transform((s) => s.toLowerCase()),
     role: z.enum(['admin', 'specialist', 'clinic_user'], { message: 'Choose a role.' }),
     clinicId: z.string().optional().default(''),
+    isClinicAdmin: z.boolean().optional().default(false),
+  })
+  .refine((v) => v.role === 'clinic_user' || v.fullName.length >= 1, {
+    message: 'Enter the full name.',
+    path: ['fullName'],
   })
   .refine((v) => v.role !== 'clinic_user' || isUuid(v.clinicId), { message: 'Choose the clinic.', path: ['clinicId'] });
 
@@ -330,15 +341,20 @@ adminRouter.post('/users', async (req, res) => {
   }
   const user = await withTransaction(async (db) => {
     let clinicId = null;
+    let fullName = v.fullName;
     if (v.role === 'clinic_user') {
-      const { rows } = await db.query('SELECT is_active FROM clinic WHERE id = $1', [v.clinicId]);
+      const { rows } = await db.query('SELECT name, is_active FROM clinic WHERE id = $1', [v.clinicId]);
       if (!rows[0]?.is_active) throw badRequest('Choose an active clinic.', { clinicId: 'Choose an active clinic.' });
       clinicId = v.clinicId;
+      if (!fullName) {
+        fullName = rows[0].name + (v.isClinicAdmin ? ' (Clinic Admin)' : '');
+      }
     }
+    const isClinicAdmin = v.role === 'clinic_user' ? Boolean(v.isClinicAdmin) : false;
     const { rows } = await db.query(
-      `INSERT INTO app_user (email, full_name, role, clinic_id, status, invited_by_id)
-       VALUES ($1, $2, $3, $4, 'invited', $5) RETURNING *`,
-      [v.email, v.fullName, v.role, clinicId, req.user.id],
+      `INSERT INTO app_user (email, full_name, role, clinic_id, is_clinic_admin, status, invited_by_id)
+       VALUES ($1, $2, $3, $4, $5, 'invited', $6) RETURNING *`,
+      [v.email, fullName, v.role, clinicId, isClinicAdmin, req.user.id],
     );
     await audit(db, req, {
       action: 'user.invite', targetType: 'app_user', targetId: rows[0].id, clinicId: clinicId ?? undefined, details: { role: v.role },

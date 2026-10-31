@@ -8289,3 +8289,592 @@ button.stat-kpi-card:hover,
   color: #94A3B8;
   font-size: 12px;
 }
+
+/* ==========================================================================
+   GLOBAL WINDOW & MOBILE RESPONSIVE ENGINE (Clinical Clean System)
+   Covers screen widths from 320px (compact mobile) up to 4K ultra-wide windows.
+   ========================================================================== */
+
+/* Prevent accidental horizontal document clipping across all viewports */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.container {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Ensure all responsive table containers scroll smoothly with touch momentum */
+.table-responsive,
+.table-scroll-pane,
+.sheet-table-viewport,
+.kpi-summary-table-wrap {
+  width: 100% !important;
+  max-width: 100% !important;
+  display: block !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+/* Base styles for user header actions wrap */
+.user-header-actions-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* --------------------------------------------------------------------------
+   Breakpoint: <= 1024px (Laptops, Tablets in Landscape)
+   -------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  .header-container {
+    padding: 0 20px;
+  }
+  .admin-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+    max-width: 720px;
+    margin: 0 auto;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Breakpoint: <= 860px (Standard Tablets, Split Windows)
+   -------------------------------------------------------------------------- */
+@media (max-width: 860px) {
+  /* Mobile Sidebar: Remove artificial full-viewport min-height and convert navigation to horizontal bar */
+  .clinical-sidebar {
+    width: 100% !important;
+    min-width: 0 !important;
+    flex: 0 0 auto !important;
+  }
+
+  .sidebar-nav-card-merged {
+    min-height: auto !important;
+    flex: 0 0 auto !important;
+    padding: 10px 14px !important;
+  }
+
+  .sidebar-merged-help-section {
+    display: none !important;
+  }
+
+  .sidebar-services-header,
+  .sidebar-nav-parent,
+  .sidebar-nav-divider,
+  .sidebar-disabled-item {
+    display: none !important;
+  }
+
+  .sidebar-services-nav {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 8px !important;
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+
+  .sidebar-services-nav::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .sidebar-subitems-group {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 8px !important;
+    padding-left: 0 !important;
+    width: 100% !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .sidebar-subitem-btn {
+    flex: 0 0 auto !important;
+    padding: 8px 14px !important;
+    border-radius: 8px !important;
+    white-space: nowrap !important;
+    font-size: 13px !important;
+  }
+
+  .clinic-identity-card {
+    padding: 12px 14px !important;
+  }
+
+  .filter-inputs-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .filter-field,
+  .filter-field-search,
+  .filter-field-date,
+  .filter-field-month,
+  .filter-field-sort,
+  .filter-field-clear {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+  }
+
+  .clean-text-input,
+  .clean-select-input {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .header-container {
+    padding: 0 16px;
+    height: 68px;
+  }
+
+  .user-chip-clinic {
+    display: none !important;
+  }
+
+  .collection-kpi-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .detail-columns-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Breakpoint: <= 768px (Tablets Portrait, Large Mobile)
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .container {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .table-sheet-card {
+    border-radius: 10px;
+  }
+
+  /* Collection sheet tabs bar */
+  .collection-sheet-tabs-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 14px;
+  }
+
+  .sheet-tabs-group {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    width: 100%;
+    padding-bottom: 2px;
+  }
+
+  .sheet-tabs-group::-webkit-scrollbar {
+    display: none;
+  }
+
+  .sheet-tab-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .sheet-tab-filters {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .sheet-search-box {
+    width: 100%;
+  }
+
+  .input-sheet-search {
+    width: 100%;
+  }
+
+  .sheet-filters-row {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .select-pr-filter,
+  .select-location-filter {
+    flex: 1 1 120px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Breakpoint: <= 640px (Mobile Phones & Small Handhelds)
+   -------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+  .container {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  /* Header adjustments */
+  .header-container {
+    height: 64px;
+    padding: 0 14px;
+  }
+
+  .brand-tagline {
+    display: none !important;
+  }
+
+  .header-user-actions {
+    gap: 8px;
+  }
+
+  /* Page headers & actions */
+  .statements-page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .page-title-group h1 {
+    font-size: 1.55rem;
+    line-height: 1.2;
+  }
+
+  .clinic-subtitle {
+    font-size: 0.88rem;
+  }
+
+  .page-header-actions {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .page-header-actions .btn,
+  .user-header-actions-wrap .btn {
+    flex: 1 1 130px;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .user-header-actions-wrap {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Segmented tabs (Users page, Statement tabs, Add user tabs) */
+  .segmented-status-track {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 3px !important;
+    margin-bottom: 14px !important;
+    box-sizing: border-box !important;
+  }
+
+  .segmented-status-track::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .segmented-tab-btn {
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+    height: 34px !important;
+    padding: 0 14px !important;
+    font-size: 12.5px !important;
+  }
+
+  .statement-page-tabs {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    margin-bottom: 14px !important;
+  }
+
+  .statement-page-tabs::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .statement-page-tab {
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+    padding: 6px 12px !important;
+    font-size: 0.82rem !important;
+  }
+
+  /* Filter bars and grids */
+  .filter-bar-sheet {
+    padding: 12px;
+  }
+
+  .filter-grid,
+  .filter-grid-2,
+  .filter-grid-4,
+  .filter-grid-5 {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .form-input,
+  .form-select,
+  .clean-text-input,
+  .clean-select-input {
+    min-height: 42px;
+    font-size: 14px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Clinic Collection Header */
+  .collection-header-band {
+    padding: 14px 16px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .collection-report-h2 {
+    font-size: 18px;
+  }
+
+  .collection-report-sub {
+    font-size: 12.5px;
+  }
+
+  .collection-actions-cluster {
+    width: 100%;
+    justify-content: stretch;
+    gap: 8px;
+  }
+
+  .collection-month-select-wrap {
+    width: 100%;
+  }
+
+  .select-collection-month {
+    width: 100%;
+    min-height: 40px;
+    box-sizing: border-box;
+  }
+
+  .btn-collection-action {
+    flex: 1 1 100%;
+    justify-content: center;
+    min-height: 40px;
+  }
+
+  /* Collection KPI Grid */
+  .collection-kpi-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+
+  .collection-kpi-card {
+    padding: 14px 16px;
+  }
+
+  /* Admin Cards Grid */
+  .admin-cards-grid {
+    grid-template-columns: 1fr !important;
+    max-width: 100% !important;
+    gap: 14px;
+  }
+
+  /* Footer */
+  .footer-container {
+    flex-direction: column;
+    gap: 8px;
+    text-align: center;
+    justify-content: center;
+    align-items: center;
+    padding: 14px 16px;
+  }
+
+  .footer-left,
+  .footer-right {
+    font-size: 11.5px;
+    justify-content: center;
+    text-align: center;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Breakpoint: <= 480px (Compact Mobile Screens & Narrow Portals)
+   -------------------------------------------------------------------------- */
+@media (max-width: 480px) {
+  .container {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .header-container {
+    padding: 0 10px;
+    height: 60px;
+  }
+
+  .brand-logo-img {
+    height: 24px;
+    max-width: 100px;
+  }
+
+  .header-bell-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .header-user-chip {
+    height: 36px;
+    padding: 2px 8px 2px 4px;
+    gap: 6px;
+  }
+
+  .user-avatar-navy {
+    width: 28px;
+    height: 28px;
+    font-size: 11px;
+  }
+
+  .user-chip-name {
+    font-size: 12px;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Sign out button collapses to icon-only on mobile */
+  .btn-signout-outline {
+    height: 36px;
+    padding: 0 10px;
+    font-size: 12px;
+    gap: 4px;
+  }
+
+  .btn-signout-outline span {
+    display: none !important;
+  }
+
+  /* Hub Card inside AdminHome */
+  .hub-card {
+    padding: 18px 12px !important;
+  }
+
+  .hub-card-tabs {
+    max-width: 100% !important;
+    width: auto !important;
+    justify-content: center !important;
+    padding: 2px !important;
+    gap: 2px !important;
+    margin-bottom: 10px !important;
+  }
+
+  .hub-card-tab {
+    padding: 4px 8px !important;
+    font-size: 0.74rem !important;
+    white-space: nowrap !important;
+    gap: 4px !important;
+  }
+
+  .tab-pill-badge {
+    min-width: 15px !important;
+    height: 15px !important;
+    font-size: 0.68rem !important;
+    padding: 0 3px !important;
+  }
+
+  .hub-card-title {
+    font-size: 1.15rem !important;
+  }
+
+  .hub-card-desc {
+    font-size: 0.85rem !important;
+  }
+
+  /* Form panels and dialogs */
+  .form-panel,
+  .panel {
+    padding: 16px 14px !important;
+  }
+
+  .form-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .form-actions .btn {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .modal-dialog,
+  .confirm-dialog-dialog,
+  .collection-modal-dialog {
+    max-width: 96vw !important;
+    margin: 8px auto !important;
+    border-radius: 12px !important;
+  }
+
+  /* Pie chart container */
+  .payer-pie-container {
+    flex-direction: column !important;
+    align-items: center !important;
+  }
+
+  .payer-pie-legend {
+    width: 100% !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Breakpoint: <= 360px (Extra Compact Screens, e.g. iPhone SE 1st gen)
+   -------------------------------------------------------------------------- */
+@media (max-width: 360px) {
+  .header-user-chip .user-chip-meta {
+    display: none !important;
+  }
+
+  .header-user-chip {
+    padding: 2px;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    justify-content: center;
+  }
+
+  .brand-logo-img {
+    height: 22px;
+    max-width: 85px;
+  }
+
+  .page-title-group h1 {
+    font-size: 1.35rem;
+  }
+}
