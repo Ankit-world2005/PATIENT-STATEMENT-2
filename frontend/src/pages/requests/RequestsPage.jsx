@@ -14,6 +14,15 @@ import { useAuth } from '../../lib/auth.jsx';
 import { date, dateTime, money } from '../../lib/format.js';
 import { useToast } from '../../lib/toast.jsx';
 
+export function formatDob(d) {
+  if (!d) return '';
+  const parts = String(d).slice(0, 10).split('-');
+  if (parts.length === 3) {
+    return `${parts[1]}/${parts[2]}/${parts[0]}`;
+  }
+  return String(d);
+}
+
 export const REQUESTS_VIEW_VERSION = '1.0.2';
 const PRIORITIES = [
   { value: 'Normal', label: 'Normal', cls: 'priority-normal' },
@@ -445,7 +454,7 @@ function ReplyModal({ request, onClose, onReplied }) {
       {error && <Alert tone="error">{error}</Alert>}
       <div className="reply-modal-original">
         <div className="original-req-meta">
-          <strong>{request.patientName}</strong> · Submitted by {request.authorName} ({dateTime(request.createdAt)})
+          <strong>{request.patientName}</strong>{request.patientDob && <span style={{ marginLeft: 6, color: '#475569' }}>· DOB: <strong>{formatDob(request.patientDob)}</strong></span>} · Submitted by {request.authorName} ({dateTime(request.createdAt)})
         </div>
         <div className="original-req-badge">
           <span className={`badge-priority priority-${request.priority?.toLowerCase() || 'normal'}`}>
@@ -773,6 +782,12 @@ export function RequestsContent({ clinicId: propClinicId, embedded = false }) {
               <div className="request-patient-bar">
                 <div className="patient-context-info">
                   <span className="patient-req-name">Patient: <strong>{r.patientName}</strong></span>
+                  {r.patientDob && (
+                    <>
+                      <span className="pipe-sep">·</span>
+                      <span className="patient-req-dob">DOB: <strong>{formatDob(r.patientDob)}</strong></span>
+                    </>
+                  )}
                   {isStaff && (
                     <>
                       <span className="pipe-sep">·</span>

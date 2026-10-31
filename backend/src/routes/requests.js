@@ -162,6 +162,7 @@ requestsRouter.get('/', async (req, res) => {
       r.attachments,
       u.full_name AS author_name,
       st.patient_name,
+      st.patient_dob,
       st.account_number,
       st.statement_date,
       COALESCE(st.current_balance, st.cycle1_balance, st.balance_due) AS current_balance,
@@ -264,6 +265,9 @@ requestsRouter.get('/', async (req, res) => {
         id: String(r.id),
         statementId: r.statement_id,
         patientName: r.patient_name,
+        patientDob: r.patient_dob
+          ? (r.patient_dob instanceof Date ? r.patient_dob.toISOString().slice(0, 10) : String(r.patient_dob).slice(0, 10))
+          : null,
         accountNumber: r.account_number,
         statementDate: r.statement_date,
         currentBalance: r.current_balance,
@@ -338,12 +342,18 @@ requestsRouter.post('/', async (req, res) => {
     // 1. If statementId was provided, verify it exists and user has access
     if (input.statementId) {
       const { rows: stRows } = await db.query(
-        'SELECT id, clinic_id, patient_name, account_number, status, awaiting_reply_since FROM statement WHERE id = $1 FOR UPDATE',
+        'SELECT id, clinic_id, patient_name, patient_dob, account_number, status, awaiting_reply_since FROM statement WHERE id = $1 FOR UPDATE',
         [input.statementId],
       );
       statement = stRows[0];
       if (!statement) throw notFound('Statement not found.');
       if (statement.status === 'withdrawn') throw badRequest('Requests cannot be added to a withdrawn statement.');
+
+      const dobVal = input.dob || input.patientDob;
+      if (dobVal) {
+        await db.query('UPDATE statement SET patient_dob = $1 WHERE id = $2 AND (patient_dob IS NULL OR patient_dob != $1)', [dobVal, statement.id]);
+        statement.patient_dob = dobVal;
+      }
     }
 
     const clinicId = req.user.role === 'clinic_user'
