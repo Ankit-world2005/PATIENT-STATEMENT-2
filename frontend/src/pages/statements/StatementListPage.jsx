@@ -25,6 +25,7 @@ import { useToast } from '../../lib/toast.jsx';
 import { NotFoundPage } from '../NotFoundPage.jsx';
 import { NewRequestModal, RequestsContent } from '../requests/RequestsPage.jsx';
 import { ClinicCollectionDashboard } from '../../components/ClinicCollectionDashboard.jsx';
+import { ErrorBoundary } from '../../components/ErrorBoundary.jsx';
 
 function Highlight({ text, query }) {
   if (!text || !query) return text || '';
@@ -562,11 +563,15 @@ export function StatementListPage() {
           )}
 
           {tab === 'requests' ? (
-            <div className="embedded-requests-workspace">
-              <RequestsContent clinicId={clinicId || data?.clinic?.id} embedded />
-            </div>
+            <ErrorBoundary title="Unable to load Requests">
+              <div className="embedded-requests-workspace">
+                <RequestsContent clinicId={clinicId || data?.clinic?.id} embedded />
+              </div>
+            </ErrorBoundary>
           ) : tab === 'collection' && canViewCollection ? (
-            <ClinicCollectionDashboard clinic={data?.clinic} isStaff={isStaff} />
+            <ErrorBoundary title="Unable to load Clinic Collection">
+              <ClinicCollectionDashboard clinic={data?.clinic} isStaff={isStaff} />
+            </ErrorBoundary>
           ) : (
             <>
               {/* 2. KPI Row (Four Cards, All Derived From Statements Data) */}

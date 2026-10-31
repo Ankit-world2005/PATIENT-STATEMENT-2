@@ -301,51 +301,6 @@ export function ClinicCollectionDashboard({ clinic }) {
   const isSyncingRef = useRef(false);
   const [tableScrollWidth, setTableScrollWidth] = useState(1500);
 
-  const handleTopScroll = () => {
-    if (isSyncingRef.current) return;
-    isSyncingRef.current = true;
-    if (tableScrollRef.current && topScrollRef.current) {
-      tableScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
-    }
-    requestAnimationFrame(() => {
-      isSyncingRef.current = false;
-    });
-  };
-
-  const handleTableScroll = () => {
-    if (isSyncingRef.current) return;
-    isSyncingRef.current = true;
-    if (topScrollRef.current && tableScrollRef.current) {
-      topScrollRef.current.scrollLeft = tableScrollRef.current.scrollLeft;
-    }
-    requestAnimationFrame(() => {
-      isSyncingRef.current = false;
-    });
-  };
-
-  // Sync spacer width with actual table scroll width whenever table content or tab changes
-  useEffect(() => {
-    const updateWidth = () => {
-      if (tableScrollRef.current) {
-        setTableScrollWidth(tableScrollRef.current.scrollWidth);
-      }
-    };
-    updateWidth();
-    if (tableScrollRef.current) tableScrollRef.current.scrollLeft = 0;
-    if (topScrollRef.current) topScrollRef.current.scrollLeft = 0;
-
-    let ro;
-    if (typeof window !== 'undefined' && window.ResizeObserver && tableScrollRef.current) {
-      ro = new ResizeObserver(updateWidth);
-      ro.observe(tableScrollRef.current);
-      const tableEl = tableScrollRef.current.querySelector('table');
-      if (tableEl) ro.observe(tableEl);
-    }
-    return () => {
-      if (ro) ro.disconnect();
-    };
-  }, [activeSheetTab, filteredCheckRows.length, filteredLineItems.length]);
-
   // Upload modal state
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState(null);
@@ -464,6 +419,51 @@ export function ClinicCollectionDashboard({ clinic }) {
       patientPaid: list.reduce((sum, r) => sum + (Number(r.patientPaid) || 0), 0),
     };
   }, [filteredLineItems]);
+
+  const handleTopScroll = () => {
+    if (isSyncingRef.current) return;
+    isSyncingRef.current = true;
+    if (tableScrollRef.current && topScrollRef.current) {
+      tableScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+    }
+    requestAnimationFrame(() => {
+      isSyncingRef.current = false;
+    });
+  };
+
+  const handleTableScroll = () => {
+    if (isSyncingRef.current) return;
+    isSyncingRef.current = true;
+    if (topScrollRef.current && tableScrollRef.current) {
+      topScrollRef.current.scrollLeft = tableScrollRef.current.scrollLeft;
+    }
+    requestAnimationFrame(() => {
+      isSyncingRef.current = false;
+    });
+  };
+
+  // Sync spacer width with actual table scroll width whenever table content or tab changes
+  useEffect(() => {
+    const updateWidth = () => {
+      if (tableScrollRef.current) {
+        setTableScrollWidth(tableScrollRef.current.scrollWidth);
+      }
+    };
+    updateWidth();
+    if (tableScrollRef.current) tableScrollRef.current.scrollLeft = 0;
+    if (topScrollRef.current) topScrollRef.current.scrollLeft = 0;
+
+    let ro;
+    if (typeof window !== 'undefined' && window.ResizeObserver && tableScrollRef.current) {
+      ro = new ResizeObserver(updateWidth);
+      ro.observe(tableScrollRef.current);
+      const tableEl = tableScrollRef.current.querySelector('table');
+      if (tableEl) ro.observe(tableEl);
+    }
+    return () => {
+      if (ro) ro.disconnect();
+    };
+  }, [activeSheetTab, filteredCheckRows.length, filteredLineItems.length]);
 
   const handleDownloadTemplate = () => {
     window.location.href = '/api/collections/template';
