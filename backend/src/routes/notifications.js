@@ -8,9 +8,19 @@ notificationsRouter.use(requireVerified);
 
 /**
  * GET /api/notifications
- * Returns contextual notifications tailored for the active user:
- * - Clinic users see specialist replies & updates for their statements.
- * - Specialists & Admins see clinic inquiries and requests awaiting response.
+ * 
+ * Strict Multi-Tenant Privacy Isolation:
+ * - Clinic users (role === 'clinic_user'):
+ *   STRICTLY LOCKED to req.user.clinic_id.
+ *   They can ONLY see notifications (specialist replies, status alerts) for statements
+ *   belonging to their own clinic. They can NEVER see, query, or infer data from another clinic.
+ * 
+ * - Specialists (role === 'specialist'):
+ *   STRICTLY LOCKED to clinics they are actively assigned to via specialist_assignment.
+ *   They can NEVER receive notifications for clinics they are not assigned to.
+ * 
+ * - Admins (role === 'admin'):
+ *   Platform oversight over active clinics only.
  */
 notificationsRouter.get('/', async (req, res) => {
   const { role, clinic_id: userClinicId, id: userId } = req.user;
@@ -19,11 +29,12 @@ notificationsRouter.get('/', async (req, res) => {
   let items = [];
 
   if (role === 'clinic_user') {
+    // Multi-tenant check: if user has no assigned clinic, return empty immediately
     if (!userClinicId) {
       return res.json({ notifications: [], totalCount: 0 });
     }
 
-    // 1. Specialist replies on clinic statements
+    // 1. Specialist replies for this clinic's statements only
     const { rows: replies } = await query(
       `SELECT
         r.id,
@@ -41,13 +52,17 @@ notificationsRouter.get('/', async (req, res) => {
        JOIN statement st ON st.id = r.statement_id
        JOIN clinic c ON c.id = st.clinic_id
        LEFT JOIN app_user u ON u.id = r.author_id
-      WHERE c.id = $1 AND r.type = 'specialist'
+      WHERE st.clinic_id = $1 
+        AND c.id = $1 
+        AND st.status = 'active'
+        AND c.is_active = true
+        AND r.type = 'specialist'
       ORDER BY r.created_at DESC
       LIMIT $2`,
       [userClinicId, limit],
     );
 
-    // 2. Statements awaiting response or recent clinic inquiries
+    // 2. Inquiries and requests initiated by this clinic
     const { rows: inquiries } = await query(
       `SELECT
         r.id,
@@ -65,13 +80,17 @@ notificationsRouter.get('/', async (req, res) => {
        JOIN statement st ON st.id = r.statement_id
        JOIN clinic c ON c.id = st.clinic_id
        LEFT JOIN app_user u ON u.id = r.author_id
-      WHERE c.id = $1 AND r.type = 'clinic'
+      WHERE st.clinic_id = $1 
+        AND c.id = $1 
+        AND st.status = 'active'
+        AND c.is_active = true
+        AND r.type = 'clinic'
       ORDER BY r.created_at DESC
       LIMIT $2`,
       [userClinicId, limit],
     );
 
-    // Combine and sort
+    // Combine and order chronologically (newest first)
     const combined = [...replies, ...inquiries]
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       .slice(0, limit);
@@ -92,11 +111,16 @@ notificationsRouter.get('/', async (req, res) => {
     }));
   } else {
     // Specialist or Admin: clinic inquiries and statements needing replies
-    let whereClauses = ["r.type = 'clinic'"];
-    let params = [];
+    const whereClauses = [
+      "r.type = 'clinic'",
+      "st.status = 'active'",
+      "c.is_active = true",
+    ];
+    const params = [];
 
     if (role === 'specialist') {
       params.push(userId);
+      // Strictly isolate to clinics assigned to this specialist
       whereClauses.push(
         `EXISTS (SELECT 1 FROM specialist_assignment sa WHERE sa.specialist_id = $${params.length} AND sa.clinic_id = c.id)`,
       );
