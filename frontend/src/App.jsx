@@ -6,7 +6,7 @@ import { landingPath } from './lib/format.js';
 import { AuditLogPage } from './pages/admin/AuditLogPage.jsx';
 import { AdminHome, ClinicDetailPage, ClinicFormPage, ClinicsPage } from './pages/admin/ClinicPages.jsx';
 import { ClinicRemarksPage } from './pages/admin/ClinicRemarksPage.jsx';
-import { AddUserPage, InviteUserPage, UserDetailPage, UsersPage } from './pages/admin/UserPages.jsx';
+import { InviteUserPage, UserDetailPage, UsersPage } from './pages/admin/UserPages.jsx';
 import { AuthenticatorPage } from './pages/auth/AuthenticatorPage.jsx';
 import { LoginPage } from './pages/auth/LoginPage.jsx';
 import { AcceptInvitePage, ForgotPasswordPage, ResetPasswordPage } from './pages/auth/PasswordPages.jsx';
@@ -75,8 +75,7 @@ export function App() {
           <Route path="/manage/clinics/:id" element={<ClinicDetailPage />} />
           <Route path="/manage/clinics/:id/edit" element={<ClinicFormPage />} />
           <Route path="/manage/users" element={<UsersPage />} />
-          <Route path="/manage/users/add" element={<AddUserPage />} />
-          <Route path="/manage/users/invite" element={<AddUserPage />} />
+          <Route path="/manage/users/invite" element={<InviteUserPage />} />
           <Route path="/manage/users/:id" element={<UserDetailPage />} />
           <Route path="/manage/audit" element={<AuditLogPage />} />
           <Route path="/manage/remarks" element={<ClinicRemarksPage />} />

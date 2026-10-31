@@ -29,7 +29,7 @@ export function AdminHome() {
       to: '/manage/users',
       icon: IconUsers,
       title: 'Users',
-      desc: 'Add users directly, manage credentials and deactivate accounts.',
+      desc: 'Invite users, reset 2-step verification and deactivate accounts.',
       stat: summary ? `${summary.active_users} active · ${summary.invited_users} invited` : 'Loading…',
       badgeClass: 'badge-open',
     },
@@ -369,7 +369,7 @@ export function ClinicDetailPage() {
       <section className="panel">
         <div className="panel-header">
           <h2>Clinic users</h2>
-          <Link to={`/manage/users/add?clinicId=${c.id}&tab=clinic`} className="btn btn-primary btn-sm">+ Add user</Link>
+          <Link to={`/manage/users/invite?clinicId=${c.id}&role=clinic_user`} className="btn btn-secondary btn-sm">Invite user</Link>
         </div>
         {data.users.length === 0 ? <p className="panel-empty">No users yet.</p> : (
           <div className="table-responsive table-always">
