@@ -5387,48 +5387,6 @@ button.stat-kpi-card:hover,
   font-weight: 700;
 }
 
-.table-scroll-controls {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: #FFFFFF;
-  padding: 3px 10px;
-  border-radius: 999px;
-  border: 1px solid #CBD5E1;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-}
-
-.btn-table-scroll {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  border: 1px solid #CBD5E1;
-  background: #F8FAFC;
-  color: #1E3A8A;
-  font-size: 11px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  padding: 0;
-  line-height: 1;
-}
-
-.btn-table-scroll:hover {
-  background: #1E3A8A;
-  color: #FFFFFF;
-  border-color: #1E3A8A;
-  transform: scale(1.08);
-}
-
-.scroll-controls-label {
-  font-size: 11.5px;
-  font-weight: 600;
-  color: #334155;
-  user-select: none;
-}
-
 .table-legend-notice {
   display: inline-flex;
   align-items: center;

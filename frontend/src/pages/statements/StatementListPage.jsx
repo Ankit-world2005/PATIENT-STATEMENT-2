@@ -213,12 +213,6 @@ export function StatementListPage() {
     });
   };
 
-  const scrollStep = (delta) => {
-    if (tableScrollRef.current) {
-      tableScrollRef.current.scrollBy({ left: delta, behavior: 'smooth' });
-    }
-  };
-
   const monthGroups = buildMonthGroups(data?.items);
 
   const handleMonthChange = (selectedMonth) => {
@@ -817,29 +811,6 @@ export function StatementListPage() {
                     <div className="table-header-strip">
                       <div className="records-count-text">
                         <strong>{displayedItems.length}</strong> patient record{displayedItems.length === 1 ? '' : 's'}
-                      </div>
-                      <div className="table-scroll-controls" aria-label="Table column scroll controls">
-                        <button
-                          type="button"
-                          className="btn-table-scroll"
-                          onClick={() => scrollStep(-350)}
-                          title="Scroll columns left"
-                          aria-label="Scroll table columns left"
-                        >
-                          ◀
-                        </button>
-                        <span className="scroll-controls-label">
-                          ↔ Scroll columns
-                        </span>
-                        <button
-                          type="button"
-                          className="btn-table-scroll"
-                          onClick={() => scrollStep(350)}
-                          title="Scroll columns right"
-                          aria-label="Scroll table columns right"
-                        >
-                          ▶
-                        </button>
                       </div>
                       <div className="table-legend-notice">
                         <span className="legend-new-pill" aria-hidden="true">NEW</span>
