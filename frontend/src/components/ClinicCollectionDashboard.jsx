@@ -315,13 +315,55 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
   const [selectedFlagType, setSelectedFlagType] = useState('Under Review');
   const [pouchBusy, setPouchBusy] = useState(false);
 
+  const pouchHoverTimerRef = useRef(null);
+
   const handleOpenPouch = (row, rowIndex, sheetType = 'check') => {
+    if (pouchHoverTimerRef.current) {
+      clearTimeout(pouchHoverTimerRef.current);
+      pouchHoverTimerRef.current = null;
+    }
     setPouchModalRow({ row, rowIndex, sheetType });
     setPouchTab('logs');
     setNewLogInput('');
     setFlagReasonInput('');
     setSelectedFlagType('Under Review');
   };
+
+  const handlePouchMouseEnter = (row, rowIndex, sheetType = 'check') => {
+    if (pouchHoverTimerRef.current) {
+      clearTimeout(pouchHoverTimerRef.current);
+    }
+    // Automatically open once cursor moves on the pouch (snappy 120ms to feel instantaneous without accidental swipe flashes)
+    pouchHoverTimerRef.current = setTimeout(() => {
+      handleOpenPouch(row, rowIndex, sheetType);
+    }, 120);
+  };
+
+  const handlePouchMouseLeave = () => {
+    if (pouchHoverTimerRef.current) {
+      clearTimeout(pouchHoverTimerRef.current);
+      pouchHoverTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    if (!pouchModalRow) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        handleClosePouch();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pouchModalRow]);
+
+  useEffect(() => {
+    return () => {
+      if (pouchHoverTimerRef.current) {
+        clearTimeout(pouchHoverTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleClosePouch = () => {
     setPouchModalRow(null);
@@ -1134,13 +1176,24 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                             e.stopPropagation();
                             handleOpenPouch(row, idx, 'check');
                           }}
-                          title={`Remittance Pouch: Click to view logs & flags (${row.flags?.length || 0} flags, ${row.logs?.length || 0} logs)`}
+                          onMouseEnter={() => handlePouchMouseEnter(row, idx, 'check')}
+                          onMouseLeave={handlePouchMouseLeave}
+                          title={`Remittance Pouch: Hover or click to view logs & flags (${row.flags?.length || 0} flags, ${row.logs?.length || 0} logs)`}
                           aria-label={`Open logs and flags for check ${row.paymentReference || row.payer}`}
                         />
                         <div className="payer-title-wrap">
                           <strong>{row.payer || '—'}</strong>
                           {row.flags && row.flags.length > 0 && (
-                            <span className="pouch-chip-flag" title={row.flags.map((f) => f.type).join(', ')}>
+                            <span
+                              className="pouch-chip-flag"
+                              title={row.flags.map((f) => f.type).join(', ')}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenPouch(row, idx, 'check');
+                              }}
+                              onMouseEnter={() => handlePouchMouseEnter(row, idx, 'check')}
+                              onMouseLeave={handlePouchMouseLeave}
+                            >
                               🚩 {row.flags.length}
                             </span>
                           )}
@@ -1217,13 +1270,24 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                             e.stopPropagation();
                             handleOpenPouch(item, idx, 'lineitem');
                           }}
-                          title={`Claim Pouch: Click to view logs & flags (${item.flags?.length || 0} flags, ${item.logs?.length || 0} logs)`}
+                          onMouseEnter={() => handlePouchMouseEnter(item, idx, 'lineitem')}
+                          onMouseLeave={handlePouchMouseLeave}
+                          title={`Claim Pouch: Hover or click to view logs & flags (${item.flags?.length || 0} flags, ${item.logs?.length || 0} logs)`}
                           aria-label={`Open logs and flags for ${item.patientName}`}
                         />
                         <div className="patient-title-wrap">
                           <strong>{item.patientName || '—'}</strong>
                           {item.flags && item.flags.length > 0 && (
-                            <span className="pouch-chip-flag" title={item.flags.map((f) => f.type).join(', ')}>
+                            <span
+                              className="pouch-chip-flag"
+                              title={item.flags.map((f) => f.type).join(', ')}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenPouch(item, idx, 'lineitem');
+                              }}
+                              onMouseEnter={() => handlePouchMouseEnter(item, idx, 'lineitem')}
+                              onMouseLeave={handlePouchMouseLeave}
+                            >
                               🚩 {item.flags.length}
                             </span>
                           )}

@@ -9312,6 +9312,16 @@ html, body {
   transition: transform 0.15s ease, filter 0.15s ease;
 }
 
+.row-corner-pouch::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+}
+
 .row-corner-pouch:hover {
   transform: scale(1.4);
   filter: brightness(1.2);
