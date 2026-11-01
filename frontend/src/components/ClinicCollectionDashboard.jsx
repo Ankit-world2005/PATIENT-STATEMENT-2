@@ -702,266 +702,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
         </div>
 
         {/* Upload Modal Dialog for US24 specialists only */}
-        {/* Row Pouch Modal: Isolated Activity Logs & Flags */}
-      {pouchModalRow && (
-        <div className="modal-backdrop" onClick={handleClosePouch}>
-          <div
-            className="pouch-modal-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="pouch-modal-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="pouch-modal-head">
-              <div className="pouch-head-title-wrap">
-                <div
-                  className="pouch-dog-ear-badge"
-                  style={{
-                    borderTopColor: (pouchModalRow.row.flags && pouchModalRow.row.flags.length > 0)
-                      ? '#EF4444'
-                      : Number(pouchModalRow.row.unposted) > 0
-                        ? '#F59E0B'
-                        : '#3B82F6',
-                  }}
-                  aria-hidden="true"
-                />
-                <div>
-                  <h3 id="pouch-modal-title" className="pouch-modal-title">
-                    {pouchModalRow.sheetType === 'check'
-                      ? (pouchModalRow.row.payer || 'Remittance Record')
-                      : (pouchModalRow.row.patientName || 'Claim Line Item Record')}
-                  </h3>
-                  <div className="pouch-modal-sub">
-                    {pouchModalRow.sheetType === 'check' ? (
-                      <>
-                        <span className="pouch-meta-chip">Ref #{pouchModalRow.row.paymentReference || '—'}</span>
-                        <span className="pouch-meta-chip">{pouchModalRow.row.paymentMethod || 'CHK'}</span>
-                        <span className="pouch-meta-chip">{formatMoney(pouchModalRow.row.paymentAmount)}</span>
-                        <span className="pouch-meta-chip">Bank Date: {pouchModalRow.row.bankDate || '—'}</span>
-                        <span className="pouch-meta-chip">Payment Date: {pouchModalRow.row.paymentDate || '—'}</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="pouch-meta-chip">Ref #{pouchModalRow.row.referenceNumber || '—'}</span>
-                        <span className="pouch-meta-chip">DOS: {pouchModalRow.row.dateOfService || '—'}</span>
-                        <span className="pouch-meta-chip">Paid: {formatMoney(pouchModalRow.row.insurancePayment)}</span>
-                        <span className="pouch-meta-chip">{pouchModalRow.row.prType || 'Deductible'}</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="btn-modal-close"
-                onClick={handleClosePouch}
-                aria-label="Close"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Scope Isolation Notice */}
-            <div className="pouch-isolation-notice">
-              <IconCheck size={14} className="notice-shield" />
-              <span>
-                <strong>Isolated Location Log:</strong> These audit logs and flags belong strictly to {clinic?.name || 'this clinic'}'s report. They are presented only here and do not leak to other locations or statements.
-              </span>
-            </div>
-
-            {/* Tab Bar */}
-            <div className="pouch-tabs-bar" role="tablist">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={pouchTab === 'logs'}
-                className={`pouch-tab-btn ${pouchTab === 'logs' ? 'active' : ''}`}
-                onClick={() => setPouchTab('logs')}
-              >
-                📋 Activity Logs ({1 + (pouchModalRow.row.logs?.length || 0)})
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={pouchTab === 'flags'}
-                className={`pouch-tab-btn ${pouchTab === 'flags' ? 'active' : ''}`}
-                onClick={() => setPouchTab('flags')}
-              >
-                🚩 Flags Tab ({pouchModalRow.row.flags?.length || (Number(pouchModalRow.row.unposted) > 0 ? 1 : 0)})
-              </button>
-            </div>
-
-            {/* Tab 1: Logs */}
-            {pouchTab === 'logs' && (
-              <div className="pouch-tab-content">
-                <div className="pouch-logs-timeline">
-                  {/* Baseline system upload log */}
-                  <div className="timeline-item">
-                    <div className="timeline-dot dot-system" />
-                    <div className="timeline-body">
-                      <div className="timeline-head">
-                        <span className="timeline-author">System Ingestion</span>
-                        <span className="timeline-time">{new Date(data?.createdAt || Date.now()).toLocaleDateString()}</span>
-                      </div>
-                      <div className="timeline-text">
-                        Remittance record parsed and uploaded with report <strong>"{data?.reportTitle || 'Report'}"</strong>.
-                        {pouchModalRow.sheetType === 'check' && (
-                          <div className="timeline-subtext">
-                            Remittance Amount: {formatMoney(pouchModalRow.row.paymentAmount)} | Total Posted: {formatMoney(pouchModalRow.row.totalPosted)}
-                            {Number(pouchModalRow.row.unposted) > 0 && ` | Unposted Balance: ${formatMoney(pouchModalRow.row.unposted)}`}
-                            {Number(pouchModalRow.row.recoupment) > 0 && ` | Recoupment: ${formatMoney(pouchModalRow.row.recoupment)}`}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Remarks note if present in original data */}
-                  {pouchModalRow.row.remarks && (
-                    <div className="timeline-item">
-                      <div className="timeline-dot dot-audit" />
-                      <div className="timeline-body">
-                        <div className="timeline-head">
-                          <span className="timeline-author">Remittance Sheet Remarks</span>
-                        </div>
-                        <div className="timeline-text">{pouchModalRow.row.remarks}</div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Custom user logs & flag events */}
-                  {(pouchModalRow.row.logs || []).map((l, i) => (
-                    <div key={l.id || i} className="timeline-item">
-                      <div className={`timeline-dot ${l.isAudit ? 'dot-audit' : 'dot-user'}`} />
-                      <div className="timeline-body">
-                        <div className="timeline-head">
-                          <span className="timeline-author">{l.author || 'User'}</span>
-                          {l.role && <span className="timeline-role-pill">{l.role}</span>}
-                          <span className="timeline-time">{new Date(l.createdAt).toLocaleString()}</span>
-                        </div>
-                        <div className="timeline-text">{l.text}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Add log entry box */}
-                <div className="pouch-add-log-box">
-                  <label htmlFor="pouch-log-input" className="pouch-label">
-                    Add Note / Log Entry
-                  </label>
-                  <textarea
-                    id="pouch-log-input"
-                    className="pouch-textarea"
-                    rows={2}
-                    placeholder="Enter audit note or verification log for this remittance…"
-                    value={newLogInput}
-                    onChange={(e) => setNewLogInput(e.target.value)}
-                    disabled={pouchBusy}
-                  />
-                  <div className="pouch-action-row">
-                    <button
-                      type="button"
-                      className="btn-pouch-submit"
-                      onClick={handleAddLog}
-                      disabled={pouchBusy || !newLogInput.trim()}
-                    >
-                      {pouchBusy ? 'Saving…' : 'Add Log Entry'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Tab 2: Flags */}
-            {pouchTab === 'flags' && (
-              <div className="pouch-tab-content">
-                {/* System alert for unposted amount */}
-                {Number(pouchModalRow.row.unposted) > 0 && (
-                  <div className="pouch-flag-banner banner-warning">
-                    <div className="banner-title">⚠️ System Flag: Unposted Balance</div>
-                    <div className="banner-desc">
-                      An unposted balance of <strong>{formatMoney(pouchModalRow.row.unposted)}</strong> exists on this remittance (Total Amount: {formatMoney(pouchModalRow.row.paymentAmount)}, Total Posted: {formatMoney(pouchModalRow.row.totalPosted)}).
-                    </div>
-                  </div>
-                )}
-
-                {/* Active Flags List */}
-                <div className="pouch-active-flags-section">
-                  <h4 className="flags-section-title">Active Flags on this Row</h4>
-                  {(!pouchModalRow.row.flags || pouchModalRow.row.flags.length === 0) ? (
-                    <div className="flags-empty-text">No custom flags currently set on this row.</div>
-                  ) : (
-                    <div className="flags-active-list">
-                      {pouchModalRow.row.flags.map((f, i) => (
-                        <div key={i} className="active-flag-card">
-                          <div className="flag-card-left">
-                            <span className="flag-badge-pill">🚩 {f.type}</span>
-                            {f.reason && <div className="flag-reason-text">"{f.reason}"</div>}
-                            <div className="flag-meta-text">Set by {f.setBy} on {new Date(f.setAt).toLocaleDateString()}</div>
-                          </div>
-                          <button
-                            type="button"
-                            className="btn-resolve-flag"
-                            onClick={() => handleToggleFlag(f.type, false)}
-                            disabled={pouchBusy}
-                          >
-                            Resolve / Clear
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Set New Flag */}
-                <div className="pouch-set-flag-box">
-                  <h4 className="flags-section-title">Set New Flag</h4>
-                  <div className="flag-inputs-grid">
-                    <div>
-                      <label className="pouch-label">Flag Type</label>
-                      <select
-                        className="pouch-select"
-                        value={selectedFlagType}
-                        onChange={(e) => setSelectedFlagType(e.target.value)}
-                        disabled={pouchBusy}
-                      >
-                        <option value="Under Review">🚩 Under Review</option>
-                        <option value="Needs Follow-up">🔍 Needs Payer Follow-up</option>
-                        <option value="Unposted Discrepancy">⚠️ Unposted Discrepancy</option>
-                        <option value="Urgent Attention">🚨 Urgent Attention</option>
-                        <option value="Payment Verified">✅ Payment Verified</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="pouch-label">Reason / Notes (optional)</label>
-                      <input
-                        type="text"
-                        className="pouch-text-input"
-                        placeholder="e.g. Inquired with Aetna about unposted recoupment"
-                        value={flagReasonInput}
-                        onChange={(e) => setFlagReasonInput(e.target.value)}
-                        disabled={pouchBusy}
-                      />
-                    </div>
-                  </div>
-                  <div className="pouch-action-row">
-                    <button
-                      type="button"
-                      className="btn-pouch-submit btn-set-flag"
-                      onClick={() => handleToggleFlag(selectedFlagType, true)}
-                      disabled={pouchBusy}
-                    >
-                      {pouchBusy ? 'Updating…' : `Set Flag (${selectedFlagType})`}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+  
 
       {/* Upload Collection Modal */}
       {uploadOpen && isSpecialist && (
@@ -1613,6 +1354,266 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Row Pouch Modal: Isolated Activity Logs & Flags */}
+      {pouchModalRow && (
+        <div className="collection-modal-backdrop" onClick={handleClosePouch}>
+          <div
+            className="pouch-modal-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pouch-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="pouch-modal-head">
+              <div className="pouch-head-title-wrap">
+                <div
+                  className="pouch-dog-ear-badge"
+                  style={{
+                    borderTopColor: (pouchModalRow.row.flags && pouchModalRow.row.flags.length > 0)
+                      ? '#EF4444'
+                      : Number(pouchModalRow.row.unposted) > 0
+                        ? '#F59E0B'
+                        : '#3B82F6',
+                  }}
+                  aria-hidden="true"
+                />
+                <div>
+                  <h3 id="pouch-modal-title" className="pouch-modal-title">
+                    {pouchModalRow.sheetType === 'check'
+                      ? (pouchModalRow.row.payer || 'Remittance Record')
+                      : (pouchModalRow.row.patientName || 'Claim Line Item Record')}
+                  </h3>
+                  <div className="pouch-modal-sub">
+                    {pouchModalRow.sheetType === 'check' ? (
+                      <>
+                        <span className="pouch-meta-chip">Ref #{pouchModalRow.row.paymentReference || '—'}</span>
+                        <span className="pouch-meta-chip">{pouchModalRow.row.paymentMethod || 'CHK'}</span>
+                        <span className="pouch-meta-chip">{formatMoney(pouchModalRow.row.paymentAmount)}</span>
+                        <span className="pouch-meta-chip">Bank Date: {pouchModalRow.row.bankDate || '—'}</span>
+                        <span className="pouch-meta-chip">Payment Date: {pouchModalRow.row.paymentDate || '—'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="pouch-meta-chip">Ref #{pouchModalRow.row.referenceNumber || '—'}</span>
+                        <span className="pouch-meta-chip">DOS: {pouchModalRow.row.dateOfService || '—'}</span>
+                        <span className="pouch-meta-chip">Paid: {formatMoney(pouchModalRow.row.insurancePayment)}</span>
+                        <span className="pouch-meta-chip">{pouchModalRow.row.prType || 'Deductible'}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn-modal-close"
+                onClick={handleClosePouch}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Scope Isolation Notice */}
+            <div className="pouch-isolation-notice">
+              <IconCheck size={14} className="notice-shield" />
+              <span>
+                <strong>Isolated Location Log:</strong> These audit logs and flags belong strictly to {clinic?.name || 'this clinic'}'s report. They are presented only here and do not leak to other locations or statements.
+              </span>
+            </div>
+
+            {/* Tab Bar */}
+            <div className="pouch-tabs-bar" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={pouchTab === 'logs'}
+                className={`pouch-tab-btn ${pouchTab === 'logs' ? 'active' : ''}`}
+                onClick={() => setPouchTab('logs')}
+              >
+                📋 Activity Logs ({1 + (pouchModalRow.row.logs?.length || 0)})
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={pouchTab === 'flags'}
+                className={`pouch-tab-btn ${pouchTab === 'flags' ? 'active' : ''}`}
+                onClick={() => setPouchTab('flags')}
+              >
+                🚩 Flags Tab ({pouchModalRow.row.flags?.length || (Number(pouchModalRow.row.unposted) > 0 ? 1 : 0)})
+              </button>
+            </div>
+
+            {/* Tab 1: Logs */}
+            {pouchTab === 'logs' && (
+              <div className="pouch-tab-content">
+                <div className="pouch-logs-timeline">
+                  {/* Baseline system upload log */}
+                  <div className="timeline-item">
+                    <div className="timeline-dot dot-system" />
+                    <div className="timeline-body">
+                      <div className="timeline-head">
+                        <span className="timeline-author">System Ingestion</span>
+                        <span className="timeline-time">{new Date(data?.createdAt || Date.now()).toLocaleDateString()}</span>
+                      </div>
+                      <div className="timeline-text">
+                        Remittance record parsed and uploaded with report <strong>"{data?.reportTitle || 'Report'}"</strong>.
+                        {pouchModalRow.sheetType === 'check' && (
+                          <div className="timeline-subtext">
+                            Remittance Amount: {formatMoney(pouchModalRow.row.paymentAmount)} | Total Posted: {formatMoney(pouchModalRow.row.totalPosted)}
+                            {Number(pouchModalRow.row.unposted) > 0 && ` | Unposted Balance: ${formatMoney(pouchModalRow.row.unposted)}`}
+                            {Number(pouchModalRow.row.recoupment) > 0 && ` | Recoupment: ${formatMoney(pouchModalRow.row.recoupment)}`}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Remarks note if present in original data */}
+                  {pouchModalRow.row.remarks && (
+                    <div className="timeline-item">
+                      <div className="timeline-dot dot-audit" />
+                      <div className="timeline-body">
+                        <div className="timeline-head">
+                          <span className="timeline-author">Remittance Sheet Remarks</span>
+                        </div>
+                        <div className="timeline-text">{pouchModalRow.row.remarks}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Custom user logs & flag events */}
+                  {(pouchModalRow.row.logs || []).map((l, i) => (
+                    <div key={l.id || i} className="timeline-item">
+                      <div className={`timeline-dot ${l.isAudit ? 'dot-audit' : 'dot-user'}`} />
+                      <div className="timeline-body">
+                        <div className="timeline-head">
+                          <span className="timeline-author">{l.author || 'User'}</span>
+                          {l.role && <span className="timeline-role-pill">{l.role}</span>}
+                          <span className="timeline-time">{new Date(l.createdAt).toLocaleString()}</span>
+                        </div>
+                        <div className="timeline-text">{l.text}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add log entry box */}
+                <div className="pouch-add-log-box">
+                  <label htmlFor="pouch-log-input" className="pouch-label">
+                    Add Note / Log Entry
+                  </label>
+                  <textarea
+                    id="pouch-log-input"
+                    className="pouch-textarea"
+                    rows={2}
+                    placeholder="Enter audit note or verification log for this remittance…"
+                    value={newLogInput}
+                    onChange={(e) => setNewLogInput(e.target.value)}
+                    disabled={pouchBusy}
+                  />
+                  <div className="pouch-action-row">
+                    <button
+                      type="button"
+                      className="btn-pouch-submit"
+                      onClick={handleAddLog}
+                      disabled={pouchBusy || !newLogInput.trim()}
+                    >
+                      {pouchBusy ? 'Saving…' : 'Add Log Entry'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tab 2: Flags */}
+            {pouchTab === 'flags' && (
+              <div className="pouch-tab-content">
+                {/* System alert for unposted amount */}
+                {Number(pouchModalRow.row.unposted) > 0 && (
+                  <div className="pouch-flag-banner banner-warning">
+                    <div className="banner-title">⚠️ System Flag: Unposted Balance</div>
+                    <div className="banner-desc">
+                      An unposted balance of <strong>{formatMoney(pouchModalRow.row.unposted)}</strong> exists on this remittance (Total Amount: {formatMoney(pouchModalRow.row.paymentAmount)}, Total Posted: {formatMoney(pouchModalRow.row.totalPosted)}).
+                    </div>
+                  </div>
+                )}
+
+                {/* Active Flags List */}
+                <div className="pouch-active-flags-section">
+                  <h4 className="flags-section-title">Active Flags on this Row</h4>
+                  {(!pouchModalRow.row.flags || pouchModalRow.row.flags.length === 0) ? (
+                    <div className="flags-empty-text">No custom flags currently set on this row.</div>
+                  ) : (
+                    <div className="flags-active-list">
+                      {pouchModalRow.row.flags.map((f, i) => (
+                        <div key={i} className="active-flag-card">
+                          <div className="flag-card-left">
+                            <span className="flag-badge-pill">🚩 {f.type}</span>
+                            {f.reason && <div className="flag-reason-text">"{f.reason}"</div>}
+                            <div className="flag-meta-text">Set by {f.setBy} on {new Date(f.setAt).toLocaleDateString()}</div>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn-resolve-flag"
+                            onClick={() => handleToggleFlag(f.type, false)}
+                            disabled={pouchBusy}
+                          >
+                            Resolve / Clear
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Set New Flag */}
+                <div className="pouch-set-flag-box">
+                  <h4 className="flags-section-title">Set New Flag</h4>
+                  <div className="flag-inputs-grid">
+                    <div>
+                      <label className="pouch-label">Flag Type</label>
+                      <select
+                        className="pouch-select"
+                        value={selectedFlagType}
+                        onChange={(e) => setSelectedFlagType(e.target.value)}
+                        disabled={pouchBusy}
+                      >
+                        <option value="Under Review">🚩 Under Review</option>
+                        <option value="Needs Follow-up">🔍 Needs Payer Follow-up</option>
+                        <option value="Unposted Discrepancy">⚠️ Unposted Discrepancy</option>
+                        <option value="Urgent Attention">🚨 Urgent Attention</option>
+                        <option value="Payment Verified">✅ Payment Verified</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="pouch-label">Reason / Notes (optional)</label>
+                      <input
+                        type="text"
+                        className="pouch-text-input"
+                        placeholder="e.g. Inquired with Aetna about unposted recoupment"
+                        value={flagReasonInput}
+                        onChange={(e) => setFlagReasonInput(e.target.value)}
+                        disabled={pouchBusy}
+                      />
+                    </div>
+                  </div>
+                  <div className="pouch-action-row">
+                    <button
+                      type="button"
+                      className="btn-pouch-submit btn-set-flag"
+                      onClick={() => handleToggleFlag(selectedFlagType, true)}
+                      disabled={pouchBusy}
+                    >
+                      {pouchBusy ? 'Updating…' : `Set Flag (${selectedFlagType})`}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

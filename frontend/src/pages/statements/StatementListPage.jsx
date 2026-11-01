@@ -393,6 +393,7 @@ export function StatementListPage() {
 
   // --- Compute Real KPI Data from Existing Statements State ---
   const totalStatements = data?.total ?? data?.items?.length ?? 0;
+  const newStatementsCount = data?.totalNew ?? (data?.items?.filter((s) => s.isNew).length ?? 0);
   const receivedCount = data?.totalReceived !== undefined ? data.totalReceived : (data?.items?.filter(isReceivedStatement).length ?? 0);
   const requestSentCount = data?.totalAwaiting ?? (data?.items?.filter((s) => s.awaitingReply || String(s.status || '').toLowerCase().includes('request')).length ?? 0);
 
@@ -597,7 +598,7 @@ export function StatementListPage() {
             </ErrorBoundary>
           ) : tab === 'collection' && canViewCollection ? (
             <ErrorBoundary title="Unable to load Clinic Collection">
-              <ClinicCollectionDashboard clinic={data?.clinic} isStaff={isStaff} />
+              <ClinicCollectionDashboard clinic={data?.clinic || (clinicId ? { id: clinicId, name: clinicName } : user?.clinic)} isStaff={isStaff} />
             </ErrorBoundary>
           ) : (
             <>
@@ -615,16 +616,16 @@ export function StatementListPage() {
                   <div className="kpi-caption">{lastSharedCaption}</div>
                 </div>
 
-                {/* KPI Card 2: New · not yet opened (Highlighted Orange) */}
+                {/* KPI Card 2: Payment received (Highlighted Orange) */}
                 <div className="kpi-metric-card kpi-card-orange-highlight">
                   <div className="kpi-tile-header">
-                    <span className="kpi-label kpi-label-orange">New · not yet opened</span>
+                    <span className="kpi-label kpi-label-orange">Payment received</span>
                     <div className="kpi-icon-tile tile-tint-orange" aria-hidden="true">
                       <IconFileText size={16} />
                     </div>
                   </div>
-                  <div className="kpi-number kpi-number-orange">{newStatementsCount}</div>
-                  <div className="kpi-caption kpi-caption-orange">Review these first</div>
+                  <div className="kpi-number kpi-number-orange">{receivedCount}</div>
+                  <div className="kpi-caption kpi-caption-orange">Payment acknowledged</div>
                 </div>
 
                 {/* KPI Card 3: Patient responsibility */}
