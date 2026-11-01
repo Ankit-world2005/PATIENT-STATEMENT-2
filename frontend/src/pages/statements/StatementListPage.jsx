@@ -25,6 +25,7 @@ import { useToast } from '../../lib/toast.jsx';
 import { NotFoundPage } from '../NotFoundPage.jsx';
 import { NewRequestModal, RequestsContent } from '../requests/RequestsPage.jsx';
 import { ClinicCollectionDashboard } from '../../components/ClinicCollectionDashboard.jsx';
+import { ContactUs24Content } from '../../components/ContactUs24Content.jsx';
 import { ErrorBoundary } from '../../components/ErrorBoundary.jsx';
 
 function Highlight({ text, query }) {
@@ -532,12 +533,15 @@ export function StatementListPage() {
               <p className="help-card-text">
                 Your US24 billing specialist can review balances, remarks and appeals.
               </p>
-              <a
-                href="mailto:support@us24solutions.com?subject=Inquiry%20regarding%20Patient%20Statements"
-                className="btn-help-contact"
+              <button
+                type="button"
+                className={`btn-help-contact ${tab === 'contact' ? 'active' : ''}`}
+                onClick={() => update({ tab: 'contact' })}
+                aria-current={tab === 'contact' ? 'page' : undefined}
+                title="Contact US24 Solutions Billing Specialist Support Desk"
               >
                 Contact US24
-              </a>
+              </button>
             </div>
           </div>
         </aside>
@@ -552,7 +556,13 @@ export function StatementListPage() {
 
 
               <h1 className="clinical-page-h1">
-                {tab === 'requests' ? 'Requests & Inquiries' : tab === 'collection' ? 'Clinic Collection' : 'Patient statements'}
+                {tab === 'requests'
+                  ? 'Requests & Inquiries'
+                  : tab === 'collection'
+                    ? 'Clinic Collection'
+                    : tab === 'contact'
+                      ? 'Contact US24 Solutions'
+                      : 'Patient statements'}
               </h1>
 
               <div className="clinical-page-sub">
@@ -599,6 +609,17 @@ export function StatementListPage() {
           ) : tab === 'collection' && canViewCollection ? (
             <ErrorBoundary title="Unable to load Clinic Collection">
               <ClinicCollectionDashboard clinic={data?.clinic || (clinicId ? { id: clinicId, name: clinicName } : user?.clinic)} isStaff={isStaff} />
+            </ErrorBoundary>
+          ) : tab === 'contact' ? (
+            <ErrorBoundary title="Unable to load Contact US24">
+              <ContactUs24Content
+                clinic={data?.clinic || (clinicId ? { id: clinicId, name: clinicName } : user?.clinic)}
+                clinicName={clinicName}
+                clinicCode={clinicCode}
+                isStaff={isStaff}
+                onOpenNewRequest={() => setNewRequestOpen(true)}
+                onGoToRequests={() => update({ tab: 'requests' })}
+              />
             </ErrorBoundary>
           ) : (
             <>
@@ -804,12 +825,13 @@ export function StatementListPage() {
                         >
                           Request a statement
                         </button>
-                        <a
-                          href="mailto:support@us24solutions.com?subject=Statement%20Inquiry"
+                        <button
+                          type="button"
                           className="btn-clean-outline"
+                          onClick={() => update({ tab: 'contact' })}
                         >
                           Contact US24
-                        </a>
+                        </button>
                       </div>
 
                       <div className="how-it-works-row">
