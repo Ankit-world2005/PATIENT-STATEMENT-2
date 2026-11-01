@@ -186,7 +186,31 @@ export function StatementListPage() {
   const [deletingBusy, setDeletingBusy] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [newRequestOpen, setNewRequestOpen] = useState(false);
-  const [segmentedStatus, setSegmentedStatus] = useState('all'); // 'all' | 'new' | 'viewed' | 'request_sent'
+  const [segmentedStatus, setSegmentedStatus] = useState('all'); // 'all' | 'received' | 'request_sent'
+
+  const isReceivedStatement = (s) => {
+    if (!s) return false;
+    const st = String(s.status || s.ledger_status || s.ledgerStatus || '').toLowerCase();
+    const p1 = Number(String(s.cycle1Payment || s.cycle1_payment || 0).replace(/[^0-9.-]/g, '')) || 0;
+    const p2 = Number(String(s.cycle2Payment || s.cycle2_payment || 0).replace(/[^0-9.-]/g, '')) || 0;
+    const p3 = Number(String(s.cycle3Payment || s.cycle3_payment || 0).replace(/[^0-9.-]/g, '')) || 0;
+    return (
+      st.includes('received') ||
+      st.includes('recieved') ||
+      (st.includes('payment') && !st.includes('pending')) ||
+      st === 'paid' ||
+      p1 > 0 ||
+      p2 > 0 ||
+      p3 > 0
+    );
+  };
+
+  const handleSegmentedChange = (nextStatus) => {
+    setSegmentedStatus(nextStatus);
+    if (page > 1) {
+      update({ page: 1 });
+    }
+  };
 
     const topScrollRef = useRef(null);
   const tableScrollRef = useRef(null);
@@ -262,6 +286,7 @@ export function StatementListPage() {
       const qParams = new URLSearchParams({ q, from, to, sort });
       if (isStaff && clinicId) qParams.set('clinicId', clinicId);
       if (isStaff && status) qParams.set('status', status);
+      if (segmentedStatus && segmentedStatus !== 'all') qParams.set('view', segmentedStatus);
       const filename = `${(data?.clinic?.name || 'patient').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-statements-${new Date().toISOString().slice(0, 10)}.xlsx`;
       await downloadFile(`/statements/export?${qParams.toString()}`, filename);
     } catch (err) {
@@ -324,6 +349,9 @@ export function StatementListPage() {
       query.set('clinicId', clinicId);
       query.set('status', status);
     }
+    if (segmentedStatus && segmentedStatus !== 'all') {
+      query.set('view', segmentedStatus);
+    }
     api(`/statements?${query}`)
       .then((d) => {
         if (!ignore) {
@@ -340,7 +368,7 @@ export function StatementListPage() {
     return () => {
       ignore = true;
     };
-  }, [q, from, to, sort, page, status, clinicId, isStaff, refreshKey]);
+  }, [q, from, to, sort, page, status, clinicId, isStaff, refreshKey, segmentedStatus]);
 
   if (error?.status === 404) return <NotFoundPage />;
 
@@ -365,9 +393,8 @@ export function StatementListPage() {
 
   // --- Compute Real KPI Data from Existing Statements State ---
   const totalStatements = data?.total ?? data?.items?.length ?? 0;
-  const newStatementsCount = data?.totalNew ?? (data?.items?.filter((s) => s.isNew).length ?? 0);
-  const requestSentCount = data?.totalAwaiting ?? (data?.items?.filter((s) => s.awaitingReply).length ?? 0);
-  const viewedCount = Math.max(0, (data?.items?.length ?? 0) - newStatementsCount - requestSentCount);
+  const receivedCount = data?.totalReceived !== undefined ? data.totalReceived : (data?.items?.filter(isReceivedStatement).length ?? 0);
+  const requestSentCount = data?.totalAwaiting ?? (data?.items?.filter((s) => s.awaitingReply || String(s.status || '').toLowerCase().includes('request')).length ?? 0);
 
   const totalCurrentBalanceDue =
     data?.totalCurrentBalance !== undefined && data?.totalCurrentBalance !== null
@@ -384,19 +411,19 @@ export function StatementListPage() {
   }, null);
   const lastSharedCaption = latestDate ? `Last shared ${shortDate(latestDate)}` : 'Last shared —';
 
-  // Client-side segmented filter matching
+  // Client-side segmented filter matching (ensures instant response while server syncs)
   const displayedItems = (data?.items || []).filter((s) => {
-    if (segmentedStatus === 'new') return s.isNew;
-    if (segmentedStatus === 'request_sent') return s.awaitingReply;
-    if (segmentedStatus === 'viewed') return !s.isNew && !s.awaitingReply;
+    if (segmentedStatus === 'received') return isReceivedStatement(s);
+    if (segmentedStatus === 'request_sent') return s.awaitingReply || String(s.status || '').toLowerCase().includes('request');
     return true;
   });
 
   const clinicName = data?.clinic?.name || user.clinic?.name || 'Clinic';
   const clinicCode = data?.clinic?.code || user.clinic?.code || 'CLINIC';
 
-  const startRecord = data ? Math.min((data.page - 1) * data.pageSize + 1, data.total) : 0;
-  const endRecord = data ? Math.min(data.page * data.pageSize, data.total) : 0;
+  const currentTotal = data ? (data.filteredTotal ?? data.total) : 0;
+  const startRecord = currentTotal > 0 ? Math.min((data.page - 1) * data.pageSize + 1, currentTotal) : 0;
+  const endRecord = currentTotal > 0 ? Math.min(data.page * data.pageSize, currentTotal) : 0;
 
   return (
     <div className="clinical-clean-page">
@@ -637,31 +664,23 @@ export function StatementListPage() {
                     type="button"
                     className={`segmented-tab-btn ${segmentedStatus === 'all' ? 'active' : ''}`}
                     aria-pressed={segmentedStatus === 'all'}
-                    onClick={() => setSegmentedStatus('all')}
+                    onClick={() => handleSegmentedChange('all')}
                   >
                     All · {totalStatements}
                   </button>
                   <button
                     type="button"
-                    className={`segmented-tab-btn ${segmentedStatus === 'new' ? 'active' : ''}`}
-                    aria-pressed={segmentedStatus === 'new'}
-                    onClick={() => setSegmentedStatus('new')}
+                    className={`segmented-tab-btn ${segmentedStatus === 'received' ? 'active' : ''}`}
+                    aria-pressed={segmentedStatus === 'received'}
+                    onClick={() => handleSegmentedChange('received')}
                   >
-                    New · {newStatementsCount}
-                  </button>
-                  <button
-                    type="button"
-                    className={`segmented-tab-btn ${segmentedStatus === 'viewed' ? 'active' : ''}`}
-                    aria-pressed={segmentedStatus === 'viewed'}
-                    onClick={() => setSegmentedStatus('viewed')}
-                  >
-                    Viewed · {viewedCount}
+                    Received · {receivedCount}
                   </button>
                   <button
                     type="button"
                     className={`segmented-tab-btn ${segmentedStatus === 'request_sent' ? 'active' : ''}`}
                     aria-pressed={segmentedStatus === 'request_sent'}
-                    onClick={() => setSegmentedStatus('request_sent')}
+                    onClick={() => handleSegmentedChange('request_sent')}
                   >
                     Request sent · {requestSentCount}
                   </button>
@@ -919,20 +938,20 @@ export function StatementListPage() {
 
                                 {/* 7. STATUS */}
                                 <td className="cell-status">
-                                  {isNew ? (
-                                    <span className="status-pill status-pill-new">
-                                      <span className="status-dot dot-new" aria-hidden="true" />
-                                      <span>New</span>
-                                    </span>
-                                  ) : isReq ? (
+                                  {isReq ? (
                                     <span className="status-pill status-pill-request">
                                       <span className="status-dot dot-request" aria-hidden="true" />
                                       <span>Request sent</span>
                                     </span>
+                                  ) : isReceivedStatement(s) ? (
+                                    <span className="status-pill status-pill-viewed">
+                                      <span className="status-dot dot-viewed" aria-hidden="true" />
+                                      <span>{s.status && s.status.toLowerCase().includes('received') ? s.status : 'Payment Received'}</span>
+                                    </span>
                                   ) : (
                                     <span className="status-pill status-pill-viewed">
                                       <span className="status-dot dot-viewed" aria-hidden="true" />
-                                      <span>{s.status === 'withdrawn' ? 'Withdrawn' : s.status === 'paid' ? 'Paid' : (s.status || 'Viewed')}</span>
+                                      <span>{s.status === 'withdrawn' ? 'Withdrawn' : (s.status || 'Active')}</span>
                                     </span>
                                   )}
                                 </td>
@@ -1034,7 +1053,7 @@ export function StatementListPage() {
                     {/* Footer Strip */}
                     <div className="table-footer-strip">
                       <div className="footer-pagination-info">
-                        Showing {startRecord}–{endRecord} of {data.total}
+                        Showing {startRecord}–{endRecord} of {currentTotal}
                       </div>
                       <div className="footer-pagination-buttons">
                         <button

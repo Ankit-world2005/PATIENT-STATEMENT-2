@@ -39,6 +39,7 @@ const listSchema = z.object({
   sort: z.enum(Object.keys(SORTS)).optional().default('name_asc'),
   page: z.coerce.number().int().min(1).max(100000).optional().default(1),
   status: z.enum(['active', 'withdrawn', 'all']).optional().default('active'),
+  view: z.string().optional().default('all'),
 });
 
 export function remarkView(r, attMap = {}) {
@@ -76,6 +77,22 @@ export function buildStatementWhere(req, f, clinic) {
   if (req.user.role !== 'clinic_user' && f.status && f.status !== 'all') {
     params.push(f.status);
     where.push(`s.status = $${params.length}`);
+  }
+
+  if (f.view === 'received') {
+    where.push(`(
+      s.ledger_status ILIKE '%received%' OR
+      s.ledger_status ILIKE '%recieved%' OR
+      s.status ILIKE '%received%' OR
+      s.status ILIKE '%recieved%' OR
+      (s.ledger_status ILIKE '%payment%' AND s.ledger_status NOT ILIKE '%pending%') OR
+      (s.status ILIKE '%payment%' AND s.status NOT ILIKE '%pending%') OR
+      COALESCE(s.cycle1_payment, 0) > 0 OR
+      COALESCE(s.cycle2_payment, 0) > 0 OR
+      COALESCE(s.cycle3_payment, 0) > 0
+    )`);
+  } else if (f.view === 'request_sent') {
+    where.push(`(s.awaiting_reply_since IS NOT NULL OR s.ledger_status ILIKE '%request%' OR s.status ILIKE '%request%')`);
   }
 
   if (f.q) {
@@ -130,22 +147,36 @@ statementsRouter.get('/', async (req, res) => {
   const clinicId = req.user.role === 'clinic_user' ? req.user.clinic_id : f.clinicId;
   const clinic = await getVisibleClinic(pool, req, clinicId);
 
-  const { whereSql, params } = buildStatementWhere(req, f, clinic);
+  // Compute base counts across all items without view filtering
+  const baseF = { ...f, view: 'all' };
+  const { whereSql: baseWhereSql, params: baseParams } = buildStatementWhere(req, baseF, clinic);
 
   const { rows: countRows } = await query(
     `SELECT count(*)::int AS total,
             COALESCE(SUM(COALESCE(s.current_balance, s.cycle1_balance, s.balance_due, 0)), 0)::numeric AS total_current_balance,
             COUNT(CASE WHEN s.first_opened_by_clinic_at IS NULL AND s.status = 'active' THEN 1 END)::int AS total_new,
-            COUNT(CASE WHEN s.awaiting_reply_since IS NOT NULL THEN 1 END)::int AS total_awaiting
+            COUNT(CASE WHEN s.awaiting_reply_since IS NOT NULL OR s.ledger_status ILIKE '%request%' OR s.status ILIKE '%request%' THEN 1 END)::int AS total_awaiting,
+            COUNT(CASE WHEN (s.ledger_status ILIKE '%received%' OR s.ledger_status ILIKE '%recieved%' OR s.status ILIKE '%received%' OR s.status ILIKE '%recieved%' OR (s.ledger_status ILIKE '%payment%' AND s.ledger_status NOT ILIKE '%pending%') OR (s.status ILIKE '%payment%' AND s.status NOT ILIKE '%pending%') OR COALESCE(s.cycle1_payment, 0) > 0 OR COALESCE(s.cycle2_payment, 0) > 0 OR COALESCE(s.cycle3_payment, 0) > 0) THEN 1 END)::int AS total_received
        FROM statement s
-      WHERE ${whereSql}`,
-    params,
+      WHERE ${baseWhereSql}`,
+    baseParams,
   );
   const total = countRows[0].total;
   const totalCurrentBalance = Number(countRows[0].total_current_balance || 0);
   const totalNew = countRows[0].total_new;
   const totalAwaiting = countRows[0].total_awaiting;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const totalReceived = countRows[0].total_received;
+
+  // Now build query for items (applying view filter if present)
+  const { whereSql, params } = buildStatementWhere(req, f, clinic);
+  let filteredTotal = total;
+  if (f.view === 'received') {
+    filteredTotal = totalReceived;
+  } else if (f.view === 'request_sent') {
+    filteredTotal = totalAwaiting;
+  }
+
+  const totalPages = Math.max(1, Math.ceil(filteredTotal / PAGE_SIZE));
   const page = Math.min(f.page, totalPages); // past the end shows the last page
 
   const { rows } = await query(
@@ -228,10 +259,12 @@ statementsRouter.get('/', async (req, res) => {
     page,
     pageSize: PAGE_SIZE,
     total,
+    filteredTotal,
     totalPages,
     totalCurrentBalance,
     totalNew,
     totalAwaiting,
+    totalReceived,
   });
 });
 
