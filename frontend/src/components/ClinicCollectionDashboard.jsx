@@ -314,6 +314,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
   const [flagReasonInput, setFlagReasonInput] = useState('');
   const [selectedFlagType, setSelectedFlagType] = useState('Under Review');
   const [pouchBusy, setPouchBusy] = useState(false);
+  const [pouchClosing, setPouchClosing] = useState(false);
 
   const pouchHoverTimerRef = useRef(null);
 
@@ -322,6 +323,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
       clearTimeout(pouchHoverTimerRef.current);
       pouchHoverTimerRef.current = null;
     }
+    setPouchClosing(false);
     setPouchModalRow({ row, rowIndex, sheetType });
     setPouchTab('logs');
     setNewLogInput('');
@@ -355,7 +357,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pouchModalRow]);
+  }, [pouchModalRow, pouchClosing]);
 
   useEffect(() => {
     return () => {
@@ -366,9 +368,14 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
   }, []);
 
   const handleClosePouch = () => {
-    setPouchModalRow(null);
-    setNewLogInput('');
-    setFlagReasonInput('');
+    if (pouchClosing || !pouchModalRow) return;
+    setPouchClosing(true);
+    setTimeout(() => {
+      setPouchModalRow(null);
+      setPouchClosing(false);
+      setNewLogInput('');
+      setFlagReasonInput('');
+    }, 200);
   };
 
   const handleAddLog = async () => {
@@ -1423,9 +1430,12 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
       )}
       {/* Row Pouch Modal: Isolated Activity Logs & Flags */}
       {pouchModalRow && (
-        <div className="collection-modal-backdrop" onClick={handleClosePouch}>
+        <div
+          className={`collection-modal-backdrop pouch-backdrop-anim ${pouchClosing ? 'is-closing' : ''}`}
+          onClick={handleClosePouch}
+        >
           <div
-            className="pouch-modal-dialog"
+            className={`pouch-modal-dialog ${pouchClosing ? 'dialog-closing' : 'dialog-opening'}`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="pouch-modal-title"
