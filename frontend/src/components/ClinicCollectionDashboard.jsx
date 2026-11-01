@@ -315,13 +315,17 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
   const [selectedFlagType, setSelectedFlagType] = useState('Under Review');
   const [pouchBusy, setPouchBusy] = useState(false);
   const [pouchClosing, setPouchClosing] = useState(false);
+  const [pouchAnchor, setPouchAnchor] = useState(null); // { x, y } screen coordinates of hovered pouch
 
   const pouchHoverTimerRef = useRef(null);
 
-  const handleOpenPouch = (row, rowIndex, sheetType = 'check') => {
+  const handleOpenPouch = (row, rowIndex, sheetType = 'check', rect = null) => {
     if (pouchHoverTimerRef.current) {
       clearTimeout(pouchHoverTimerRef.current);
       pouchHoverTimerRef.current = null;
+    }
+    if (rect) {
+      setPouchAnchor({ x: rect.left, y: rect.top, right: rect.right, bottom: rect.bottom });
     }
     setPouchClosing(false);
     setPouchModalRow({ row, rowIndex, sheetType });
@@ -331,14 +335,14 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
     setSelectedFlagType('Under Review');
   };
 
-  const handlePouchMouseEnter = (row, rowIndex, sheetType = 'check') => {
+  const handlePouchMouseEnter = (row, rowIndex, sheetType = 'check', rect = null) => {
     if (pouchHoverTimerRef.current) {
       clearTimeout(pouchHoverTimerRef.current);
     }
-    // Automatically open once cursor moves on the pouch (snappy 120ms to feel instantaneous without accidental swipe flashes)
+    // Automatically open directly from corner pouch hover
     pouchHoverTimerRef.current = setTimeout(() => {
-      handleOpenPouch(row, rowIndex, sheetType);
-    }, 120);
+      handleOpenPouch(row, rowIndex, sheetType, rect);
+    }, 100);
   };
 
   const handlePouchMouseLeave = () => {
@@ -347,6 +351,43 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
       pouchHoverTimerRef.current = null;
     }
   };
+
+  // Compute anchored floating position emerging directly from corner pouch
+  const dialogStyle = useMemo(() => {
+    if (!pouchAnchor) {
+      return {
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        transformOrigin: 'center center',
+      };
+    }
+
+    const cardWidth = 580;
+    const cardHeight = 490;
+    const padding = 16;
+
+    let left = pouchAnchor.x;
+    if (left + cardWidth > window.innerWidth - padding) {
+      left = Math.max(padding, window.innerWidth - cardWidth - padding);
+    }
+    if (left < padding) left = padding;
+
+    let top = pouchAnchor.y;
+    if (top + cardHeight > window.innerHeight - padding) {
+      top = Math.max(padding, window.innerHeight - cardHeight - padding);
+    }
+    if (top < padding) top = padding;
+
+    const originX = Math.round(Math.max(0, Math.min(cardWidth, pouchAnchor.x - left + 8)));
+    const originY = Math.round(Math.max(0, Math.min(cardHeight, pouchAnchor.y - top + 8)));
+
+    return {
+      top: `${top}px`,
+      left: `${left}px`,
+      transformOrigin: `${originX}px ${originY}px`,
+    };
+  }, [pouchAnchor]);
 
   useEffect(() => {
     if (!pouchModalRow) return;
@@ -375,7 +416,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
       setPouchClosing(false);
       setNewLogInput('');
       setFlagReasonInput('');
-    }, 200);
+    }, 180);
   };
 
   const handleAddLog = async () => {
@@ -1181,9 +1222,9 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                           }`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleOpenPouch(row, idx, 'check');
+                            handleOpenPouch(row, idx, 'check', e.currentTarget.getBoundingClientRect());
                           }}
-                          onMouseEnter={() => handlePouchMouseEnter(row, idx, 'check')}
+                          onMouseEnter={(e) => handlePouchMouseEnter(row, idx, 'check', e.currentTarget.getBoundingClientRect())}
                           onMouseLeave={handlePouchMouseLeave}
                           title={`Remittance Pouch: Hover or click to view logs & flags (${row.flags?.length || 0} flags, ${row.logs?.length || 0} logs)`}
                           aria-label={`Open logs and flags for check ${row.paymentReference || row.payer}`}
@@ -1196,9 +1237,9 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                               title={row.flags.map((f) => f.type).join(', ')}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleOpenPouch(row, idx, 'check');
+                                handleOpenPouch(row, idx, 'check', e.currentTarget.getBoundingClientRect());
                               }}
-                              onMouseEnter={() => handlePouchMouseEnter(row, idx, 'check')}
+                              onMouseEnter={(e) => handlePouchMouseEnter(row, idx, 'check', e.currentTarget.getBoundingClientRect())}
                               onMouseLeave={handlePouchMouseLeave}
                             >
                               🚩 {row.flags.length}
@@ -1275,9 +1316,9 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                           }`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleOpenPouch(item, idx, 'lineitem');
+                            handleOpenPouch(item, idx, 'lineitem', e.currentTarget.getBoundingClientRect());
                           }}
-                          onMouseEnter={() => handlePouchMouseEnter(item, idx, 'lineitem')}
+                          onMouseEnter={(e) => handlePouchMouseEnter(item, idx, 'lineitem', e.currentTarget.getBoundingClientRect())}
                           onMouseLeave={handlePouchMouseLeave}
                           title={`Claim Pouch: Hover or click to view logs & flags (${item.flags?.length || 0} flags, ${item.logs?.length || 0} logs)`}
                           aria-label={`Open logs and flags for ${item.patientName}`}
@@ -1290,9 +1331,9 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                               title={item.flags.map((f) => f.type).join(', ')}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleOpenPouch(item, idx, 'lineitem');
+                                handleOpenPouch(item, idx, 'lineitem', e.currentTarget.getBoundingClientRect());
                               }}
-                              onMouseEnter={() => handlePouchMouseEnter(item, idx, 'lineitem')}
+                              onMouseEnter={(e) => handlePouchMouseEnter(item, idx, 'lineitem', e.currentTarget.getBoundingClientRect())}
                               onMouseLeave={handlePouchMouseLeave}
                             >
                               🚩 {item.flags.length}
@@ -1431,11 +1472,12 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
       {/* Row Pouch Modal: Isolated Activity Logs & Flags */}
       {pouchModalRow && (
         <div
-          className={`collection-modal-backdrop pouch-backdrop-anim ${pouchClosing ? 'is-closing' : ''}`}
+          className={`pouch-flyout-backdrop ${pouchClosing ? 'is-closing' : ''}`}
           onClick={handleClosePouch}
         >
           <div
             className={`pouch-modal-dialog ${pouchClosing ? 'dialog-closing' : 'dialog-opening'}`}
+            style={dialogStyle}
             role="dialog"
             aria-modal="true"
             aria-labelledby="pouch-modal-title"

@@ -9379,80 +9379,63 @@ html, body {
 }
 
 /* Modal styling for Pouch */
-.collection-modal-backdrop.pouch-backdrop-anim {
-  animation: pouchBackdropFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+.pouch-flyout-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.04);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  z-index: 9998;
+  display: block;
+  transition: opacity 0.2s ease;
 }
 
-.collection-modal-backdrop.pouch-backdrop-anim.is-closing {
-  animation: pouchBackdropFadeOut 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+.pouch-flyout-backdrop.is-closing {
+  opacity: 0;
 }
 
 .pouch-modal-dialog {
+  position: fixed;
   background: #FFFFFF;
   border-radius: 14px;
-  max-width: 640px;
-  width: 92%;
-  box-shadow: 0 24px 48px -12px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(15, 23, 42, 0.06);
+  max-width: 580px;
+  width: 90vw;
+  box-shadow: 0 16px 40px -4px rgba(15, 23, 42, 0.22), 0 0 0 1px rgba(15, 23, 42, 0.08);
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  max-height: 85vh;
+  max-height: 82vh;
+  z-index: 9999;
   will-change: transform, opacity;
 }
 
 .pouch-modal-dialog.dialog-opening {
-  animation: pouchDialogSmoothIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: pouchUnfoldFromCorner 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .pouch-modal-dialog.dialog-closing {
-  animation: pouchDialogSmoothOut 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: pouchFoldToCorner 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@keyframes pouchBackdropFadeIn {
+@keyframes pouchUnfoldFromCorner {
   0% {
     opacity: 0;
-    backdrop-filter: blur(0px);
-    -webkit-backdrop-filter: blur(0px);
+    transform: scale(0.12);
   }
   100% {
     opacity: 1;
-    backdrop-filter: blur(3px);
-    -webkit-backdrop-filter: blur(3px);
+    transform: scale(1);
   }
 }
 
-@keyframes pouchBackdropFadeOut {
+@keyframes pouchFoldToCorner {
   0% {
     opacity: 1;
-    backdrop-filter: blur(3px);
-    -webkit-backdrop-filter: blur(3px);
+    transform: scale(1);
   }
   100% {
     opacity: 0;
-    backdrop-filter: blur(0px);
-    -webkit-backdrop-filter: blur(0px);
-  }
-}
-
-@keyframes pouchDialogSmoothIn {
-  0% {
-    opacity: 0;
-    transform: translateY(20px) scale(0.96);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes pouchDialogSmoothOut {
-  0% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(14px) scale(0.97);
+    transform: scale(0.15);
   }
 }
 
