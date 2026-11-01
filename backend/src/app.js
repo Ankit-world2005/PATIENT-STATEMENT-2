@@ -69,10 +69,12 @@ export function createApp() {
   app.use('/api', (_req, _res, next) => next(new HttpError(404, "We couldn't find that page.")));
 
   // Production: serve the built React app.
+  const frontendDist = path.resolve(config.serverRoot, '..', 'frontend', 'dist');
   const clientDist = path.resolve(config.serverRoot, '..', 'client', 'dist');
-  if (existsSync(clientDist)) {
-    app.use(express.static(clientDist, { index: false, maxAge: '1h' }));
-    app.get('/{*splat}', (_req, res) => res.sendFile(path.join(clientDist, 'index.html')));
+  const staticDist = existsSync(frontendDist) ? frontendDist : existsSync(clientDist) ? clientDist : null;
+  if (staticDist) {
+    app.use(express.static(staticDist, { index: false, maxAge: '1h' }));
+    app.get('/{*splat}', (_req, res) => res.sendFile(path.join(staticDist, 'index.html')));
   }
 
   // eslint-disable-next-line no-unused-vars

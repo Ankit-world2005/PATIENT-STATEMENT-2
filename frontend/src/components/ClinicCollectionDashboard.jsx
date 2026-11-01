@@ -442,6 +442,12 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
     });
   };
 
+  // Reset scroll to leftmost position when switching between Check Sheet and Line Items tabs
+  useEffect(() => {
+    if (tableScrollRef.current) tableScrollRef.current.scrollLeft = 0;
+    if (topScrollRef.current) topScrollRef.current.scrollLeft = 0;
+  }, [activeSheetTab]);
+
   // Sync spacer width with actual table scroll width whenever table content or tab changes
   useEffect(() => {
     const updateWidth = () => {
@@ -450,8 +456,6 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
       }
     };
     updateWidth();
-    if (tableScrollRef.current) tableScrollRef.current.scrollLeft = 0;
-    if (topScrollRef.current) topScrollRef.current.scrollLeft = 0;
 
     let ro;
     if (typeof window !== 'undefined' && window.ResizeObserver && tableScrollRef.current) {
