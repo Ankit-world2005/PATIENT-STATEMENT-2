@@ -369,7 +369,7 @@ export function ClinicDetailPage() {
       <section className="panel">
         <div className="panel-header">
           <h2>Clinic users</h2>
-          <Link to={`/manage/users/invite?clinicId=${c.id}&role=clinic_user`} className="btn btn-secondary btn-sm">Invite user</Link>
+          <Link to={`/manage/users/invite?clinicId=${c.id}&role=clinic_user`} className="btn btn-secondary btn-sm">+ Add user</Link>
         </div>
         {data.users.length === 0 ? <p className="panel-empty">No users yet.</p> : (
           <div className="table-responsive table-always">

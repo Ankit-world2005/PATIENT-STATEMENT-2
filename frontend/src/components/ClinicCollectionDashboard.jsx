@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { api } from '../lib/api.js';
+import { api, downloadFile } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import { useToast } from '../lib/toast.jsx';
 import {
@@ -278,9 +278,9 @@ function PayerPieChart({ checkRows = [], onSelectPayer }) {
   );
 }
 
-export function ClinicCollectionDashboard({ clinic }) {
+export function ClinicCollectionDashboard({ clinic, isStaff }) {
   const { user } = useAuth();
-  const isSpecialist = user?.role === 'specialist' || user?.role === 'admin';
+  const isSpecialist = isStaff || user?.role === 'specialist' || user?.role === 'admin';
   const toast = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -465,15 +465,30 @@ export function ClinicCollectionDashboard({ clinic }) {
     };
   }, [activeSheetTab, filteredCheckRows.length, filteredLineItems.length]);
 
-  const handleDownloadTemplate = () => {
-    window.location.href = '/api/collections/template';
+  const [exporting, setExporting] = useState(false);
+
+  const handleDownloadTemplate = async () => {
+    try {
+      await downloadFile('/collections/template', 'Prompt_Collection_Template.xlsx');
+      toast('Template downloaded successfully.', 'success');
+    } catch (err) {
+      toast(err.message || 'Failed to download collection template.', 'error');
+    }
   };
 
-  const handleExportExcel = () => {
-    const q = new URLSearchParams();
-    if (clinic?.id) q.set('clinicId', clinic.id);
-    if (selectedMonth) q.set('month', selectedMonth);
-    window.location.href = `/api/collections/export?${q.toString()}`;
+  const handleExportExcel = async () => {
+    try {
+      setExporting(true);
+      const q = new URLSearchParams();
+      if (clinic?.id) q.set('clinicId', clinic.id);
+      if (selectedMonth) q.set('month', selectedMonth);
+      await downloadFile(`/collections/export?${q.toString()}`, `${clinic?.name || 'Clinic'}_Collections.xlsx`);
+      toast('Collection report exported successfully.', 'success');
+    } catch (err) {
+      toast(err.message || 'Failed to export collection spreadsheet.', 'error');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleUploadSubmit = async (e) => {
@@ -559,14 +574,25 @@ export function ClinicCollectionDashboard({ clinic }) {
                 : `Your US24 Solutions billing specialist has not uploaded a collection report for ${clinic?.name || 'your clinic'} yet. Once uploaded and reconciled, all monthly deposit totals, insurance checks, and patient line items will appear here.`}
             </p>
             {isSpecialist && (
-              <button
-                type="button"
-                className="btn-empty-primary-upload"
-                onClick={() => setUploadOpen(true)}
-              >
-                <IconUpload size={16} />
-                <span>Upload Collection Report (.xlsx)</span>
-              </button>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                <button
+                  type="button"
+                  className="btn-empty-primary-upload"
+                  onClick={() => setUploadOpen(true)}
+                >
+                  <IconUpload size={16} />
+                  <span>Upload Collection Report (.xlsx)</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn-collection-action btn-template"
+                  onClick={handleDownloadTemplate}
+                  title="Download blank Excel template"
+                >
+                  <IconDownload size={15} />
+                  <span>Download Blank Template</span>
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -715,13 +741,24 @@ export function ClinicCollectionDashboard({ clinic }) {
             type="button"
             className="btn-collection-action btn-export"
             onClick={handleExportExcel}
+            disabled={exporting}
             title="Export current collection report and line items to Excel (.xlsx)"
           >
             <IconDownload size={15} />
-            <span>Export Excel</span>
+            <span>{exporting ? 'Exporting…' : 'Export Excel'}</span>
           </button>
 
-          
+          {isSpecialist && (
+            <button
+              type="button"
+              className="btn-collection-action btn-upload"
+              onClick={() => setUploadOpen(true)}
+              title="Upload new or updated Prompt Collection Report (.xlsx)"
+            >
+              <IconUpload size={15} />
+              <span>Upload Collection</span>
+            </button>
+          )}
         </div>
       </div>
 

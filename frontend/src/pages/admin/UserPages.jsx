@@ -272,7 +272,7 @@ export function InviteUserPage() {
         state: {
           message: d.emailFailed
             ? "The user was created, but the invitation couldn't be sent. Use Resend invitation."
-            : `Invitation sent to ${values.email}. It expires in 72 hours.`,
+            : `User ${values.email} added successfully.`,
           tone: d.emailFailed ? 'warning' : 'success',
         },
       });
@@ -390,7 +390,7 @@ export function InviteUserPage() {
         <div className="form-actions">
           <Link to={backTo} className="btn btn-secondary">Cancel</Link>
           <button type="submit" className="btn btn-primary" disabled={busy}>
-            {busy ? 'Sending…' : activeTab === 'clinic' ? 'Invite Clinic User' : 'Invite US24 User'}
+            {busy ? 'Adding…' : activeTab === 'clinic' ? 'Add Clinic User' : 'Add US24 User'}
           </button>
         </div>
       </form>
