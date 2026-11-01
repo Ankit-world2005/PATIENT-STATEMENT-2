@@ -318,11 +318,16 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
   const [pouchAnchor, setPouchAnchor] = useState(null); // { x, y } screen coordinates of hovered pouch
 
   const pouchHoverTimerRef = useRef(null);
+  const pouchCloseTimerRef = useRef(null);
 
   const handleOpenPouch = (row, rowIndex, sheetType = 'check', rect = null) => {
     if (pouchHoverTimerRef.current) {
       clearTimeout(pouchHoverTimerRef.current);
       pouchHoverTimerRef.current = null;
+    }
+    if (pouchCloseTimerRef.current) {
+      clearTimeout(pouchCloseTimerRef.current);
+      pouchCloseTimerRef.current = null;
     }
     if (rect) {
       setPouchAnchor({ x: rect.left, y: rect.top, right: rect.right, bottom: rect.bottom });
@@ -336,6 +341,10 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
   };
 
   const handlePouchMouseEnter = (row, rowIndex, sheetType = 'check', rect = null) => {
+    if (pouchCloseTimerRef.current) {
+      clearTimeout(pouchCloseTimerRef.current);
+      pouchCloseTimerRef.current = null;
+    }
     if (pouchHoverTimerRef.current) {
       clearTimeout(pouchHoverTimerRef.current);
     }
@@ -349,6 +358,31 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
     if (pouchHoverTimerRef.current) {
       clearTimeout(pouchHoverTimerRef.current);
       pouchHoverTimerRef.current = null;
+    }
+    // If flyout is open, give a brief grace window for cursor to move from pouch into dialog
+    if (pouchModalRow && !pouchClosing) {
+      if (pouchCloseTimerRef.current) clearTimeout(pouchCloseTimerRef.current);
+      pouchCloseTimerRef.current = setTimeout(() => {
+        handleClosePouch();
+      }, 250);
+    }
+  };
+
+  const handleDialogMouseEnter = () => {
+    // Cursor entered the opened card, cancel close timer so it stays open
+    if (pouchCloseTimerRef.current) {
+      clearTimeout(pouchCloseTimerRef.current);
+      pouchCloseTimerRef.current = null;
+    }
+  };
+
+  const handleDialogMouseLeave = () => {
+    // When cursor is removed from the card, automatically close it!
+    if (pouchModalRow && !pouchClosing) {
+      if (pouchCloseTimerRef.current) clearTimeout(pouchCloseTimerRef.current);
+      pouchCloseTimerRef.current = setTimeout(() => {
+        handleClosePouch();
+      }, 150);
     }
   };
 
@@ -402,9 +436,8 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
 
   useEffect(() => {
     return () => {
-      if (pouchHoverTimerRef.current) {
-        clearTimeout(pouchHoverTimerRef.current);
-      }
+      if (pouchHoverTimerRef.current) clearTimeout(pouchHoverTimerRef.current);
+      if (pouchCloseTimerRef.current) clearTimeout(pouchCloseTimerRef.current);
     };
   }, []);
 
@@ -1474,6 +1507,11 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
         <div
           className={`pouch-flyout-backdrop ${pouchClosing ? 'is-closing' : ''}`}
           onClick={handleClosePouch}
+          onMouseMove={(e) => {
+            if (e.target === e.currentTarget && !pouchClosing) {
+              handleDialogMouseLeave();
+            }
+          }}
         >
           <div
             className={`pouch-modal-dialog ${pouchClosing ? 'dialog-closing' : 'dialog-opening'}`}
@@ -1481,6 +1519,8 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="pouch-modal-title"
+            onMouseEnter={handleDialogMouseEnter}
+            onMouseLeave={handleDialogMouseLeave}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
