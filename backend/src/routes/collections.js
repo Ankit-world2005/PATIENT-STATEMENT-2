@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { Router } from 'express';
 import multer from 'multer';
 import { query } from '../db/pool.js';
@@ -215,3 +216,104 @@ collectionsRouter.get('/export', async (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
   res.send(buffer);
 });
+
+// POST /api/collections/:id/rows/logs - Add isolated log entry to a specific row
+collectionsRouter.post('/:id/rows/logs', async (req, res) => {
+  const { id } = req.params;
+  const { rowIndex, paymentReference, logText, sheetType = 'check' } = req.body;
+  if (!logText || !logText.trim()) throw badRequest('Log text required.');
+
+  let sql = 'SELECT * FROM clinic_collection WHERE id = $1';
+  const params = [id];
+  if (req.user.role === 'clinic_user') {
+    sql += ' AND clinic_id = $2';
+    params.push(req.user.clinic_id);
+  }
+  const { rows } = await query(sql, params);
+  if (rows.length === 0) throw notFound('Collection report not found or access denied.');
+
+  const collection = rows[0];
+  const sheet = sheetType === 'lineitem' ? (collection.line_items || []) : (collection.check_sheet || []);
+  if (!Array.isArray(sheet) || rowIndex < 0 || rowIndex >= sheet.length) {
+    throw badRequest('Row not found in collection report.');
+  }
+
+  const targetRow = sheet[rowIndex];
+  if (!Array.isArray(targetRow.logs)) {
+    targetRow.logs = [];
+  }
+
+  const newLog = {
+    id: crypto.randomUUID(),
+    text: logText.trim(),
+    author: req.user.full_name || req.user.email || 'User',
+    role: req.user.role,
+    createdAt: new Date().toISOString(),
+  };
+
+  targetRow.logs.push(newLog);
+
+  const updateCol = sheetType === 'lineitem' ? 'line_items' : 'check_sheet';
+  await query(`UPDATE clinic_collection SET ${updateCol} = $1 WHERE id = $2`, [JSON.stringify(sheet), id]);
+
+  res.json({ ok: true, log: newLog, logs: targetRow.logs });
+});
+
+// POST /api/collections/:id/rows/flags - Toggle / set flag on a specific row with audit log
+collectionsRouter.post('/:id/rows/flags', async (req, res) => {
+  const { id } = req.params;
+  const { rowIndex, paymentReference, flagType, active, reason, sheetType = 'check' } = req.body;
+  if (!flagType) throw badRequest('Flag type required.');
+
+  let sql = 'SELECT * FROM clinic_collection WHERE id = $1';
+  const params = [id];
+  if (req.user.role === 'clinic_user') {
+    sql += ' AND clinic_id = $2';
+    params.push(req.user.clinic_id);
+  }
+  const { rows } = await query(sql, params);
+  if (rows.length === 0) throw notFound('Collection report not found or access denied.');
+
+  const collection = rows[0];
+  const sheet = sheetType === 'lineitem' ? (collection.line_items || []) : (collection.check_sheet || []);
+  if (!Array.isArray(sheet) || rowIndex < 0 || rowIndex >= sheet.length) {
+    throw badRequest('Row not found in collection report.');
+  }
+
+  const targetRow = sheet[rowIndex];
+  if (!Array.isArray(targetRow.flags)) {
+    targetRow.flags = [];
+  }
+  if (!Array.isArray(targetRow.logs)) {
+    targetRow.logs = [];
+  }
+
+  // Remove existing flag of same type if present
+  targetRow.flags = targetRow.flags.filter((f) => f.type !== flagType);
+  if (active) {
+    targetRow.flags.push({
+      type: flagType,
+      reason: reason || '',
+      setBy: req.user.full_name || req.user.email || 'User',
+      setAt: new Date().toISOString(),
+    });
+  }
+
+  // Automatic isolated audit log entry
+  targetRow.logs.push({
+    id: crypto.randomUUID(),
+    text: active
+      ? `Flag "${flagType}" set: ${reason ? `"${reason}"` : 'Marked for follow-up'}`
+      : `Flag "${flagType}" cleared / resolved`,
+    author: req.user.full_name || req.user.email || 'User',
+    role: req.user.role,
+    isAudit: true,
+    createdAt: new Date().toISOString(),
+  });
+
+  const updateCol = sheetType === 'lineitem' ? 'line_items' : 'check_sheet';
+  await query(`UPDATE clinic_collection SET ${updateCol} = $1 WHERE id = $2`, [JSON.stringify(sheet), id]);
+
+  res.json({ ok: true, flags: targetRow.flags, logs: targetRow.logs });
+});
+
