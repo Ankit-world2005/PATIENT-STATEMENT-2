@@ -533,15 +533,15 @@ export function StatementListPage() {
               <p className="help-card-text">
                 Your US24 billing specialist can review balances, remarks and appeals.
               </p>
-              <button
-                type="button"
+              <a
+                href="mailto:us24drive@gmail.com?subject=Queries%20and%20Requests%20-%20US24%20Solutions&body=Hello%20US24%20Team%2C%0A%0AI%20have%20an%20inquiry%2Frequest%20regarding%3A%0A"
                 className={`btn-help-contact ${tab === 'contact' ? 'active' : ''}`}
                 onClick={() => update({ tab: 'contact' })}
                 aria-current={tab === 'contact' ? 'page' : undefined}
-                title="Contact US24 Solutions Billing Specialist Support Desk"
+                title="Send queries and requests to us24drive@gmail.com"
               >
                 Contact US24
-              </button>
+              </a>
             </div>
           </div>
         </aside>
@@ -825,13 +825,13 @@ export function StatementListPage() {
                         >
                           Request a statement
                         </button>
-                        <button
-                          type="button"
+                        <a
+                          href="mailto:us24drive@gmail.com?subject=Queries%20and%20Requests%20-%20US24%20Solutions&body=Hello%20US24%20Team%2C%0A%0AI%20have%20an%20inquiry%2Frequest%20regarding%3A%0A"
                           className="btn-clean-outline"
                           onClick={() => update({ tab: 'contact' })}
                         >
                           Contact US24
-                        </button>
+                        </a>
                       </div>
 
                       <div className="how-it-works-row">

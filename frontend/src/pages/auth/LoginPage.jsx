@@ -256,8 +256,8 @@ export function LoginPage() {
               <div className="help-contact-card">
                 <div className="help-contact-row">
                   <span className="contact-label">Email Support:</span>
-                  <a href="mailto:support@us24solutions.com" className="contact-val-link">
-                    support@us24solutions.com
+                  <a href="mailto:us24drive@gmail.com" className="contact-val-link">
+                    us24drive@gmail.com
                   </a>
                 </div>
                 <div className="help-contact-row">

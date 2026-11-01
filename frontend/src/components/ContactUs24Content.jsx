@@ -48,12 +48,12 @@ export function ContactUs24Content({
     clearAttachments,
   } = useAttachmentUploader();
 
-  const supportEmail = 'support@us24solutions.com';
+  const supportEmail = 'us24drive@gmail.com';
 
   const handleCopyEmail = () => {
     navigator.clipboard.writeText(supportEmail);
     setCopiedEmail(true);
-    toast('US24 Support Email copied to clipboard!', 'success');
+    toast('US24 Support Email (us24drive@gmail.com) copied to clipboard!', 'success');
     setTimeout(() => setCopiedEmail(false), 2500);
   };
 
@@ -108,11 +108,19 @@ export function ContactUs24Content({
           <h2 className="contact-hero-title">Dedicated US24 Billing Support</h2>
           <p className="contact-hero-desc">
             Direct communication channel for <strong>{clinicName}</strong> {clinicCode ? `(${clinicCode})` : ''}.
-            Your US24 billing specialist team assists with patient statement questions, balance reconciliation, remarks & appeals review, and statement generation.
+            Reach your US24 billing specialist team at <strong>{supportEmail}</strong> for other queries, requests, balance reviews, and statement assistance.
           </p>
         </div>
 
         <div className="contact-hero-actions">
+          <a
+            href={`mailto:${supportEmail}?subject=Queries%20and%20Requests%20-%20${encodeURIComponent(clinicName)}&body=Hello%20US24%20Team%2C%0A%0AI%20have%20an%20inquiry%2Frequest%20regarding%3A%0A`}
+            className="btn-hero-action btn-hero-email"
+            title="Email us24drive@gmail.com"
+          >
+            <IconMail size={16} />
+            <span>Email us24drive@gmail.com</span>
+          </a>
           {onOpenNewRequest && (
             <button
               type="button"
@@ -146,24 +154,34 @@ export function ContactUs24Content({
           <div className="channel-card-body">
             <span className="channel-tag">Direct Email</span>
             <h3 className="channel-value">{supportEmail}</h3>
-            <p className="channel-sub">Monitored during business hours with automatic ticketing.</p>
+            <p className="channel-sub">Monitored for other queries, requests, and statement reviews.</p>
           </div>
           <div className="channel-actions-row">
+            <a
+              href={`https://mail.google.com/mail/?view=cm&fs=1&to=${supportEmail}&su=Queries%20and%20Requests%20-%20${encodeURIComponent(clinicName)}&body=Hello%20US24%20Team%2C%0A%0AI%20have%20an%20inquiry%2Frequest%20regarding%3A%0A`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-channel-sm btn-gmail"
+              title="Open Gmail compose in new tab"
+            >
+              <IconExternalLink size={14} />
+              <span>Compose in Gmail</span>
+            </a>
+            <a
+              href={`mailto:${supportEmail}?subject=Queries%20and%20Requests%20-%20${encodeURIComponent(clinicName)}&body=Hello%20US24%20Team%2C%0A%0AI%20have%20an%20inquiry%2Frequest%20regarding%3A%0A`}
+              className="btn-channel-sm btn-mailto"
+            >
+              <IconMail size={14} />
+              <span>Mail App</span>
+            </a>
             <button
               type="button"
               className="btn-channel-sm btn-copy"
               onClick={handleCopyEmail}
             >
               {copiedEmail ? <IconCheck size={14} /> : <IconDocument size={14} />}
-              <span>{copiedEmail ? 'Copied!' : 'Copy Email'}</span>
+              <span>{copiedEmail ? 'Copied!' : 'Copy'}</span>
             </button>
-            <a
-              href={`mailto:${supportEmail}?subject=Inquiry%20from%20${encodeURIComponent(clinicName)}`}
-              className="btn-channel-sm btn-mailto"
-            >
-              <IconExternalLink size={14} />
-              <span>Open Mail App</span>
-            </a>
           </div>
         </div>
 
@@ -220,7 +238,7 @@ export function ContactUs24Content({
           <div>
             <h3 className="form-card-title">Send Inquiry to US24 Billing Specialist</h3>
             <p className="form-card-sub">
-              Your inquiry is routed directly to your assigned US24 billing specialist and logged into your Requests workspace.
+              Your inquiry is routed directly to <strong>{supportEmail}</strong> and your assigned US24 billing specialist queue, logged in your Requests workspace.
             </p>
           </div>
         </div>
@@ -421,3 +439,4 @@ export function ContactUs24Content({
     </div>
   );
 }
+
