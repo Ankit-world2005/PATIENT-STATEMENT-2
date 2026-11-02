@@ -7,3 +7,4 @@
 ## Environment Isolation Protocol
 - See `.planning/ENVIRONMENT_RULES.md`
 - **Rule**: When changes are pushed to `uat`, they are strictly confined to `uat` and never automatically propagated to `main` or any other environment without an explicit, direct command from the user.
+
