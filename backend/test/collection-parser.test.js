@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
+import ExcelJS from 'exceljs';
 import {
   parseCsvRows,
   parseCollectionExcel,
   detectCollectionFormat,
+  extractCellValue,
+  parseNum,
 } from '../src/services/collection-parser.js';
 
 // User sample 1: Combined / Hybrid format
@@ -186,5 +189,84 @@ test('parseCollectionExcel round-trips generated multi-sheet Excel workbook', as
   assert.equal(result.lineItems.length, 1);
   assert.equal(result.lineItems[0].patientName, 'Alice Brown');
   assert.equal(result.lineItems[0].sourceSystem, 'Prompt');
+});
+
+test('extractCellValue and parseNum handle formula cells and accounting formatting', () => {
+  const formulaCell = { formula: 'SUM(C5:C6)', result: 9809.68 };
+  assert.equal(extractCellValue(formulaCell), 9809.68);
+  assert.equal(parseNum(formulaCell), 9809.68);
+
+  const richTextCell = { richText: [{ text: 'Prompt ' }, { text: 'Posting' }] };
+  assert.equal(extractCellValue(richTextCell), 'Prompt Posting');
+
+  // Accounting parentheses negative numbers
+  assert.equal(parseNum('(159.25)'), -159.25);
+  assert.equal(parseNum('($159.25)'), -159.25);
+  assert.equal(parseNum('-$159.25'), -159.25);
+  assert.equal(parseNum('$-159.25'), -159.25);
+});
+
+test('parseCollectionExcel handles multi-sheet workbook with Check Sheet, Lineitem and formula totals', async () => {
+  const wb = new ExcelJS.Workbook();
+
+  const wsSummary = wb.addWorksheet('Summary');
+  wsSummary.addRow(['', 'Meyerland Collection Report - Till September 2026']);
+  wsSummary.addRow(['', 'Particular', 'Amount']);
+  wsSummary.addRow(['', 'CHECK AMOUNT(INSURANCE PAYMENT)', 9596.94]);
+  wsSummary.addRow(['', 'PATIENT PAYMENT(Deductible)', 212.74]);
+  wsSummary.addRow(['', 'Total', { formula: 'SUM(C3:C4)', result: 9809.68 }]);
+  wsSummary.addRow([]);
+  wsSummary.addRow(['', 'PROMPT POSTING SUMMARY']);
+  wsSummary.addRow(['', 'Payment Type', 'Amount']);
+  wsSummary.addRow(['', 'Insurance Payment', 9756.19]);
+  wsSummary.addRow(['', 'Recoupment Offset', -159.25]);
+  wsSummary.addRow(['', 'Deductible', 212.74]);
+  wsSummary.addRow(['', 'Coinsurance', 0]);
+  wsSummary.addRow(['', 'Copay', 580]);
+  wsSummary.addRow(['', 'Grand Total', { formula: 'SUM(C9:C13)', result: 10389.68 }]);
+
+  const wsCheck = wb.addWorksheet('Check Sheet');
+  wsCheck.addRow(['Payer', 'Payment Method', 'Payment Reference', 'Posted Date', 'Bank Date', 'Created By', 'Payment Amount', 'Total Posted', 'Unposted', 'Recoupment', 'Remarks']);
+  wsCheck.addRow(['BLUECROSS BLUESHIELD', 'CHK', 'CHK12345', '2026-09-01', '2026-09-01', 'System', 9596.94, 9596.94, 0, 0, 'OK']);
+
+  const wsLine = wb.addWorksheet('Lineitem');
+  wsLine.addRow(['Patient Name', 'Prompt Claim Number', 'Date of Service', 'Reference Number', 'Remittance Bank Date', 'Remittance Payment Date', 'Submitted Amount', 'Allowed Amount', 'Paid Amount', 'Adjusted Amount', 'Transferred to Secondary', 'Transferred to Patient', 'Patient Paid', 'PR Type']);
+  wsLine.addRow(['John Doe', 'CLM-991', '2026-08-15', 'CHK12345', '2026-09-01', '2026-09-01', 500, 200, 150, 50, 0, 50, 50, 'Copay']);
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const result = await parseCollectionExcel(buffer);
+
+  assert.equal(result.detectedFormat, 'prompt');
+  assert.equal(result.particulars.checkAmount, 9596.94);
+  assert.equal(result.particulars.patientPayment, 212.74);
+  assert.equal(result.particulars.total, 9809.68);
+  assert.equal(result.promptPosting.insurancePayment, 9756.19);
+  assert.equal(result.promptPosting.recoupmentOffset, -159.25);
+  assert.equal(result.promptPosting.grandTotal, 10389.68);
+  assert.equal(result.checkRows.length, 1);
+  assert.equal(result.checkRows[0].payer, 'BLUECROSS BLUESHIELD');
+  assert.equal(result.lineItems.length, 1);
+  assert.equal(result.lineItems[0].patientName, 'John Doe');
+  assert.equal(result.lineItems[0].claimNumber, 'CLM-991');
+});
+
+test('parseCollectionExcel falls back to automatic sums if totals are missing or 0', async () => {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Summary');
+  ws.addRow(['Particular', 'Amount']);
+  ws.addRow(['CHECK AMOUNT(INSURANCE PAYMENT)', 5000]);
+  ws.addRow(['PATIENT PAYMENT(Deductible)', 500]);
+  ws.addRow(['Total', 0]); // Zero in sheet
+  ws.addRow(['Payment Type', 'Amount']);
+  ws.addRow(['Insurance Payment', 5000]);
+  ws.addRow(['Recoupment Offset', -100]);
+  ws.addRow(['Deductible', 500]);
+  ws.addRow(['Grand Total', 0]); // Zero in sheet
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const result = await parseCollectionExcel(buffer);
+
+  assert.equal(result.particulars.total, 5500); // 5000 + 500
+  assert.equal(result.promptPosting.grandTotal, 5400); // 5000 - 100 + 500
 });
 

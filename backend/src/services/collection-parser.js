@@ -1,8 +1,45 @@
 import ExcelJS from 'exceljs';
 
-function parseNum(v) {
+export function extractCellValue(v) {
+  if (v == null) return '';
+  if (typeof v === 'object') {
+    if (v instanceof Date) return v;
+    if (v.result !== undefined) {
+      return v.result != null ? v.result : '';
+    }
+    if (v.text !== undefined) return v.text;
+    if (Array.isArray(v.richText)) {
+      return v.richText.map(t => (t && t.text ? t.text : '')).join('');
+    }
+    if (v.sharedString !== undefined) return v.sharedString;
+  }
+  return v;
+}
+
+export function parseNum(v) {
   if (v == null || v === '') return 0;
-  const n = Number(String(v).replace(/[$,]/g, ''));
+  if (typeof v === 'object') {
+    if (v.result !== undefined) {
+      v = v.result;
+    } else if (v.text !== undefined) {
+      v = v.text;
+    }
+  }
+  if (typeof v === 'number') return isNaN(v) ? 0 : v;
+  let str = String(v).trim();
+  if (!str) return 0;
+
+  // Handle accounting format: "(159.25)" -> -159.25 or "($159.25)" -> -159.25
+  const isParenNegative = /^\s*\(\s*\$?\s*([\d,]+(?:\.\d+)?)\s*\)\s*$/.test(str);
+  if (isParenNegative) {
+    const matched = str.match(/^\s*\(\s*\$?\s*([\d,]+(?:\.\d+)?)\s*\)\s*$/);
+    const n = Number(matched[1].replace(/,/g, ''));
+    return isNaN(n) ? 0 : -n;
+  }
+
+  // Handle standard negative or positive with dollar signs / commas
+  const cleaned = str.replace(/[$,\s]/g, '');
+  const n = Number(cleaned);
   return isNaN(n) ? 0 : n;
 }
 
@@ -132,31 +169,73 @@ export async function parseCollectionExcel(buffer) {
   const hasPromptLine = findSheet(/prompt\s*-\s*line/);
   const hasTherabillCheck = findSheet(/therabill\s*-\s*check|therabill\s*-\s*remit/);
   const hasTherabillLine = findSheet(/therabill\s*-\s*line/);
-  const hasCombinedSheet = findSheet(/prompt\s*\+\s*therabill|therabill\s*\+\s*prompt/);
+  const hasCombinedSheet = findSheet(/prompt\s*\+\s*therabill|therabill\s*\+\s*prompt|hybrid/);
+
+  // Generic check and lineitem sheet matching (e.g. "Check Sheet", "Checks", "Lineitem", "Line Items", "Claims")
+  const genericCheckSheet = findSheet(/check|remit|era|payment/i);
+  const genericLineSheet = findSheet(/line\s*item|lineitem|claim|patient/i);
+
+  // Check if any sheet contains explicit Therabill columns
+  const hasTherabillContent = wb.worksheets.some(ws => {
+    let matched = false;
+    for (let r = 1; r <= Math.min(10, ws.rowCount); r++) {
+      const rowText = ws.getRow(r).values.slice(1).map(extractCellValue).join(' ').toLowerCase();
+      if (rowText.includes('eob source') || rowText.includes('charge for service') || /therabill/i.test(rowText)) {
+        matched = true;
+        break;
+      }
+    }
+    return matched;
+  });
+
+  // Check if any sheet contains explicit Prompt columns
+  const hasPromptContent = wb.worksheets.some(ws => {
+    let matched = false;
+    for (let r = 1; r <= Math.min(10, ws.rowCount); r++) {
+      const rowText = ws.getRow(r).values.slice(1).map(extractCellValue).join(' ').toLowerCase();
+      if (rowText.includes('prompt claim') || rowText.includes('prompt posting') || rowText.includes('remittance bank date')) {
+        matched = true;
+        break;
+      }
+    }
+    return matched;
+  });
+
+  const hasMultiSheetMatches = Boolean(
+    hasPromptCheck ||
+    hasPromptLine ||
+    hasTherabillCheck ||
+    hasTherabillLine ||
+    hasCombinedSheet ||
+    (wb.worksheets.length > 1 && (genericCheckSheet || genericLineSheet))
+  );
 
   // If workbook only has 1 worksheet or no multi-sheet matches, parse as stacked grid
-  if ((!hasPromptCheck && !hasTherabillCheck && !hasCombinedSheet) || wb.worksheets.length === 1) {
+  if (!hasMultiSheetMatches || wb.worksheets.length === 1) {
     const sheet = wb.worksheets[0];
     if (sheet) {
       const grid = [];
       sheet.eachRow({ includeEmpty: true }, (row) => {
-        grid.push(row.values.slice(1).map(v => (v != null ? String(v) : '')));
+        grid.push(row.values.slice(1).map(v => {
+          const val = extractCellValue(v);
+          return val != null ? String(val).trim() : '';
+        }));
       });
       return parseAutoGrid(grid);
     }
   }
 
-  // If multi-sheet hybrid (both Prompt & Therabill sheets present)
-  if ((hasPromptCheck || hasPromptLine) && (hasTherabillCheck || hasTherabillLine)) {
+  // If multi-sheet hybrid (both Prompt & Therabill sheets/content present, or combined sheet name)
+  if (hasCombinedSheet || ((hasPromptCheck || hasPromptLine || hasPromptContent) && (hasTherabillCheck || hasTherabillLine || hasTherabillContent))) {
     return parseMultiSheetHybrid(wb);
   }
 
   // If multi-sheet Therabill
-  if (hasTherabillCheck || hasTherabillLine) {
+  if (hasTherabillCheck || hasTherabillLine || (hasTherabillContent && !hasPromptContent)) {
     return parseMultiSheetTherabill(wb);
   }
 
-  // Otherwise standard multi-sheet Prompt
+  // Otherwise standard multi-sheet Prompt (including Summary + Check Sheet + Lineitem)
   return parseMultiSheetPrompt(wb);
 }
 
@@ -650,6 +729,21 @@ export function parseTherabillGrid(grid) {
     particulars.patientPayment = totalPatient;
     particulars.total = totalInsurance + totalPatient;
   }
+  if (!particulars.total || particulars.total === 0) {
+    particulars.total = (particulars.checkAmount || 0) + (particulars.patientPayment || 0);
+  }
+  if (!promptPosting.grandTotal || promptPosting.grandTotal === 0) {
+    promptPosting.grandTotal = (promptPosting.insurancePayment || 0) +
+      (promptPosting.recoupmentOffset || 0) +
+      (promptPosting.deductible || 0) +
+      (promptPosting.coinsurance || 0) +
+      (promptPosting.copay || 0) +
+      (promptPosting.selfPay || 0) +
+      (promptPosting.noShow || 0) +
+      (promptPosting.cancellationFee || 0) +
+      (promptPosting.dryNeedling || 0) +
+      (promptPosting.scottStamp || 0);
+  }
 
   const locationSummary = buildLocationSummary(lineItems, checkRows);
 
@@ -930,6 +1024,9 @@ export function parsePromptGrid(grid) {
     particulars.patientPayment = totalPatient;
     particulars.total = totalInsurance + totalPatient;
   }
+  if (!particulars.total || particulars.total === 0) {
+    particulars.total = (particulars.checkAmount || 0) + (particulars.patientPayment || 0);
+  }
 
   if (promptPosting.grandTotal === 0 && (lineItems.length > 0 || checkRows.length > 0)) {
     const totalInsurance = checkRows.reduce((sum, r) => sum + (r.paymentAmount || 0), 0) ||
@@ -939,6 +1036,18 @@ export function parsePromptGrid(grid) {
     promptPosting.coinsurance = lineItems.filter(r => /coins/i.test(r.prType)).reduce((sum, r) => sum + (r.patientPaid || 0), 0);
     promptPosting.deductible = lineItems.filter(r => /deduct/i.test(r.prType)).reduce((sum, r) => sum + (r.patientPaid || 0), 0);
     promptPosting.grandTotal = totalInsurance + promptPosting.copay + promptPosting.coinsurance + promptPosting.deductible;
+  }
+  if (!promptPosting.grandTotal || promptPosting.grandTotal === 0) {
+    promptPosting.grandTotal = (promptPosting.insurancePayment || 0) +
+      (promptPosting.recoupmentOffset || 0) +
+      (promptPosting.deductible || 0) +
+      (promptPosting.coinsurance || 0) +
+      (promptPosting.copay || 0) +
+      (promptPosting.selfPay || 0) +
+      (promptPosting.noShow || 0) +
+      (promptPosting.cancellationFee || 0) +
+      (promptPosting.dryNeedling || 0) +
+      (promptPosting.scottStamp || 0);
   }
 
   if (!locationSummary && (lineItems.length > 0 || checkRows.length > 0)) {
@@ -982,102 +1091,148 @@ function parseMultiSheetPrompt(wb) {
   };
 
   const findSheet = (pattern) => wb.worksheets.find(ws => pattern.test(ws.name.trim().toLowerCase()));
-  const summarySheet = findSheet(/summary/);
-  const checkSheet = findSheet(/check|prompt\s*-\s*check/);
-  const lineItemSheet = findSheet(/lineitem|line\s*item|prompt\s*-\s*line/);
+  const summarySheet = findSheet(/summary|particular|overview/i) || wb.worksheets[0];
+  const checkSheet = findSheet(/prompt\s*-\s*check/i) || findSheet(/check|remit|era/i);
+  const lineItemSheet = findSheet(/prompt\s*-\s*line/i) || findSheet(/line\s*item|lineitem|claim|patient/i);
 
   if (summarySheet) {
     summarySheet.eachRow({ includeEmpty: false }, (row) => {
-      const vals = row.values.slice(1);
-      const str0 = String(vals[0] || '').trim();
-      const str3 = String(vals[3] || '').trim();
+      const vals = row.values.slice(1).map(extractCellValue);
+      for (let c = 0; c < vals.length; c++) {
+        const cell = String(vals[c] || '').trim();
+        if (!cell) continue;
 
-      if (!monthYear && /collection report/i.test(str0)) {
-        reportTitle = str0;
-        const match = str0.match(/-\s*([A-Za-z]+\s*\d{4})/i) || str0.match(/([A-Za-z]+\s+\d{4})/i);
-        if (match) monthYear = match[1];
+        if (!monthYear && /collection report/i.test(cell)) {
+          reportTitle = cell;
+          const match = cell.match(/-\s*(?:till\s+)?([A-Za-z]+\s*\d{4})/i) || cell.match(/([A-Za-z]+\s+\d{4})/i);
+          if (match) monthYear = match[1];
+        }
+
+        const rest = vals.slice(c + 1).filter(v => v !== '' && v != null);
+        const nextVal = rest.length > 0 ? parseNum(rest[0]) : 0;
+
+        if (/check amount/i.test(cell)) particulars.checkAmount = nextVal;
+        else if (/patient payment/i.test(cell)) particulars.patientPayment = nextVal;
+        else if (/^total(\s+amount)?$/i.test(cell)) particulars.total = nextVal;
+        else if (/insurance payment/i.test(cell)) promptPosting.insurancePayment = nextVal;
+        else if (/recoupment/i.test(cell)) promptPosting.recoupmentOffset = nextVal;
+        else if (/deductible/i.test(cell)) promptPosting.deductible = nextVal;
+        else if (/coinsurance/i.test(cell)) promptPosting.coinsurance = nextVal;
+        else if (/copay/i.test(cell)) promptPosting.copay = nextVal;
+        else if (/self pay/i.test(cell)) promptPosting.selfPay = nextVal;
+        else if (/no show/i.test(cell)) promptPosting.noShow = nextVal;
+        else if (/cancellation/i.test(cell)) promptPosting.cancellationFee = nextVal;
+        else if (/dry needling/i.test(cell)) promptPosting.dryNeedling = nextVal;
+        else if (/scott stamp/i.test(cell)) promptPosting.scottStamp = nextVal;
+        else if (/grand total/i.test(cell)) promptPosting.grandTotal = nextVal;
       }
-
-      if (/check amount/i.test(str0)) particulars.checkAmount = parseNum(vals[1]);
-      else if (/patient payment/i.test(str0)) particulars.patientPayment = parseNum(vals[1]);
-      else if (/^total/i.test(str0)) particulars.total = parseNum(vals[1]);
-
-      if (/insurance payment/i.test(str3)) promptPosting.insurancePayment = parseNum(vals[4]);
-      else if (/recoupment/i.test(str3)) promptPosting.recoupmentOffset = parseNum(vals[4]);
-      else if (/deductible/i.test(str3)) promptPosting.deductible = parseNum(vals[4]);
-      else if (/coinsurance/i.test(str3)) promptPosting.coinsurance = parseNum(vals[4]);
-      else if (/copay/i.test(str3)) promptPosting.copay = parseNum(vals[4]);
-      else if (/grand total/i.test(str3)) promptPosting.grandTotal = parseNum(vals[4]);
     });
   }
 
   const checkRows = [];
-  if (checkSheet) {
+  if (checkSheet && checkSheet !== summarySheet) {
     let headerMap = null;
-    checkSheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-      const vals = row.values.slice(1);
-      if (rowNumber === 1 || !headerMap) {
-        headerMap = vals.map(v => String(v || '').trim().toLowerCase());
+    checkSheet.eachRow({ includeEmpty: false }, (row) => {
+      const vals = row.values.slice(1).map(extractCellValue);
+      if (!headerMap) {
+        const rowStr = vals.map(v => String(v || '').trim().toLowerCase()).join(' ');
+        if (rowStr.includes('payer') || (rowStr.includes('payment') && rowStr.includes('reference'))) {
+          headerMap = vals.map(v => String(v || '').trim().toLowerCase());
+        }
         return;
       }
       if (vals.every(v => v == null || String(v).trim() === '')) return;
 
-      const getCol = (key) => {
-        const idx = headerMap.findIndex(h => h.includes(key));
+      const getCol = (pattern) => {
+        const idx = headerMap.findIndex(h => pattern.test(h));
         return idx !== -1 ? vals[idx] : null;
       };
 
+      const payer = String(getCol(/^payer/i) || vals[0] || '').trim();
+      if (!payer || /^total/i.test(payer)) return;
+
       checkRows.push({
         sourceSystem: 'Prompt',
-        payer: String(getCol('payer') || vals[0] || '').trim(),
-        paymentMethod: String(getCol('method') || vals[1] || 'EFT').trim(),
-        paymentReference: String(getCol('reference') || vals[2] || '').trim(),
-        paymentDate: formatDateVal(getCol('payment date') || vals[3]),
-        bankDate: formatDateVal(getCol('bank date') || vals[4]),
-        paymentAmount: parseNum(getCol('payment amount') || vals[5]),
-        totalPosted: parseNum(getCol('total posted') || vals[6]),
-        unposted: parseNum(getCol('unposted') || vals[7]),
-        recoupment: parseNum(getCol('recoupment') || vals[8]),
-        location: String(getCol('location') || '').trim(),
-        remarks: String(getCol('remark') || vals[9] || '').trim(),
+        payer,
+        paymentMethod: String(getCol(/method/i) || vals[1] || 'EFT').trim(),
+        paymentReference: String(getCol(/reference|check/i) || vals[2] || '').trim(),
+        paymentDate: formatDateVal(getCol(/posted\s*date|payment\s*date/i) || vals[3]),
+        bankDate: formatDateVal(getCol(/bank\s*date/i) || vals[4]),
+        createdBy: String(getCol(/created\s*by/i) || '').trim(),
+        paymentAmount: parseNum(getCol(/payment\s*amount|check\s*amount/i) || vals[6] || vals[5]),
+        totalPosted: parseNum(getCol(/total\s*posted|posted\s*amount/i) || vals[7] || vals[6]),
+        unposted: parseNum(getCol(/unposted|remaining/i) || vals[8] || vals[7]),
+        recoupment: parseNum(getCol(/recoup/i) || vals[9] || vals[8]),
+        location: String(getCol(/location/i) || '').trim(),
+        remarks: String(getCol(/remark/i) || vals[10] || '').trim(),
       });
     });
   }
 
   const lineItems = [];
-  if (lineItemSheet) {
+  if (lineItemSheet && lineItemSheet !== summarySheet && lineItemSheet !== checkSheet) {
     let headerMap = null;
-    lineItemSheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-      const vals = row.values.slice(1);
-      if (rowNumber === 1 || !headerMap) {
-        headerMap = vals.map(v => String(v || '').trim().toLowerCase());
+    lineItemSheet.eachRow({ includeEmpty: false }, (row) => {
+      const vals = row.values.slice(1).map(extractCellValue);
+      if (!headerMap) {
+        const rowStr = vals.map(v => String(v || '').trim().toLowerCase()).join(' ');
+        if (rowStr.includes('patient') || (rowStr.includes('service') && rowStr.includes('amount'))) {
+          headerMap = vals.map(v => String(v || '').trim().toLowerCase());
+        }
         return;
       }
       if (vals.every(v => v == null || String(v).trim() === '')) return;
 
-      const getCol = (key) => {
-        const idx = headerMap.findIndex(h => h.includes(key));
+      const getCol = (pattern) => {
+        const idx = headerMap.findIndex(h => pattern.test(h));
         return idx !== -1 ? vals[idx] : null;
       };
 
+      const patientName = String(getCol(/^patient(\s*name)?$/i) || vals[0] || '').trim();
+      if (!patientName || /^total/i.test(patientName)) return;
+
       lineItems.push({
         sourceSystem: 'Prompt',
-        patientName: String(getCol('patient') || vals[0] || '').trim(),
-        dateOfService: formatDateVal(getCol('service') || vals[1]),
-        referenceNumber: String(getCol('reference') || vals[2] || '').trim(),
-        bankDate: formatDateVal(getCol('bank date') || vals[3]),
-        paymentDate: formatDateVal(getCol('posting date') || getCol('payment date') || vals[4]),
-        chargedAmount: parseNum(getCol('charged') || vals[5]),
-        allowedAmount: parseNum(getCol('allowed') || vals[6]),
-        insurancePayment: parseNum(getCol('insurance payment') || vals[7]),
-        adjustedAmount: parseNum(getCol('adjust') || vals[8]),
-        transferredToSecondary: parseNum(getCol('secondary') || vals[9]),
-        transferredToPatient: parseNum(getCol('transferred to patient') || vals[10]),
-        patientPaid: parseNum(getCol('patient pay') || getCol('patient paid') || vals[11]),
-        prType: String(getCol('pr type') || vals[12] || 'Copay').trim(),
-        location: String(getCol('location') || '').trim(),
+        patientName,
+        claimNumber: String(getCol(/claim/i) || vals[1] || '').trim(),
+        dateOfService: formatDateVal(getCol(/dos|service\s*date|date\s*of\s*service/i) || vals[2]),
+        referenceNumber: String(getCol(/reference|check/i) || vals[3] || '').trim(),
+        bankDate: formatDateVal(getCol(/bank\s*date/i) || vals[4]),
+        paymentDate: formatDateVal(getCol(/remittance\s*payment|payment\s*date|posting\s*date/i) || vals[5]),
+        chargedAmount: parseNum(getCol(/submitted|charge/i) || vals[6]),
+        allowedAmount: parseNum(getCol(/allowed/i) || vals[7]),
+        insurancePayment: parseNum(getCol(/paid\s*amount|insurance\s*payment/i) || vals[8]),
+        adjustedAmount: parseNum(getCol(/adjust/i) || vals[9]),
+        transferredToSecondary: parseNum(getCol(/secondary/i) || vals[10]),
+        transferredToPatient: parseNum(getCol(/transferred\s*to\s*patient/i) || vals[11]),
+        patientPaid: parseNum(getCol(/patient\s*paid|patient\s*pay/i) || vals[12]),
+        prType: String(getCol(/pr\s*type|pmt\s*type/i) || vals[13] || 'Copay').trim(),
+        location: String(getCol(/location|facility/i) || '').trim(),
       });
     });
+  }
+
+  // Automatic math calculation fallbacks
+  if (!particulars.total || particulars.total === 0) {
+    const computedTotal = (particulars.checkAmount || 0) + (particulars.patientPayment || 0);
+    particulars.total = computedTotal > 0 ? computedTotal : (
+      checkRows.reduce((sum, r) => sum + (r.paymentAmount || 0), 0) +
+      lineItems.reduce((sum, r) => sum + (r.patientPaid || 0), 0)
+    );
+  }
+
+  if (!promptPosting.grandTotal || promptPosting.grandTotal === 0) {
+    const sumPosting = (promptPosting.insurancePayment || 0) +
+      (promptPosting.recoupmentOffset || 0) +
+      (promptPosting.deductible || 0) +
+      (promptPosting.coinsurance || 0) +
+      (promptPosting.copay || 0) +
+      (promptPosting.selfPay || 0) +
+      (promptPosting.noShow || 0) +
+      (promptPosting.cancellationFee || 0) +
+      (promptPosting.dryNeedling || 0) +
+      (promptPosting.scottStamp || 0);
+    promptPosting.grandTotal = sumPosting;
   }
 
   const locationSummary = buildLocationSummary(lineItems, checkRows);
@@ -1104,7 +1259,10 @@ function parseMultiSheetTherabill(wb) {
   const combinedGrid = [];
   wb.worksheets.forEach(ws => {
     ws.eachRow({ includeEmpty: true }, (row) => {
-      combinedGrid.push(row.values.slice(1).map(v => (v != null ? String(v) : '')));
+      combinedGrid.push(row.values.slice(1).map(v => {
+        const val = extractCellValue(v);
+        return val != null ? String(val).trim() : '';
+      }));
     });
   });
   return parseTherabillGrid(combinedGrid);
@@ -1117,7 +1275,10 @@ function parseMultiSheetHybrid(wb) {
   const combinedGrid = [];
   wb.worksheets.forEach(ws => {
     ws.eachRow({ includeEmpty: true }, (row) => {
-      combinedGrid.push(row.values.slice(1).map(v => (v != null ? String(v) : '')));
+      combinedGrid.push(row.values.slice(1).map(v => {
+        const val = extractCellValue(v);
+        return val != null ? String(val).trim() : '';
+      }));
     });
   });
   return parseCombinedGrid(combinedGrid);

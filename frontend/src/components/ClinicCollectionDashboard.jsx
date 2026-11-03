@@ -19,7 +19,8 @@ function formatMoney(amount) {
   if (amount == null || amount === '') return '$0.00';
   const num = typeof amount === 'number' ? amount : parseFloat(String(amount).replace(/[^0-9.-]/g, ''));
   if (isNaN(num)) return '$0.00';
-  return `$${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const absFormatted = Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return num < 0 ? `-$${absFormatted}` : `$${absFormatted}`;
 }
 
 
