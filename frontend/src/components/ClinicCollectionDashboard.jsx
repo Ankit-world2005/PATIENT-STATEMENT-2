@@ -294,6 +294,19 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
   const [prTypeFilter, setPrTypeFilter] = useState('ALL');
   const [checkLocationFilter, setCheckLocationFilter] = useState('ALL');
   const [lineItemLocationFilter, setLineItemLocationFilter] = useState('ALL');
+  const [sourceSystemFilter, setSourceSystemFilter] = useState('ALL'); // 'ALL' | 'Prompt' | 'Therabill'
+
+  const detectedFormat = data?.summary?.detectedFormat || data?.detectedFormat || 'prompt';
+  const formatLabel = data?.summary?.formatLabel || data?.formatLabel || (
+    detectedFormat === 'combined' ? 'Therabill + Prompt (Hybrid)' :
+    detectedFormat === 'therabill' ? 'Therabill Format' : 'Prompt Format'
+  );
+  const isCombined = detectedFormat === 'combined' || (data?.checkRows || []).some(r => r.sourceSystem && r.sourceSystem !== (data?.checkRows[0]?.sourceSystem || 'Prompt'));
+
+  const therabillCheckCount = useMemo(() => (data?.checkRows || []).filter(r => r.sourceSystem === 'Therabill').length, [data?.checkRows]);
+  const promptCheckCount = useMemo(() => (data?.checkRows || []).filter(r => r.sourceSystem !== 'Therabill').length, [data?.checkRows]);
+  const therabillLineCount = useMemo(() => (data?.lineItems || []).filter(r => r.sourceSystem === 'Therabill').length, [data?.lineItems]);
+  const promptLineCount = useMemo(() => (data?.lineItems || []).filter(r => r.sourceSystem !== 'Therabill').length, [data?.lineItems]);
 
   // Dual horizontal scroll synchronization & measurement refs
   const topScrollRef = useRef(null);
@@ -561,14 +574,16 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
   // Filtered check sheet rows
   const filteredCheckRows = useMemo(() => {
     if (!data?.checkRows) return [];
-    if (!checkSearch.trim()) return data.checkRows;
-    const term = checkSearch.toLowerCase().trim();
-    return data.checkRows.filter(r =>
-      (r.payer && r.payer.toLowerCase().includes(term)) ||
-      (r.paymentReference && r.paymentReference.toLowerCase().includes(term)) ||
-      (r.remarks && r.remarks.toLowerCase().includes(term))
-    );
-  }, [data?.checkRows, checkSearch]);
+    return data.checkRows.filter(r => {
+      const term = checkSearch.toLowerCase().trim();
+      const matchesSearch = !term ||
+        (r.payer && r.payer.toLowerCase().includes(term)) ||
+        (r.paymentReference && r.paymentReference.toLowerCase().includes(term)) ||
+        (r.remarks && r.remarks.toLowerCase().includes(term));
+      const matchesSystem = sourceSystemFilter === 'ALL' || (r.sourceSystem || 'Prompt') === sourceSystemFilter;
+      return matchesSearch && matchesSystem;
+    });
+  }, [data?.checkRows, checkSearch, sourceSystemFilter]);
 
   // Filtered line item rows
   const filteredLineItems = useMemo(() => {
@@ -580,10 +595,11 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
       
       const matchesPr = prTypeFilter === 'ALL' ||
         (r.prType && r.prType.toLowerCase().includes(prTypeFilter.toLowerCase()));
+      const matchesSystem = sourceSystemFilter === 'ALL' || (r.sourceSystem || 'Prompt') === sourceSystemFilter;
 
-      return matchesSearch && matchesPr;
+      return matchesSearch && matchesPr && matchesSystem;
     });
-  }, [data?.lineItems, lineItemSearch, prTypeFilter]);
+  }, [data?.lineItems, lineItemSearch, prTypeFilter, sourceSystemFilter]);
 
   const hasCreatedBy = useMemo(() => (data?.checkRows || []).some(r => r.createdBy && String(r.createdBy).trim()), [data?.checkRows]);
   const hasClaimNumber = useMemo(() => (data?.lineItems || []).some(r => r.claimNumber && String(r.claimNumber).trim()), [data?.lineItems]);
@@ -941,6 +957,10 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
               <IconWallet size={14} /> Clinic Collections & Reconciliations
             </span>
             {data?.isSample && <span className="collection-sample-pill">Active Preview</span>}
+            <span className={`collection-format-badge ${detectedFormat}`}>
+              <span className="format-dot" />
+              {formatLabel}
+            </span>
           </div>
           <h2 className="collection-report-h2">{data?.reportTitle || `${clinic?.name || 'West AZ'} Collection Report`}</h2>
           <p className="collection-report-sub">
@@ -1043,7 +1063,11 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
           <div className="kpi-card-head">
             <div className="kpi-card-title-group">
               <span className="kpi-card-badge-orange">POSTING</span>
-              <h3 className="kpi-card-h3">Prompt Posting Summary</h3>
+              <h3 className="kpi-card-h3">
+                {detectedFormat === 'therabill' ? 'Therabill Posting Summary' :
+                 detectedFormat === 'combined' ? 'Combined Posting Summary' :
+                 'Prompt Posting Summary'}
+              </h3>
             </div>
             <div className="kpi-card-icon-bubble bubble-orange">
               <IconChart size={18} />
@@ -1123,7 +1147,11 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
               onClick={() => setActiveSheetTab('checks')}
             >
               <IconDocument size={15} />
-              <span>Prompt - Check Sheet</span>
+              <span>
+                {detectedFormat === 'therabill' ? 'Therabill - Check Remittances' :
+                 detectedFormat === 'combined' ? 'Reconciled Checks & Remittances' :
+                 'Prompt - Check Sheet'}
+              </span>
               <span className="sheet-tab-count">{data?.checkRows?.length || 0}</span>
             </button>
 
@@ -1135,7 +1163,11 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
               onClick={() => setActiveSheetTab('lineitems')}
             >
               <IconWallet size={15} />
-              <span>Prompt - Lineitem</span>
+              <span>
+                {detectedFormat === 'therabill' ? 'Therabill - Line Items' :
+                 detectedFormat === 'combined' ? 'Reconciled Patient Line Items' :
+                 'Prompt - Lineitem'}
+              </span>
               <span className="sheet-tab-count">{data?.lineItems?.length || 0}</span>
             </button>
           </div>
@@ -1248,6 +1280,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
             <table className="collection-detail-table table-checks">
               <thead>
                 <tr>
+                  {isCombined && <th scope="col">System</th>}
                   <th scope="col">Payer</th>
                   <th scope="col">Payment Method</th>
                   <th scope="col">Payment Reference</th>
@@ -1270,6 +1303,13 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                 ) : (
                   filteredCheckRows.map((row, idx) => (
                     <tr key={idx} className="collection-table-row">
+                      {isCombined && (
+                        <td className="col-source-system">
+                          <span className={`system-chip ${(row.sourceSystem || 'Prompt').toLowerCase()}`}>
+                            {row.sourceSystem || 'Prompt'}
+                          </span>
+                        </td>
+                      )}
                       <td className="col-payer-name relative-corner-cell">
                         {/* Corner Pouch Dog-Ear Fold */}
                         <button
@@ -1342,6 +1382,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
             <table className="collection-detail-table table-lineitems">
               <thead>
                 <tr>
+                  {isCombined && <th scope="col">System</th>}
                   <th scope="col">Patient Name</th>
                   <th scope="col">Date of Service</th>
                   <th scope="col">Reference Number</th>
@@ -1367,6 +1408,13 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                 ) : (
                   filteredLineItems.map((item, idx) => (
                     <tr key={idx} className="collection-table-row">
+                      {isCombined && (
+                        <td className="col-source-system">
+                          <span className={`system-chip ${(item.sourceSystem || 'Prompt').toLowerCase()}`}>
+                            {item.sourceSystem || 'Prompt'}
+                          </span>
+                        </td>
+                      )}
                       <td className="col-patient-name relative-corner-cell">
                         <button
                           type="button"
