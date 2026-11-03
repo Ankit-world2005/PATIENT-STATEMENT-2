@@ -69,17 +69,45 @@ export function parseCsvRows(text) {
 }
 
 /**
- * Universal Clinic Collection Parser.
- * Handles:
- * 1. Multi-sheet Excel workbooks (Summary, Prompt-Check, Prompt-Lineitem).
- * 2. Unified single-sheet Excel files with stacked sections (Namaste format).
- * 3. Unified CSV files with stacked sections.
+ * Automatically inspects a 2D grid of rows and detects whether it is:
+ * - 'combined'  (Prompt + Therabill hybrid format)
+ * - 'therabill' (Therabill standalone format)
+ * - 'prompt'    (Prompt standalone format)
+ */
+export function detectCollectionFormat(grid) {
+  if (!grid || !Array.isArray(grid) || grid.length === 0) return 'prompt';
+
+  const fullText = grid.map(r => r.join(' ').toLowerCase()).join('\n');
+
+  // 1. Check for Combined / Hybrid signatures
+  const hasCombinedTitle = /prompt\s*\+\s*therabill|therabill\s*\+\s*prompt/i.test(fullText);
+  const hasDualPosting = /therabill posting summary/i.test(fullText) && /prompt posting summary/i.test(fullText);
+  const hasDualPayment = /therabill payment summary/i.test(fullText) && /prompt payment summary/i.test(fullText);
+  if (hasCombinedTitle || hasDualPosting || hasDualPayment) {
+    return 'combined';
+  }
+
+  // 2. Check for Therabill signatures
+  const hasTherabillKeyword = /therabill/i.test(fullText);
+  const hasClientNameHeader = /client name\s*\(\s*last\s*,\s*first\s*\)/i.test(fullText);
+  const hasEobSource = /eob source/i.test(fullText) && /era\/eob/i.test(fullText);
+  const hasChargeForService = /charge for service/i.test(fullText) && /pmt type/i.test(fullText);
+
+  if (hasTherabillKeyword || (hasClientNameHeader && (hasEobSource || hasChargeForService))) {
+    return 'therabill';
+  }
+
+  // 3. Default to Prompt
+  return 'prompt';
+}
+
+/**
+ * Universal Clinic Collection Parser with automatic format detection.
  */
 export async function parseCollectionExcel(buffer) {
   let isXlsx = false;
   const wb = new ExcelJS.Workbook();
   try {
-    // Check if buffer looks like a zip/xlsx (starts with PK\x03\x04)
     if (buffer && buffer[0] === 0x50 && buffer[1] === 0x4b) {
       await wb.xlsx.load(buffer);
       isXlsx = true;
@@ -88,43 +116,76 @@ export async function parseCollectionExcel(buffer) {
     isXlsx = false;
   }
 
-  // If not XLSX, parse as CSV text
+  // If CSV, parse as grid and auto-detect
   if (!isXlsx) {
     const text = buffer.toString('utf8');
     const rows = parseCsvRows(text);
-    return parseSingleSheetGrid(rows);
+    return parseAutoGrid(rows);
   }
 
-  // 1. Locate sheets if multi-sheet
+  // 1. Check multi-sheet names
   const findSheet = (pattern) => {
     return wb.worksheets.find(ws => pattern.test(ws.name.trim().toLowerCase()));
   };
 
-  const summarySheet = findSheet(/summary/);
-  const checkSheet = findSheet(/check|prompt\s*-\s*check/);
-  const lineItemSheet = findSheet(/lineitem|line\s*item|prompt\s*-\s*line/);
+  const hasPromptCheck = findSheet(/prompt\s*-\s*check/);
+  const hasPromptLine = findSheet(/prompt\s*-\s*line/);
+  const hasTherabillCheck = findSheet(/therabill\s*-\s*check|therabill\s*-\s*remit/);
+  const hasTherabillLine = findSheet(/therabill\s*-\s*line/);
+  const hasCombinedSheet = findSheet(/prompt\s*\+\s*therabill|therabill\s*\+\s*prompt/);
 
-  // If workbook only has 1 worksheet or no standard multi-sheet names, check if it's a stacked unified sheet
-  if (!summarySheet || (!checkSheet && !lineItemSheet)) {
+  // If workbook only has 1 worksheet or no multi-sheet matches, parse as stacked grid
+  if ((!hasPromptCheck && !hasTherabillCheck && !hasCombinedSheet) || wb.worksheets.length === 1) {
     const sheet = wb.worksheets[0];
     if (sheet) {
       const grid = [];
       sheet.eachRow({ includeEmpty: true }, (row) => {
         grid.push(row.values.slice(1).map(v => (v != null ? String(v) : '')));
       });
-      return parseSingleSheetGrid(grid);
+      return parseAutoGrid(grid);
     }
   }
 
-  // Otherwise, handle multi-sheet format
-  let reportTitle = 'Clinic Collection Report';
+  // If multi-sheet hybrid (both Prompt & Therabill sheets present)
+  if ((hasPromptCheck || hasPromptLine) && (hasTherabillCheck || hasTherabillLine)) {
+    return parseMultiSheetHybrid(wb);
+  }
+
+  // If multi-sheet Therabill
+  if (hasTherabillCheck || hasTherabillLine) {
+    return parseMultiSheetTherabill(wb);
+  }
+
+  // Otherwise standard multi-sheet Prompt
+  return parseMultiSheetPrompt(wb);
+}
+
+/**
+ * Auto-detects format from a 2D grid and delegates to the appropriate parser.
+ */
+export function parseAutoGrid(grid) {
+  const format = detectCollectionFormat(grid);
+  if (format === 'combined') {
+    return parseCombinedGrid(grid);
+  }
+  if (format === 'therabill') {
+    return parseTherabillGrid(grid);
+  }
+  return parsePromptGrid(grid);
+}
+
+/**
+ * ============================================================================
+ * 1. COMBINED / HYBRID FORMAT PARSER (PROMPT + THERABILL)
+ * ============================================================================
+ */
+export function parseCombinedGrid(grid) {
+  let reportTitle = 'Prompt + Therabill Combined Collection Report';
   let monthYear = '';
 
-  const particulars = {
-    checkAmount: 0,
-    patientPayment: 0,
-    total: 0,
-  };
+  const particulars = { checkAmount: 0, patientPayment: 0, total: 0 };
+  const tbParticulars = { checkAmount: 0, patientPayment: 0, total: 0 };
+  const promptParticulars = { checkAmount: 0, patientPayment: 0, total: 0 };
 
   const promptPosting = {
     insurancePayment: 0,
@@ -132,108 +193,474 @@ export async function parseCollectionExcel(buffer) {
     deductible: 0,
     coinsurance: 0,
     copay: 0,
+    selfPay: 0,
+    noShow: 0,
+    cancellationFee: 0,
+    dryNeedling: 0,
+    scottStamp: 0,
     grandTotal: 0,
   };
 
-  if (summarySheet) {
-    summarySheet.eachRow({ includeEmpty: false }, (row) => {
-      const vals = row.values.slice(1);
-      const str0 = String(vals[0] || '').trim();
-      const str3 = String(vals[3] || '').trim();
+  const tbPosting = { ...promptPosting };
+  const prPosting = { ...promptPosting };
 
-      if (!monthYear && /collection report/i.test(str0)) {
-        reportTitle = str0;
-        const match = str0.match(/-\s*([A-Za-z]+\s*\d{4})/i) || str0.match(/([A-Za-z]+\s+\d{4})/i);
+  let tbLocationSummary = null;
+  let prLocationSummary = null;
+  const checkRows = [];
+  const lineItems = [];
+
+  let state = 'SCAN';
+  let activeTableType = null; // 'TB_CHECK' | 'TB_LINE' | 'PR_CHECK' | 'PR_LINE'
+  let activeHeaderMap = null;
+
+  for (let r = 0; r < grid.length; r++) {
+    const rawRow = grid[r];
+    const row = rawRow.map(v => (v != null ? String(v).trim() : ''));
+    if (row.length === 0 || row.every(c => c === '')) continue;
+    const rowStr = row.join(' ').toLowerCase();
+
+    // Month / Title discovery
+    if (rowStr.includes('collection report')) {
+      const found = row.find(c => /collection report/i.test(c));
+      if (found) {
+        reportTitle = found;
+        const match = found.match(/-\s*([A-Za-z]+\s*\d{4})/i) || found.match(/([A-Za-z]+\s+\d{4})/i);
         if (match) monthYear = match[1];
       }
+    }
 
-      if (/check amount/i.test(str0)) particulars.checkAmount = parseNum(vals[1]);
-      else if (/patient payment/i.test(str0)) particulars.patientPayment = parseNum(vals[1]);
-      else if (/^total/i.test(str0)) particulars.total = parseNum(vals[1]);
+    // Top Summary Blocks detection (before tables or matrix)
+    if (state === 'SCAN' && !activeTableType) {
+      for (let c = 0; c < row.length; c++) {
+        const cell = row[c];
+        if (!cell) continue;
 
-      if (/insurance payment/i.test(str3)) promptPosting.insurancePayment = parseNum(vals[4]);
-      else if (/recoupment offset/i.test(str3)) promptPosting.recoupmentOffset = parseNum(vals[4]);
-      else if (/deductible/i.test(str3)) promptPosting.deductible = parseNum(vals[4]);
-      else if (/coinsurance/i.test(str3)) promptPosting.coinsurance = parseNum(vals[4]);
-      else if (/copay/i.test(str3)) promptPosting.copay = parseNum(vals[4]);
-      else if (/grand total/i.test(str3)) promptPosting.grandTotal = parseNum(vals[4]);
-    });
+        const rest = row.slice(c + 1).filter(v => v !== '');
+        const val = rest.length > 0 ? parseNum(rest[0]) : 0;
+
+        if (/check amount|insurance payment/i.test(cell)) {
+          if (c < 3) particulars.checkAmount = val;
+          else if (c < 8) tbParticulars.checkAmount = val;
+          else promptParticulars.checkAmount = val;
+        } else if (/patient payment/i.test(cell)) {
+          if (c < 3) particulars.patientPayment = val;
+          else if (c < 8) tbParticulars.patientPayment = val;
+          else promptParticulars.patientPayment = val;
+        } else if (/^total|^grand total/i.test(cell)) {
+          if (c < 3) particulars.total = val;
+          else if (c < 8) tbParticulars.total = val;
+          else promptParticulars.total = val;
+        }
+      }
+    }
+
+    // Location Wise Posting Summaries (Therabill vs Prompt side-by-side or stacked)
+    if (rowStr.includes('posting summary') || rowStr.includes('location wise payment info')) {
+      continue;
+    }
+
+    // Detect Matrix Header Row (Type, Airpark, Tempe, Grand total)
+    if (rowStr.includes('type') && (rowStr.includes('airpark') || rowStr.includes('tempe') || rowStr.includes('grand total'))) {
+      const typeCols = [];
+      row.forEach((c, idx) => {
+        if (/^type$/i.test(c)) typeCols.push(idx);
+      });
+
+      if (typeCols.length > 0) {
+        // Therabill side is first typeCol
+        const tbStart = typeCols[0];
+        const tbLocs = [];
+        const nextCol = typeCols[1] || row.length;
+        for (let i = tbStart + 1; i < nextCol; i++) {
+          if (row[i] && !/grand total/i.test(row[i])) tbLocs.push(row[i]);
+        }
+        tbLocationSummary = { locations: tbLocs, rows: [] };
+
+        // Prompt side is second typeCol if present
+        if (typeCols.length > 1) {
+          const prStart = typeCols[1];
+          const prLocs = [];
+          for (let i = prStart + 1; i < row.length; i++) {
+            if (row[i] && !/grand total/i.test(row[i])) prLocs.push(row[i]);
+          }
+          prLocationSummary = { locations: prLocs, rows: [] };
+        }
+        state = 'LOCATION_MATRIX';
+        continue;
+      }
+    }
+
+    // Parse Location Matrix Rows
+    if (state === 'LOCATION_MATRIX') {
+      const isCategoryRow = /insurance|recoupment|deductible|coinsurance|copay|self pay|no show|cancellation fee|dry needling|scott stamp|grand total/i.test(row[0]);
+      if (isCategoryRow && tbLocationSummary) {
+        const cat = row[0];
+        const tbRowObj = { type: cat };
+        let tbRowSum = 0;
+        tbLocationSummary.locations.forEach((loc, idx) => {
+          const v = parseNum(row[1 + idx]);
+          tbRowObj[loc] = v;
+          tbRowSum += v;
+        });
+        tbRowObj.total = tbRowSum;
+        tbLocationSummary.rows.push(tbRowObj);
+
+        // Map into tbPosting
+        applyCategoryToPosting(cat, tbRowSum, tbPosting);
+
+        // Check prompt side if present on same row
+        if (prLocationSummary && row.length > tbLocationSummary.locations.length + 2) {
+          const prOffset = tbLocationSummary.locations.length + 2;
+          const prCat = row[prOffset] || cat;
+          const prRowObj = { type: prCat };
+          let prRowSum = 0;
+          prLocationSummary.locations.forEach((loc, idx) => {
+            const v = parseNum(row[prOffset + 1 + idx]);
+            prRowObj[loc] = v;
+            prRowSum += v;
+          });
+          prRowObj.total = prRowSum;
+          prLocationSummary.rows.push(prRowObj);
+          applyCategoryToPosting(prCat, prRowSum, prPosting);
+        }
+        continue;
+      }
+    }
+
+    // Detect Therabill Check Table Header:
+    // Clinic,Payer,EOB Source,Method,ERA/EOB,Check no,Check Date,Check Amount,Posted Amount,Remaining Amount,Recoupment,Status,Posted date,Locations,Remarks
+    if (rowStr.includes('eob source') && rowStr.includes('era/eob')) {
+      activeTableType = 'TB_CHECK';
+      activeHeaderMap = row.map(h => h.trim().toLowerCase());
+      state = 'TABLE';
+      continue;
+    }
+
+    // Detect Therabill Lineitem Table Header:
+    // "Client Name (Last, First)",Payer name,Check #,Check date,DOS,Service code,Charge for Service,Pmt Type,Pmt Amount,Deposit date,Facility Name,Locations
+    if (rowStr.includes('client name') && rowStr.includes('charge for service')) {
+      activeTableType = 'TB_LINE';
+      activeHeaderMap = row.map(h => h.trim().toLowerCase());
+      state = 'TABLE';
+      continue;
+    }
+
+    // Detect Prompt Check Table Header:
+    // Payer,Payment Method,Payment Reference,Payment Date,Bank Date,Payment Amount,Total Posted,Unposted,Recoupment,Location,Remarks
+    if (rowStr.includes('payer') && (rowStr.includes('payment method') || rowStr.includes('payment reference'))) {
+      activeTableType = 'PR_CHECK';
+      activeHeaderMap = row.map(h => h.trim().toLowerCase());
+      state = 'TABLE';
+      continue;
+    }
+
+    // Detect Prompt Lineitem Table Header:
+    // Patient Name,Date of Service,Visit Facility,Reference Number,Remittance Bank Date,Remittance Payment Date,Submitted Amount,Paid Amount,Adjusted Amount,Transferred to Secondary,Transferred to Patient,Patient paid,PR Type
+    if (rowStr.includes('patient name') && (rowStr.includes('date of service') || rowStr.includes('reference number') || rowStr.includes('submitted amount'))) {
+      activeTableType = 'PR_LINE';
+      activeHeaderMap = row.map(h => h.trim().toLowerCase());
+      state = 'TABLE';
+      continue;
+    }
+
+    // Parse Table Rows
+    if (state === 'TABLE' && activeTableType && activeHeaderMap) {
+      const getVal = (pattern) => {
+        const idx = activeHeaderMap.findIndex(h => pattern.test(h));
+        return idx !== -1 ? row[idx] : '';
+      };
+
+      if (activeTableType === 'TB_CHECK') {
+        const payer = getVal(/^payer/) || row[1];
+        if (!payer || /^total/i.test(payer)) continue;
+
+        checkRows.push({
+          sourceSystem: 'Therabill',
+          payer,
+          paymentMethod: getVal(/method/) || 'EFT',
+          paymentReference: getVal(/check no|check\s*#|reference/) || row[5] || '',
+          paymentDate: formatDateVal(getVal(/posted date/) || getVal(/check date/) || row[6]),
+          bankDate: formatDateVal(getVal(/check date/) || row[6]),
+          paymentAmount: parseNum(getVal(/check amount|payment amount/) || row[7]),
+          totalPosted: parseNum(getVal(/posted amount|total posted/) || row[8]),
+          unposted: parseNum(getVal(/remaining amount|unposted/) || row[9]),
+          recoupment: parseNum(getVal(/recoupment/) || row[10]),
+          status: getVal(/status/) || 'Posted',
+          eobSource: getVal(/eob source/) || '',
+          eraEob: getVal(/era\/eob/) || '',
+          location: getVal(/location|clinic/) || row[13] || '',
+          remarks: getVal(/remark/) || row[14] || '',
+        });
+      } else if (activeTableType === 'TB_LINE') {
+        const patientName = getVal(/client name|patient name/) || row[0];
+        if (!patientName || /^total/i.test(patientName)) continue;
+
+        const pmtType = getVal(/pmt type|pr type/) || 'Copay';
+        const pmtAmt = parseNum(getVal(/pmt amount|paid amount|payment amount/) || row[8]);
+        const isInsurance = /insurance/i.test(pmtType);
+
+        lineItems.push({
+          sourceSystem: 'Therabill',
+          patientName,
+          payerName: getVal(/payer/) || row[1] || '',
+          referenceNumber: getVal(/check\s*#|check no|reference/) || row[2] || '',
+          dateOfService: formatDateVal(getVal(/dos|service date|date of service/) || row[4]),
+          serviceCode: getVal(/service code/) || row[5] || '',
+          chargedAmount: parseNum(getVal(/charge for service|charged amount|submitted amount/) || row[6]),
+          allowedAmount: 0,
+          insurancePayment: isInsurance ? pmtAmt : 0,
+          adjustedAmount: 0,
+          transferredToSecondary: 0,
+          transferredToPatient: 0,
+          patientPaid: isInsurance ? 0 : pmtAmt,
+          prType: pmtType,
+          bankDate: formatDateVal(getVal(/deposit date|check date/) || row[9]),
+          paymentDate: formatDateVal(getVal(/check date|deposit date/) || row[3]),
+          location: getVal(/facility name|locations|location/) || row[10] || '',
+        });
+      } else if (activeTableType === 'PR_CHECK') {
+        const payer = getVal(/^payer/) || row[0];
+        if (!payer || /^total/i.test(payer)) continue;
+
+        checkRows.push({
+          sourceSystem: 'Prompt',
+          payer,
+          paymentMethod: getVal(/method/) || 'EFT',
+          paymentReference: getVal(/reference|check/) || row[2] || '',
+          paymentDate: formatDateVal(getVal(/payment date|posted date/) || row[3]),
+          bankDate: formatDateVal(getVal(/bank date/) || row[4]),
+          paymentAmount: parseNum(getVal(/payment amount|check amount/) || row[5]),
+          totalPosted: parseNum(getVal(/total posted|posted amount/) || row[6]),
+          unposted: parseNum(getVal(/unposted|remaining amount/) || row[7]),
+          recoupment: parseNum(getVal(/recoupment/) || row[8]),
+          location: getVal(/location/) || row[9] || '',
+          remarks: getVal(/remark/) || row[10] || '',
+        });
+      } else if (activeTableType === 'PR_LINE') {
+        const patientName = getVal(/patient name/) || row[0];
+        if (!patientName || /^total/i.test(patientName)) continue;
+
+        lineItems.push({
+          sourceSystem: 'Prompt',
+          patientName,
+          dateOfService: formatDateVal(getVal(/date of service|service/) || row[1]),
+          referenceNumber: getVal(/reference|check/) || row[3] || row[2] || '',
+          bankDate: formatDateVal(getVal(/bank date/) || row[4] || row[3]),
+          paymentDate: formatDateVal(getVal(/payment date|posting date/) || row[5] || row[4]),
+          chargedAmount: parseNum(getVal(/submitted amount|charged amount/) || row[6] || row[5]),
+          allowedAmount: parseNum(getVal(/allowed amount/) || 0),
+          insurancePayment: parseNum(getVal(/paid amount|insurance payment/) || row[7]),
+          adjustedAmount: parseNum(getVal(/adjusted amount/) || row[8]),
+          transferredToSecondary: parseNum(getVal(/transferred to secondary/) || row[9]),
+          transferredToPatient: parseNum(getVal(/transferred to patient/) || row[10]),
+          patientPaid: parseNum(getVal(/patient paid|patient payment/) || row[11]),
+          prType: getVal(/pr type/) || 'Copay',
+          location: getVal(/visit facility|facility|location/) || row[2] || '',
+        });
+      }
+    }
   }
+
+  // Combine posting summaries
+  combinePostingSummaries(promptPosting, tbPosting, prPosting);
+
+  // Fallback calculations for particulars if not directly supplied
+  if (particulars.total === 0 && (checkRows.length > 0 || lineItems.length > 0)) {
+    const totalInsurance = checkRows.reduce((sum, r) => sum + (r.paymentAmount || 0), 0) ||
+      lineItems.reduce((sum, r) => sum + (r.insurancePayment || 0), 0);
+    const totalPatient = lineItems.reduce((sum, r) => sum + (r.patientPaid || 0), 0);
+    particulars.checkAmount = totalInsurance;
+    particulars.patientPayment = totalPatient;
+    particulars.total = totalInsurance + totalPatient;
+  }
+
+  // Build combined Location Summary
+  const combinedLocationSummary = mergeLocationSummaries(tbLocationSummary, prLocationSummary) ||
+    buildLocationSummary(lineItems, checkRows);
+
+  return {
+    detectedFormat: 'combined',
+    formatLabel: 'Therabill + Prompt (Hybrid)',
+    reportTitle,
+    monthYear: monthYear || 'September 2026',
+    particulars,
+    promptPosting,
+    postingSummary: promptPosting,
+    locationSummary: combinedLocationSummary,
+    hybridSummaries: {
+      therabill: { particulars: tbParticulars, postingSummary: tbPosting, locationSummary: tbLocationSummary },
+      prompt: { particulars: promptParticulars, postingSummary: prPosting, locationSummary: prLocationSummary },
+      combined: { particulars, postingSummary: promptPosting, locationSummary: combinedLocationSummary },
+    },
+    checkRows,
+    lineItems,
+  };
+}
+
+/**
+ * ============================================================================
+ * 2. STANDALONE THERABILL FORMAT PARSER
+ * ============================================================================
+ */
+export function parseTherabillGrid(grid) {
+  let reportTitle = 'Therabill Collection Report';
+  let monthYear = '';
+
+  const particulars = { checkAmount: 0, patientPayment: 0, total: 0 };
+  const promptPosting = {
+    insurancePayment: 0,
+    recoupmentOffset: 0,
+    deductible: 0,
+    coinsurance: 0,
+    copay: 0,
+    selfPay: 0,
+    noShow: 0,
+    cancellationFee: 0,
+    dryNeedling: 0,
+    scottStamp: 0,
+    grandTotal: 0,
+  };
 
   const checkRows = [];
-  if (checkSheet) {
-    let headerMap = null;
-    checkSheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-      const vals = row.values.slice(1);
-      if (rowNumber === 1 || !headerMap) {
-        headerMap = vals.map(v => String(v || '').trim().toLowerCase());
-        return;
-      }
-      if (vals.every(v => v == null || String(v).trim() === '')) return;
+  const lineItems = [];
+  let state = 'SCAN';
+  let activeTableType = null;
+  let activeHeaderMap = null;
 
-      const getCol = (key) => {
-        const idx = headerMap.findIndex(h => h.includes(key));
-        return idx !== -1 ? vals[idx] : null;
+  for (let r = 0; r < grid.length; r++) {
+    const row = grid[r].map(v => (v != null ? String(v).trim() : ''));
+    if (row.length === 0 || row.every(c => c === '')) continue;
+    const rowStr = row.join(' ').toLowerCase();
+
+    // 1. Report Title & Month
+    if (rowStr.includes('therabill') || rowStr.includes('collection report')) {
+      const found = row.find(c => /collection report/i.test(c) || /therabill/i.test(c));
+      if (found) {
+        if (/collection report/i.test(found)) reportTitle = found;
+        const match = found.match(/-\s*([A-Za-z]+\s*\d{4})/i) || found.match(/([A-Za-z]+\s+\d{4})/i);
+        if (match) monthYear = match[1];
+      }
+    }
+
+    // 2. Summary Breakdown (before tables)
+    // Left: Particulars | Right: Payment Type, Pmt Amount
+    if (state === 'SCAN' && !activeTableType) {
+      for (let c = 0; c < row.length; c++) {
+        const cell = row[c];
+        if (!cell) continue;
+
+        const rest = row.slice(c + 1).filter(v => v !== '');
+        const val = rest.length > 0 ? parseNum(rest[0]) : 0;
+
+        if (/insurance payment|check amount/i.test(cell) && c < 4) {
+          particulars.checkAmount = val;
+        } else if (/patient payment/i.test(cell) && c < 4) {
+          particulars.patientPayment = val;
+        } else if (/^total$/i.test(cell) && c < 4) {
+          particulars.total = val;
+        } else if (c >= 3) {
+          applyCategoryToPosting(cell, val, promptPosting);
+        }
+      }
+    }
+
+    // Detect Therabill Check Table Header:
+    // Payee,Payer,EOB Source,ERA/EOB,Method,Check no,Check Date,Check Amount,Posted Amount,Remaining Amount,Recoupment,Status,Posted date,Remarks
+    if (rowStr.includes('eob source') || (rowStr.includes('check no') && rowStr.includes('posted amount'))) {
+      activeTableType = 'TB_CHECK';
+      activeHeaderMap = row.map(h => h.trim().toLowerCase());
+      state = 'TABLE';
+      continue;
+    }
+
+    // Detect Therabill Lineitem Table Header:
+    // "Client Name (Last, First)",Payer name,Check #,Check date,DOS,Service code,Charge for Service,Pmt Type,Pmt Amount,Deposit date,Facility Name
+    if (rowStr.includes('client name') || (rowStr.includes('charge for service') && rowStr.includes('pmt type'))) {
+      activeTableType = 'TB_LINE';
+      activeHeaderMap = row.map(h => h.trim().toLowerCase());
+      state = 'TABLE';
+      continue;
+    }
+
+    // Parse Table rows
+    if (state === 'TABLE' && activeTableType && activeHeaderMap) {
+      const getVal = (pattern) => {
+        const idx = activeHeaderMap.findIndex(h => pattern.test(h));
+        return idx !== -1 ? row[idx] : '';
       };
 
-      checkRows.push({
-        payer: String(getCol('payer') || vals[0] || '').trim(),
-        paymentMethod: String(getCol('method') || vals[1] || 'EFT').trim(),
-        paymentReference: String(getCol('reference') || vals[2] || '').trim(),
-        paymentDate: formatDateVal(getCol('payment date') || vals[3]),
-        bankDate: formatDateVal(getCol('bank date') || vals[4]),
-        paymentAmount: parseNum(getCol('payment amount') || vals[5]),
-        totalPosted: parseNum(getCol('total posted') || vals[6]),
-        unposted: parseNum(getCol('unposted') || vals[7]),
-        recoupment: parseNum(getCol('recoupment') || vals[8]),
-        location: String(getCol('location') || '').trim(),
-        remarks: String(getCol('remark') || vals[9] || '').trim(),
-      });
-    });
+      if (activeTableType === 'TB_CHECK') {
+        const payer = getVal(/^payer/) || row[1] || row[0];
+        if (!payer || /^total/i.test(payer)) continue;
+
+        checkRows.push({
+          sourceSystem: 'Therabill',
+          payer,
+          paymentMethod: getVal(/method/) || 'EFT',
+          paymentReference: getVal(/check no|check\s*#|reference/) || row[5] || '',
+          paymentDate: formatDateVal(getVal(/posted date/) || getVal(/check date/) || row[6]),
+          bankDate: formatDateVal(getVal(/check date/) || row[6]),
+          paymentAmount: parseNum(getVal(/check amount|payment amount/) || row[7]),
+          totalPosted: parseNum(getVal(/posted amount|total posted/) || row[8]),
+          unposted: parseNum(getVal(/remaining amount|unposted/) || row[9]),
+          recoupment: parseNum(getVal(/recoupment/) || row[10]),
+          status: getVal(/status/) || 'Posted',
+          eobSource: getVal(/eob source/) || '',
+          eraEob: getVal(/era\/eob/) || '',
+          location: getVal(/location|locations|clinic|facility/) || '',
+          remarks: getVal(/remark/) || '',
+        });
+      } else if (activeTableType === 'TB_LINE') {
+        const patientName = getVal(/client name|patient name/) || row[0];
+        if (!patientName || /^total/i.test(patientName)) continue;
+
+        const pmtType = getVal(/pmt type|pr type/) || 'Copay';
+        const pmtAmt = parseNum(getVal(/pmt amount|paid amount|payment amount/) || row[8]);
+        const isInsurance = /insurance/i.test(pmtType);
+
+        lineItems.push({
+          sourceSystem: 'Therabill',
+          patientName,
+          payerName: getVal(/payer/) || row[1] || '',
+          referenceNumber: getVal(/check\s*#|check no|reference/) || row[2] || '',
+          dateOfService: formatDateVal(getVal(/dos|service date|date of service/) || row[4]),
+          serviceCode: getVal(/service code/) || row[5] || '',
+          chargedAmount: parseNum(getVal(/charge for service|charged amount|submitted amount/) || row[6]),
+          allowedAmount: 0,
+          insurancePayment: isInsurance ? pmtAmt : 0,
+          adjustedAmount: 0,
+          transferredToSecondary: 0,
+          transferredToPatient: 0,
+          patientPaid: isInsurance ? 0 : pmtAmt,
+          prType: pmtType,
+          bankDate: formatDateVal(getVal(/deposit date|check date/) || row[9]),
+          paymentDate: formatDateVal(getVal(/check date|deposit date/) || row[3]),
+          location: getVal(/facility name|locations|location/) || row[10] || '',
+        });
+      }
+    }
   }
 
-  const lineItems = [];
-  if (lineItemSheet) {
-    let headerMap = null;
-    lineItemSheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-      const vals = row.values.slice(1);
-      if (rowNumber === 1 || !headerMap) {
-        headerMap = vals.map(v => String(v || '').trim().toLowerCase());
-        return;
-      }
-      if (vals.every(v => v == null || String(v).trim() === '')) return;
-
-      const getCol = (key) => {
-        const idx = headerMap.findIndex(h => h.includes(key));
-        return idx !== -1 ? vals[idx] : null;
-      };
-
-      lineItems.push({
-        patientName: String(getCol('patient') || vals[0] || '').trim(),
-        dateOfService: formatDateVal(getCol('service') || vals[1]),
-        referenceNumber: String(getCol('reference') || vals[2] || '').trim(),
-        bankDate: formatDateVal(getCol('bank date') || vals[3]),
-        paymentDate: formatDateVal(getCol('posting date') || getCol('payment date') || vals[4]),
-        chargedAmount: parseNum(getCol('charged') || vals[5]),
-        allowedAmount: parseNum(getCol('allowed') || vals[6]),
-        insurancePayment: parseNum(getCol('insurance payment') || vals[7]),
-        adjustedAmount: parseNum(getCol('adjust') || vals[8]),
-        transferredToSecondary: parseNum(getCol('secondary') || vals[9]),
-        transferredToPatient: parseNum(getCol('transferred to patient') || vals[10]),
-        patientPaid: parseNum(getCol('patient pay') || getCol('patient paid') || vals[11]),
-        prType: String(getCol('pr type') || vals[12] || 'Copay').trim(),
-        location: String(getCol('location') || '').trim(),
-      });
-    });
+  // Fallbacks
+  if (particulars.total === 0 && (checkRows.length > 0 || lineItems.length > 0)) {
+    const totalInsurance = checkRows.reduce((sum, r) => sum + (r.paymentAmount || 0), 0) ||
+      lineItems.reduce((sum, r) => sum + (r.insurancePayment || 0), 0);
+    const totalPatient = lineItems.reduce((sum, r) => sum + (r.patientPaid || 0), 0);
+    particulars.checkAmount = totalInsurance;
+    particulars.patientPayment = totalPatient;
+    particulars.total = totalInsurance + totalPatient;
   }
 
   const locationSummary = buildLocationSummary(lineItems, checkRows);
 
   return {
+    detectedFormat: 'therabill',
+    formatLabel: 'Therabill Format',
     reportTitle,
     monthYear: monthYear || 'September 2026',
     particulars,
     promptPosting,
+    postingSummary: promptPosting,
     locationSummary,
     checkRows,
     lineItems,
@@ -241,11 +668,12 @@ export async function parseCollectionExcel(buffer) {
 }
 
 /**
- * Parses a single 2D grid of rows (from CSV or single-sheet Excel)
- * where sections are stacked vertically or side-by-side.
+ * ============================================================================
+ * 3. STANDALONE PROMPT FORMAT PARSER
+ * ============================================================================
  */
-export function parseSingleSheetGrid(grid) {
-  let reportTitle = 'Clinic Collection Report';
+export function parsePromptGrid(grid) {
+  let reportTitle = 'Prompt Collection Report';
   let monthYear = '';
 
   const particulars = {
@@ -260,6 +688,11 @@ export function parseSingleSheetGrid(grid) {
     deductible: 0,
     coinsurance: 0,
     copay: 0,
+    selfPay: 0,
+    noShow: 0,
+    cancellationFee: 0,
+    dryNeedling: 0,
+    scottStamp: 0,
     grandTotal: 0,
   };
 
@@ -267,7 +700,7 @@ export function parseSingleSheetGrid(grid) {
   const checkRows = [];
   const lineItems = [];
 
-  let state = 'SCAN'; // 'SCAN' | 'LOCATION_WISE' | 'PAYER_TABLE' | 'SUMMARY' | 'LINEITEM_TABLE'
+  let state = 'SCAN';
   let payerHeaderIdxs = null;
   let lineItemHeaderIdxs = null;
 
@@ -277,7 +710,7 @@ export function parseSingleSheetGrid(grid) {
 
     const rowStr = row.join(' ').toLowerCase();
 
-    // 1. Detect Report Title and Month/Year anywhere
+    // 1. Detect Report Title and Month/Year
     if (rowStr.includes('collection report')) {
       const found = row.find(c => /collection report/i.test(c));
       if (found) {
@@ -311,7 +744,7 @@ export function parseSingleSheetGrid(grid) {
     }
 
     // 3. Check for Line Item Table Header
-    if (rowStr.includes('patient name') && (rowStr.includes('date of service') || rowStr.includes('reference number') || rowStr.includes('claim'))) {
+    if (rowStr.includes('patient name') && (rowStr.includes('date of service') || rowStr.includes('reference') || rowStr.includes('claim') || rowStr.includes('submitted'))) {
       state = 'LINEITEM_TABLE';
       lineItemHeaderIdxs = {
         patientName: row.findIndex(c => /patient name/i.test(c) || /^patient$/i.test(c)),
@@ -328,7 +761,7 @@ export function parseSingleSheetGrid(grid) {
         transferredPt: row.findIndex(c => /transferred to patient/i.test(c)),
         patientPayment: row.findIndex(c => /patient payment/i.test(c) || /patient paid/i.test(c)),
         prType: row.findIndex(c => /pr type/i.test(c)),
-        location: row.findIndex(c => /location/i.test(c)),
+        location: row.findIndex(c => /location|facility/i.test(c)),
       };
       continue;
     }
@@ -347,10 +780,7 @@ export function parseSingleSheetGrid(grid) {
         }
 
         if (locations.length > 0) {
-          locationSummary = {
-            locations,
-            rows: [],
-          };
+          locationSummary = { locations, rows: [] };
           state = 'LOCATION_WISE';
           continue;
         }
@@ -446,6 +876,7 @@ export function parseSingleSheetGrid(grid) {
         if (!payer || /^total/i.test(payer)) continue;
 
         checkRows.push({
+          sourceSystem: 'Prompt',
           payer,
           paymentMethod: payerHeaderIdxs?.method !== -1 && row[payerHeaderIdxs?.method] ? row[payerHeaderIdxs.method] : 'CHK',
           paymentReference: payerHeaderIdxs?.reference !== -1 ? row[payerHeaderIdxs?.reference] || '' : '',
@@ -469,6 +900,7 @@ export function parseSingleSheetGrid(grid) {
       if (!patientName || /^total/i.test(patientName)) continue;
 
       lineItems.push({
+        sourceSystem: 'Prompt',
         patientName,
         claimNumber: lineItemHeaderIdxs?.claimNumber !== -1 && lineItemHeaderIdxs?.claimNumber != null ? row[lineItemHeaderIdxs.claimNumber] || '' : '',
         dateOfService: formatDateVal(row[lineItemHeaderIdxs?.dos ?? 1]),
@@ -488,7 +920,7 @@ export function parseSingleSheetGrid(grid) {
     }
   }
 
-  // Fallback calculations if summary wasn't provided or totals were 0
+  // Fallback calculations
   if (particulars.total === 0 && (checkRows.length > 0 || lineItems.length > 0)) {
     const totalInsurance = checkRows.reduce((sum, r) => sum + (r.paymentAmount || 0), 0) ||
       lineItems.reduce((sum, r) => sum + (r.insurancePayment || 0), 0);
@@ -509,23 +941,242 @@ export function parseSingleSheetGrid(grid) {
     promptPosting.grandTotal = totalInsurance + promptPosting.copay + promptPosting.coinsurance + promptPosting.deductible;
   }
 
-  // If locationSummary was not in file, build from line items and check rows
   if (!locationSummary && (lineItems.length > 0 || checkRows.length > 0)) {
     locationSummary = buildLocationSummary(lineItems, checkRows);
   }
 
   return {
+    detectedFormat: 'prompt',
+    formatLabel: 'Prompt Format',
     reportTitle,
     monthYear: monthYear || 'September 2026',
     particulars,
     promptPosting,
+    postingSummary: promptPosting,
     locationSummary,
     checkRows,
     lineItems,
   };
 }
 
-function buildLocationSummary(lineItems, checkRows) {
+/**
+ * Parses Multi-sheet Excel workbook for Prompt format.
+ */
+function parseMultiSheetPrompt(wb) {
+  let reportTitle = 'Prompt Collection Report';
+  let monthYear = '';
+
+  const particulars = { checkAmount: 0, patientPayment: 0, total: 0 };
+  const promptPosting = {
+    insurancePayment: 0,
+    recoupmentOffset: 0,
+    deductible: 0,
+    coinsurance: 0,
+    copay: 0,
+    selfPay: 0,
+    noShow: 0,
+    cancellationFee: 0,
+    dryNeedling: 0,
+    scottStamp: 0,
+    grandTotal: 0,
+  };
+
+  const findSheet = (pattern) => wb.worksheets.find(ws => pattern.test(ws.name.trim().toLowerCase()));
+  const summarySheet = findSheet(/summary/);
+  const checkSheet = findSheet(/check|prompt\s*-\s*check/);
+  const lineItemSheet = findSheet(/lineitem|line\s*item|prompt\s*-\s*line/);
+
+  if (summarySheet) {
+    summarySheet.eachRow({ includeEmpty: false }, (row) => {
+      const vals = row.values.slice(1);
+      const str0 = String(vals[0] || '').trim();
+      const str3 = String(vals[3] || '').trim();
+
+      if (!monthYear && /collection report/i.test(str0)) {
+        reportTitle = str0;
+        const match = str0.match(/-\s*([A-Za-z]+\s*\d{4})/i) || str0.match(/([A-Za-z]+\s+\d{4})/i);
+        if (match) monthYear = match[1];
+      }
+
+      if (/check amount/i.test(str0)) particulars.checkAmount = parseNum(vals[1]);
+      else if (/patient payment/i.test(str0)) particulars.patientPayment = parseNum(vals[1]);
+      else if (/^total/i.test(str0)) particulars.total = parseNum(vals[1]);
+
+      if (/insurance payment/i.test(str3)) promptPosting.insurancePayment = parseNum(vals[4]);
+      else if (/recoupment/i.test(str3)) promptPosting.recoupmentOffset = parseNum(vals[4]);
+      else if (/deductible/i.test(str3)) promptPosting.deductible = parseNum(vals[4]);
+      else if (/coinsurance/i.test(str3)) promptPosting.coinsurance = parseNum(vals[4]);
+      else if (/copay/i.test(str3)) promptPosting.copay = parseNum(vals[4]);
+      else if (/grand total/i.test(str3)) promptPosting.grandTotal = parseNum(vals[4]);
+    });
+  }
+
+  const checkRows = [];
+  if (checkSheet) {
+    let headerMap = null;
+    checkSheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+      const vals = row.values.slice(1);
+      if (rowNumber === 1 || !headerMap) {
+        headerMap = vals.map(v => String(v || '').trim().toLowerCase());
+        return;
+      }
+      if (vals.every(v => v == null || String(v).trim() === '')) return;
+
+      const getCol = (key) => {
+        const idx = headerMap.findIndex(h => h.includes(key));
+        return idx !== -1 ? vals[idx] : null;
+      };
+
+      checkRows.push({
+        sourceSystem: 'Prompt',
+        payer: String(getCol('payer') || vals[0] || '').trim(),
+        paymentMethod: String(getCol('method') || vals[1] || 'EFT').trim(),
+        paymentReference: String(getCol('reference') || vals[2] || '').trim(),
+        paymentDate: formatDateVal(getCol('payment date') || vals[3]),
+        bankDate: formatDateVal(getCol('bank date') || vals[4]),
+        paymentAmount: parseNum(getCol('payment amount') || vals[5]),
+        totalPosted: parseNum(getCol('total posted') || vals[6]),
+        unposted: parseNum(getCol('unposted') || vals[7]),
+        recoupment: parseNum(getCol('recoupment') || vals[8]),
+        location: String(getCol('location') || '').trim(),
+        remarks: String(getCol('remark') || vals[9] || '').trim(),
+      });
+    });
+  }
+
+  const lineItems = [];
+  if (lineItemSheet) {
+    let headerMap = null;
+    lineItemSheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+      const vals = row.values.slice(1);
+      if (rowNumber === 1 || !headerMap) {
+        headerMap = vals.map(v => String(v || '').trim().toLowerCase());
+        return;
+      }
+      if (vals.every(v => v == null || String(v).trim() === '')) return;
+
+      const getCol = (key) => {
+        const idx = headerMap.findIndex(h => h.includes(key));
+        return idx !== -1 ? vals[idx] : null;
+      };
+
+      lineItems.push({
+        sourceSystem: 'Prompt',
+        patientName: String(getCol('patient') || vals[0] || '').trim(),
+        dateOfService: formatDateVal(getCol('service') || vals[1]),
+        referenceNumber: String(getCol('reference') || vals[2] || '').trim(),
+        bankDate: formatDateVal(getCol('bank date') || vals[3]),
+        paymentDate: formatDateVal(getCol('posting date') || getCol('payment date') || vals[4]),
+        chargedAmount: parseNum(getCol('charged') || vals[5]),
+        allowedAmount: parseNum(getCol('allowed') || vals[6]),
+        insurancePayment: parseNum(getCol('insurance payment') || vals[7]),
+        adjustedAmount: parseNum(getCol('adjust') || vals[8]),
+        transferredToSecondary: parseNum(getCol('secondary') || vals[9]),
+        transferredToPatient: parseNum(getCol('transferred to patient') || vals[10]),
+        patientPaid: parseNum(getCol('patient pay') || getCol('patient paid') || vals[11]),
+        prType: String(getCol('pr type') || vals[12] || 'Copay').trim(),
+        location: String(getCol('location') || '').trim(),
+      });
+    });
+  }
+
+  const locationSummary = buildLocationSummary(lineItems, checkRows);
+
+  return {
+    detectedFormat: 'prompt',
+    formatLabel: 'Prompt Format',
+    reportTitle,
+    monthYear: monthYear || 'September 2026',
+    particulars,
+    promptPosting,
+    postingSummary: promptPosting,
+    locationSummary,
+    checkRows,
+    lineItems,
+  };
+}
+
+/**
+ * Parses Multi-sheet Excel workbook for Therabill format.
+ */
+function parseMultiSheetTherabill(wb) {
+  // Convert all sheets into a stacked grid and run parseTherabillGrid
+  const combinedGrid = [];
+  wb.worksheets.forEach(ws => {
+    ws.eachRow({ includeEmpty: true }, (row) => {
+      combinedGrid.push(row.values.slice(1).map(v => (v != null ? String(v) : '')));
+    });
+  });
+  return parseTherabillGrid(combinedGrid);
+}
+
+/**
+ * Parses Multi-sheet Excel workbook containing both Prompt and Therabill.
+ */
+function parseMultiSheetHybrid(wb) {
+  const combinedGrid = [];
+  wb.worksheets.forEach(ws => {
+    ws.eachRow({ includeEmpty: true }, (row) => {
+      combinedGrid.push(row.values.slice(1).map(v => (v != null ? String(v) : '')));
+    });
+  });
+  return parseCombinedGrid(combinedGrid);
+}
+
+// Helpers
+function applyCategoryToPosting(catStr, val, targetObj) {
+  const c = String(catStr).toLowerCase().trim();
+  if (/coinsurance/i.test(c) || /^coins/i.test(c)) targetObj.coinsurance = val;
+  else if (/^insurance|insurance\s*payment/i.test(c)) targetObj.insurancePayment = val;
+  else if (/recoupment/i.test(c)) targetObj.recoupmentOffset = val;
+  else if (/deductible/i.test(c)) targetObj.deductible = val;
+  else if (/copay/i.test(c)) targetObj.copay = val;
+  else if (/self pay/i.test(c)) targetObj.selfPay = val;
+  else if (/no show/i.test(c)) targetObj.noShow = val;
+  else if (/cancellation/i.test(c)) targetObj.cancellationFee = val;
+  else if (/dry needling/i.test(c)) targetObj.dryNeedling = val;
+  else if (/scott stamp/i.test(c)) targetObj.scottStamp = val;
+  else if (/grand total/i.test(c)) targetObj.grandTotal = val;
+}
+
+function combinePostingSummaries(combined, tb, pr) {
+  const keys = Object.keys(combined);
+  keys.forEach(k => {
+    combined[k] = (tb[k] || 0) + (pr[k] || 0);
+  });
+}
+
+function mergeLocationSummaries(tb, pr) {
+  if (!tb && !pr) return null;
+  if (!tb) return pr;
+  if (!pr) return tb;
+
+  const locSet = new Set([...tb.locations, ...pr.locations]);
+  const locations = Array.from(locSet);
+
+  const rowMap = new Map();
+  [...tb.rows, ...pr.rows].forEach(r => {
+    if (!rowMap.has(r.type)) {
+      rowMap.set(r.type, { type: r.type, total: 0 });
+    }
+    const target = rowMap.get(r.type);
+    locations.forEach(loc => {
+      const v = r[loc] || 0;
+      target[loc] = (target[loc] || 0) + v;
+    });
+  });
+
+  const mergedRows = Array.from(rowMap.values()).map(r => {
+    let t = 0;
+    locations.forEach(loc => { t += (r[loc] || 0); });
+    r.total = t;
+    return r;
+  });
+
+  return { locations, rows: mergedRows };
+}
+
+export function buildLocationSummary(lineItems, checkRows) {
   const locSet = new Set();
   lineItems.forEach(r => { if (r.location) locSet.add(r.location); });
   checkRows.forEach(r => { if (r.location) locSet.add(r.location); });
@@ -561,7 +1212,6 @@ function buildLocationSummary(lineItems, checkRows) {
     return rowObj;
   });
 
-  // Calculate Grand Total row
   const grandTotalRow = summaryRows.find(r => r.type === 'Grand total');
   if (grandTotalRow) {
     let grandGrandTotal = 0;

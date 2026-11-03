@@ -849,7 +849,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
 
               <form onSubmit={handleUploadSubmit} className="collection-upload-form">
                 <div className="collection-upload-intro">
-                  Select or drag-and-drop the filled <strong>Prompt Collection Report (.xlsx)</strong> for {clinic?.name || 'this clinic'}.
+                  Select or drag-and-drop the collection report (<strong>Prompt</strong>, <strong>Therabill</strong>, or <strong>Combined Prompt + Therabill</strong> format) for {clinic?.name || 'this clinic'}.
                 </div>
 
                 <div
@@ -867,7 +867,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                     type="file"
                     ref={fileInputRef}
                     style={{ display: 'none' }}
-                    accept=".xlsx,.xls"
+                    accept=".xlsx,.xls,.csv"
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
                         setUploadFile(e.target.files[0]);
@@ -1139,6 +1139,34 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
               <span className="sheet-tab-count">{data?.lineItems?.length || 0}</span>
             </button>
           </div>
+
+          {/* System View Selector for Combined Format */}
+          {isCombined && (
+            <div className="collection-system-selector">
+              <span className="system-selector-label">System:</span>
+              <button
+                type="button"
+                className={`btn-system-pill ${sourceSystemFilter === 'ALL' ? 'active' : ''}`}
+                onClick={() => setSourceSystemFilter('ALL')}
+              >
+                All Combined ({activeSheetTab === 'checks' ? (data?.checkRows?.length || 0) : (data?.lineItems?.length || 0)})
+              </button>
+              <button
+                type="button"
+                className={`btn-system-pill ${sourceSystemFilter === 'Therabill' ? 'active' : ''}`}
+                onClick={() => setSourceSystemFilter('Therabill')}
+              >
+                Therabill ({activeSheetTab === 'checks' ? therabillCheckCount : therabillLineCount})
+              </button>
+              <button
+                type="button"
+                className={`btn-system-pill ${sourceSystemFilter === 'Prompt' ? 'active' : ''}`}
+                onClick={() => setSourceSystemFilter('Prompt')}
+              >
+                Prompt ({activeSheetTab === 'checks' ? promptCheckCount : promptLineCount})
+              </button>
+            </div>
+          )}
 
           {/* Sub-Tab Filter Bar */}
           <div className="sheet-tab-filters">

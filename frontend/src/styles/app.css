@@ -6592,6 +6592,114 @@ button.stat-kpi-card:hover,
   border-radius: 6px;
 }
 
+.collection-format-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.collection-format-badge .format-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.collection-format-badge.prompt {
+  background: #F0F9FF;
+  color: #0369A1;
+  border-color: #BAE6FD;
+}
+.collection-format-badge.prompt .format-dot {
+  background: #0284C7;
+}
+
+.collection-format-badge.therabill {
+  background: #FAF5FF;
+  color: #7E22CE;
+  border-color: #E9D5FF;
+}
+.collection-format-badge.therabill .format-dot {
+  background: #9333EA;
+}
+
+.collection-format-badge.combined {
+  background: #F0FDF4;
+  color: #15803D;
+  border-color: #BBF7D0;
+}
+.collection-format-badge.combined .format-dot {
+  background: #16A34A;
+}
+
+.collection-system-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #F1F5F9;
+  padding: 3px 6px;
+  border-radius: 8px;
+  margin-left: 12px;
+}
+
+.system-selector-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748B;
+  text-transform: uppercase;
+  margin-right: 4px;
+}
+
+.btn-system-pill {
+  border: none;
+  background: transparent;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-system-pill:hover {
+  color: #0F172A;
+  background: #E2E8F0;
+}
+
+.btn-system-pill.active {
+  background: #1E3A8A;
+  color: #FFFFFF;
+  box-shadow: 0 1px 2px rgba(30, 58, 138, 0.2);
+}
+
+.system-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.system-chip.prompt {
+  background: #E0F2FE;
+  color: #0369A1;
+}
+
+.system-chip.therabill {
+  background: #F3E8FF;
+  color: #7E22CE;
+}
+
 .collection-empty-container {
   display: flex;
   align-items: center;

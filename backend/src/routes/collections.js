@@ -105,9 +105,13 @@ collectionsRouter.post('/upload', upload.single('file'), async (req, res) => {
   const parsed = await parseCollectionExcel(req.file.buffer);
 
   const summary = {
+    detectedFormat: parsed.detectedFormat || 'prompt',
+    formatLabel: parsed.formatLabel || 'Prompt Format',
     particulars: parsed.particulars,
     promptPosting: parsed.promptPosting,
+    postingSummary: parsed.postingSummary || parsed.promptPosting,
     locationSummary: parsed.locationSummary,
+    hybridSummaries: parsed.hybridSummaries || null,
   };
 
   const { rows } = await query(
