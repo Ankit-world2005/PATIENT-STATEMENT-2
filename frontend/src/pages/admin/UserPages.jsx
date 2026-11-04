@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
-import { IconTrash } from '../../components/Icons.jsx';
-import { Alert, BackBar, ConfirmDialog, EmptyState, Field, PageHeader, Spinner, StatusBadge } from '../../components/ui.jsx';
+import { IconEdit, IconTrash } from '../../components/Icons.jsx';
+import { Alert, BackBar, ConfirmDialog, EmptyState, Field, Modal, PageHeader, Spinner, StatusBadge } from '../../components/ui.jsx';
 import { api } from '../../lib/api.js';
 import { ROLE_LABELS, dateTime, shortDate } from '../../lib/format.js';
 import { useToast } from '../../lib/toast.jsx';
@@ -31,6 +31,7 @@ export function UsersPage() {
   const [users, setUsers] = useState(null);
   const [error, setError] = useState('');
   const [deletingUser, setDeletingUser] = useState(null);
+  const [editingUser, setEditingUser] = useState(null);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
 
@@ -158,7 +159,7 @@ export function UsersPage() {
                   <th scope="col">Clinic</th>
                   <th scope="col">Status</th>
                   <th scope="col">Last sign-in</th>
-                  <th scope="col" style={{ textAlign: 'center', width: 100 }}>Delete</th>
+                  <th scope="col" style={{ textAlign: 'center', width: 160 }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -179,7 +180,16 @@ export function UsersPage() {
                     <td>{u.clinic?.name ?? '—'}</td>
                     <td><StatusBadge status={u.status} /></td>
                     <td className="col-date">{u.lastLogin ? shortDate(u.lastLogin) : 'Never'}</td>
-                    <td style={{ textAlign: 'center' }}>
+                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-xs"
+                        onClick={() => setEditingUser(u)}
+                        title={`Edit ${u.fullName}`}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 6 }}
+                      >
+                        <IconEdit size={12} /> Edit
+                      </button>
                       <button
                         type="button"
                         className="btn btn-danger-outline btn-xs"
@@ -187,7 +197,7 @@ export function UsersPage() {
                         title={`Delete ${u.fullName} from database`}
                         style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
                       >
-                        <IconTrash size={13} /> Delete
+                        <IconTrash size={12} /> Delete
                       </button>
                     </td>
                   </tr>
@@ -207,6 +217,15 @@ export function UsersPage() {
           message={`Are you sure you want to permanently delete "${deletingUser.fullName}" (${deletingUser.email}) from the database? This action cannot be undone.`}
           onCancel={() => !busy && setDeletingUser(null)}
           onConfirm={handleDelete}
+        />
+      )}
+
+      {editingUser && (
+        <EditUserModal
+          user={editingUser}
+          clinics={clinics}
+          onClose={() => setEditingUser(null)}
+          onSaved={loadUsers}
         />
       )}
     </div>
@@ -409,6 +428,8 @@ export function UserDetailPage() {
   const [dialog, setDialog] = useState(null);
   const [busy, setBusy] = useState(false);
   const [assignId, setAssignId] = useState('');
+  const [editing, setEditing] = useState(false);
+  const clinics = useClinicOptions();
 
   const load = useCallback(() => api(`/admin/users/${id}`).then(setData).catch(setError), [id]);
   useEffect(() => {
@@ -442,6 +463,14 @@ export function UserDetailPage() {
       {location.state?.message && <Alert tone={location.state.tone}>{location.state.message}</Alert>}
       <PageHeader title={u.fullName} subtitle={`${ROLE_LABELS[u.role]}${u.clinic ? ` · ${u.clinic.name}` : ''}`}>
         <StatusBadge status={u.status} />
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          onClick={() => setEditing(true)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+        >
+          <IconEdit size={14} /> Edit user
+        </button>
         {u.status === 'invited' && (
           <button type="button" className="btn btn-secondary btn-sm" disabled={busy}
             onClick={() => run(() => api(`/admin/users/${id}/resend-invite`, { method: 'POST' }), 'Invitation resent.')}>
@@ -558,6 +587,204 @@ export function UserDetailPage() {
           onCancel={() => setDialog(null)}
           onConfirm={() => run(() => api(`/admin/users/${id}/clinics/${dialog.unassign.id}`, { method: 'DELETE' }), 'Clinic unassigned.')} />
       )}
+
+      {editing && (
+        <EditUserModal
+          user={u}
+          clinics={clinics}
+          onClose={() => setEditing(false)}
+          onSaved={load}
+        />
+      )}
     </div>
+  );
+}
+
+export function EditUserModal({ user, clinics = [], onClose, onSaved }) {
+  const [fullName, setFullName] = useState(user.fullName || '');
+  const [email, setEmail] = useState(user.email || '');
+  const [role, setRole] = useState(user.role || 'clinic_user');
+  const [clinicId, setClinicId] = useState(user.clinic?.id || '');
+  const [isClinicAdmin, setIsClinicAdmin] = useState(Boolean(user.isClinicAdmin));
+  const [status, setStatus] = useState(user.status || 'active');
+  const [errors, setErrors] = useState({});
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+
+  const allClinics = [...clinics];
+  if (user.clinic && !allClinics.some((c) => c.id === user.clinic.id)) {
+    allClinics.push({ id: user.clinic.id, name: user.clinic.name, isActive: false });
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setErrors({});
+    setError(null);
+
+    const errs = {};
+    if (!fullName.trim()) errs.fullName = 'Enter the full name.';
+    if (!email.trim()) errs.email = 'Enter a valid email address.';
+    if (role === 'clinic_user' && !clinicId) errs.clinicId = 'Choose a clinic.';
+
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs);
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const payload = {
+        fullName: fullName.trim(),
+        email: email.trim().toLowerCase(),
+        role,
+        clinicId: role === 'clinic_user' ? clinicId : undefined,
+        isClinicAdmin: role === 'clinic_user' ? isClinicAdmin : false,
+        status,
+      };
+      await api(`/admin/users/${user.id}`, {
+        method: 'PUT',
+        body: payload,
+      });
+      toast(`User "${fullName.trim()}" updated successfully.`, 'success');
+      onSaved?.();
+      onClose();
+    } catch (err) {
+      if (err.details?.fieldErrors) {
+        setErrors(err.details.fieldErrors);
+      }
+      setError(err.message || 'Failed to update user.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={`Edit User: ${user.fullName}`}
+      onClose={busy ? undefined : onClose}
+      footer={
+        <>
+          <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+          <button type="button" className="btn btn-primary" onClick={handleSubmit} disabled={busy}>
+            {busy ? 'Saving…' : 'Save Changes'}
+          </button>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} noValidate>
+        {error && <Alert tone="error" style={{ marginBottom: 16 }}>{error}</Alert>}
+
+        <Field label="Full Name" required error={errors.fullName}>
+          {(p) => (
+            <input
+              {...p}
+              type="text"
+              className="form-input"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="e.g. John Doe"
+            />
+          )}
+        </Field>
+
+        <Field label="Email Address" required error={errors.email}>
+          {(p) => (
+            <input
+              {...p}
+              type="email"
+              className="form-input"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="user@example.com"
+            />
+          )}
+        </Field>
+
+        <Field label="Role" required error={errors.role}>
+          {(p) => (
+            <select
+              {...p}
+              className="form-select"
+              value={role}
+              onChange={(e) => {
+                const newRole = e.target.value;
+                setRole(newRole);
+                if (newRole !== 'clinic_user') {
+                  setIsClinicAdmin(false);
+                }
+              }}
+            >
+              <option value="clinic_user">Clinic User</option>
+              <option value="specialist">US24 Specialist</option>
+              <option value="admin">US24 Admin</option>
+            </select>
+          )}
+        </Field>
+
+        {role === 'clinic_user' && (
+          <>
+            <Field label="Clinic" required error={errors.clinicId}>
+              {(p) => (
+                <select
+                  {...p}
+                  className="form-select"
+                  value={clinicId}
+                  onChange={(e) => setClinicId(e.target.value)}
+                >
+                  <option value="">Select clinic…</option>
+                  {allClinics.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.isActive === false ? '(Inactive)' : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+
+            <div className="form-group" style={{ marginTop: 8, marginBottom: 16 }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 500 }}>
+                <input
+                  type="checkbox"
+                  checked={isClinicAdmin}
+                  onChange={(e) => setIsClinicAdmin(e.target.checked)}
+                />
+                <span>Grant Clinic Admin privileges (Access to collection reports)</span>
+              </label>
+            </div>
+          </>
+        )}
+
+        <Field label="Account Status" error={errors.status}>
+          {(p) => (
+            <select
+              {...p}
+              className="form-select"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+            >
+              {user.status === 'invited' ? (
+                <>
+                  <option value="invited">Invited (Awaiting user setup)</option>
+                  <option value="deactivated">Deactivated</option>
+                </>
+              ) : (
+                <>
+                  <option value="active">Active</option>
+                  <option value="deactivated">Deactivated</option>
+                </>
+              )}
+            </select>
+          )}
+        </Field>
+        {user.status === 'invited' && (
+          <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted, #64748b)', marginTop: -6, marginBottom: 12 }}>
+            Note: User is currently pending invitation acceptance. Setting to active occurs when the user completes password setup.
+          </p>
+        )}
+      </form>
+    </Modal>
   );
 }

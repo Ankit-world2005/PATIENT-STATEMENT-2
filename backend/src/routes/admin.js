@@ -316,6 +316,20 @@ adminRouter.get('/users', async (req, res) => {
   res.json({ users: rows.map(userView) });
 });
 
+const updateUserSchema = z
+  .object({
+    fullName: z.string().trim().min(1, 'Enter the full name.').max(200),
+    email: z.string().trim().email('Enter a valid email address.').max(254).transform((s) => s.toLowerCase()),
+    role: z.enum(['admin', 'specialist', 'clinic_user'], { message: 'Choose a role.' }),
+    clinicId: z.string().optional().default(''),
+    isClinicAdmin: z.boolean().optional().default(false),
+    status: z.enum(['active', 'invited', 'deactivated']).optional(),
+  })
+  .refine((v) => v.role !== 'clinic_user' || isUuid(v.clinicId), {
+    message: 'Choose the clinic.',
+    path: ['clinicId'],
+  });
+
 const inviteSchema = z
   .object({
     fullName: z.string().trim().max(200).optional().default(''),
@@ -396,6 +410,125 @@ adminRouter.get('/users/:id', async (req, res) => {
     availableClinics = b.rows.map((c) => ({ id: c.id, name: c.name, code: c.clinic_code }));
   }
   res.json({ user: userView(user), assignments, availableClinics, isSelf: id === req.user.id });
+});
+
+adminRouter.put('/users/:id', async (req, res) => {
+  const id = requireUuid(req.params.id);
+  const v = parseOrThrow(updateUserSchema, {
+    ...req.body,
+    fullName: String(req.body?.fullName ?? '').trim(),
+    email: String(req.body?.email ?? '').trim(),
+  });
+
+  const updatedUser = await withTransaction(async (db) => {
+    const { rows: currentRows } = await db.query('SELECT * FROM app_user WHERE id = $1 FOR UPDATE', [id]);
+    const current = currentRows[0];
+    if (!current) throw notFound('User not found.');
+
+    // 1. Email uniqueness check
+    if (v.email !== current.email) {
+      const { rows: dup } = await db.query('SELECT id FROM app_user WHERE email = $1 AND id <> $2', [v.email, id]);
+      if (dup[0]) {
+        throw new HttpError(400, 'A user with this email already exists.', {
+          fieldErrors: { email: 'A user with this email already exists.' },
+        });
+      }
+    }
+
+    // 2. Prevent demoting or deactivating the last active admin
+    const requestedStatus = v.status || current.status;
+    if (current.role === 'admin' && (v.role !== 'admin' || requestedStatus === 'deactivated')) {
+      const { rows: admins } = await db.query(
+        "SELECT id FROM app_user WHERE role = 'admin' AND status = 'active' AND id <> $1 FOR UPDATE",
+        [id],
+      );
+      if (admins.length === 0) {
+        throw badRequest("You can't demote or deactivate the last active admin.");
+      }
+    }
+
+    // 3. Prevent self-deactivation
+    if (id === req.user.id && requestedStatus === 'deactivated') {
+      throw badRequest("You can't deactivate your own account.");
+    }
+
+    let clinicId = null;
+    let isClinicAdmin = false;
+    if (v.role === 'clinic_user') {
+      const { rows: clinicRows } = await db.query('SELECT id, is_active FROM clinic WHERE id = $1', [v.clinicId]);
+      if (!clinicRows[0]) throw badRequest('Clinic not found.', { clinicId: 'Clinic not found.' });
+      clinicId = v.clinicId;
+      isClinicAdmin = Boolean(v.isClinicAdmin);
+    }
+
+    // If role changed from specialist to something else, remove any specialist assignments
+    if (current.role === 'specialist' && v.role !== 'specialist') {
+      await db.query('DELETE FROM specialist_assignment WHERE specialist_id = $1', [id]);
+    }
+
+    // 4. Validate status transitions with DB constraints (status <> 'active' OR password_hash IS NOT NULL)
+    let newStatus = requestedStatus;
+    if (newStatus === 'active' && !current.password_hash) {
+      if (current.status === 'invited') {
+        newStatus = 'invited';
+      } else {
+        throw badRequest("This user hasn't set a password yet and cannot be set to active.");
+      }
+    }
+
+    let deactivatedAt = current.deactivated_at;
+    let deactivatedById = current.deactivated_by_id;
+
+    if (newStatus === 'deactivated' && current.status !== 'deactivated') {
+      deactivatedAt = new Date();
+      deactivatedById = req.user.id;
+      await endAllSessions(db, id);
+    } else if (newStatus !== 'deactivated' && current.status === 'deactivated') {
+      deactivatedAt = null;
+      deactivatedById = null;
+    }
+
+    await db.query(
+      `UPDATE app_user
+          SET full_name = $1,
+              email = $2,
+              role = $3,
+              clinic_id = $4,
+              is_clinic_admin = $5,
+              status = $6,
+              deactivated_at = $7,
+              deactivated_by_id = $8,
+              updated_at = now()
+        WHERE id = $9`,
+      [v.fullName, v.email, v.role, clinicId, isClinicAdmin, newStatus, deactivatedAt, deactivatedById, id],
+    );
+
+    await audit(db, req, {
+      action: 'user.update',
+      targetType: 'app_user',
+      targetId: id,
+      clinicId: clinicId ?? undefined,
+      details: {
+        fullName: v.fullName,
+        email: v.email,
+        role: v.role,
+        isClinicAdmin,
+        status: newStatus,
+      },
+    });
+
+    const { rows: returnRows } = await db.query(
+      `SELECT u.*, c.name AS clinic_name
+         FROM app_user u
+    LEFT JOIN clinic c ON c.id = u.clinic_id
+        WHERE u.id = $1`,
+      [id],
+    );
+
+    return returnRows[0];
+  });
+
+  res.json({ ok: true, user: userView(updatedUser) });
 });
 
 adminRouter.post('/users/:id/resend-invite', async (req, res) => {
