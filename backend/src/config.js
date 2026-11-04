@@ -38,10 +38,11 @@ const appSecret = required('APP_SECRET');
 if (appSecret.length < 32) throw new Error('APP_SECRET must be at least 32 characters.');
 
 function resolveAppUrl() {
+  if (env.APP_URL && !env.APP_URL.includes('us24solutions.vercel.app')) return env.APP_URL;
+  if (isProduction || env.VERCEL_ENV === 'production' || process.env.VERCEL) {
+    return 'https://statement.us24solutions.com';
+  }
   if (env.APP_URL) return env.APP_URL;
-  if (env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${env.VERCEL_PROJECT_PRODUCTION_URL}`;
-  if (env.VERCEL_URL) return `https://${env.VERCEL_URL}`;
-  if (isProduction) return 'https://us24solutions.vercel.app';
   return 'http://localhost:5173';
 }
 
