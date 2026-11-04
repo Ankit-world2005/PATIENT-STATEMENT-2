@@ -1297,7 +1297,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
               <tbody>
                 {filteredCheckRows.length === 0 ? (
                   <tr>
-                    <td colSpan={availableCheckLocations.length > 0 ? 11 : 10} className="table-empty-msg">
+                    <td colSpan={10 + (isCombined ? 1 : 0)} className="table-empty-msg">
                       No check records match your filter criteria.
                     </td>
                   </tr>
@@ -1370,7 +1370,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
               </tbody>
               <tfoot>
                 <tr className="table-footer-totals">
-                  <td colSpan={5 + (hasCreatedBy ? 1 : 0) + (availableCheckLocations.length > 0 ? 1 : 0)} className="text-right"><strong>Check Sheet Totals ({filteredCheckRows.length} rows):</strong></td>
+                  <td colSpan={5 + (isCombined ? 1 : 0)} className="text-right"><strong>Check Sheet Totals ({filteredCheckRows.length} rows):</strong></td>
                   <td className="text-right col-mono col-bold-navy">{formatMoney(checkTotals.paymentAmount)}</td>
                   <td className="text-right col-mono">{formatMoney(checkTotals.totalPosted)}</td>
                   <td className="text-right col-mono">{formatMoney(checkTotals.unposted)}</td>
@@ -1402,7 +1402,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
               <tbody>
                 {filteredLineItems.length === 0 ? (
                   <tr>
-                    <td colSpan={availableLineItemLocations.length > 0 ? 14 : 13} className="table-empty-msg">
+                    <td colSpan={13 + (isCombined ? 1 : 0)} className="table-empty-msg">
                       No patient claim line items match your filter criteria.
                     </td>
                   </tr>
@@ -1473,7 +1473,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
               </tbody>
               <tfoot>
                 <tr className="table-footer-totals">
-                  <td colSpan={5 + (hasClaimNumber ? 1 : 0) + (availableLineItemLocations.length > 0 ? 1 : 0)} className="text-right"><strong>Line Item Totals ({filteredLineItems.length} claims):</strong></td>
+                  <td colSpan={5 + (isCombined ? 1 : 0)} className="text-right"><strong>Line Item Totals ({filteredLineItems.length} claims):</strong></td>
                   <td className="text-right col-mono">{formatMoney(lineItemTotals.charged)}</td>
                   <td className="text-right col-mono">{formatMoney(lineItemTotals.allowed)}</td>
                   <td className="text-right col-mono col-bold-green">{formatMoney(lineItemTotals.insurancePayment)}</td>

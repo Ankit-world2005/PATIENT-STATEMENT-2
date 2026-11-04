@@ -1143,28 +1143,29 @@ function parseMultiSheetPrompt(wb) {
       }
       if (vals.every(v => v == null || String(v).trim() === '')) return;
 
-      const getCol = (pattern) => {
+      const getCol = (pattern, fallbackIdx) => {
         const idx = headerMap.findIndex(h => pattern.test(h));
-        return idx !== -1 ? vals[idx] : null;
+        return idx !== -1 ? vals[idx] : (fallbackIdx != null ? vals[fallbackIdx] : null);
       };
+      const getNumCol = (pattern, fallbackIdx) => parseNum(getCol(pattern, fallbackIdx));
 
-      const payer = String(getCol(/^payer/i) || vals[0] || '').trim();
+      const payer = String(getCol(/^payer/i, 0) || '').trim();
       if (!payer || /^total/i.test(payer)) return;
 
       checkRows.push({
         sourceSystem: 'Prompt',
         payer,
-        paymentMethod: String(getCol(/method/i) || vals[1] || 'EFT').trim(),
-        paymentReference: String(getCol(/reference|check/i) || vals[2] || '').trim(),
-        paymentDate: formatDateVal(getCol(/posted\s*date|payment\s*date/i) || vals[3]),
-        bankDate: formatDateVal(getCol(/bank\s*date/i) || vals[4]),
-        createdBy: String(getCol(/created\s*by/i) || '').trim(),
-        paymentAmount: parseNum(getCol(/payment\s*amount|check\s*amount/i) || vals[6] || vals[5]),
-        totalPosted: parseNum(getCol(/total\s*posted|posted\s*amount/i) || vals[7] || vals[6]),
-        unposted: parseNum(getCol(/unposted|remaining/i) || vals[8] || vals[7]),
-        recoupment: parseNum(getCol(/recoup/i) || vals[9] || vals[8]),
-        location: String(getCol(/location/i) || '').trim(),
-        remarks: String(getCol(/remark/i) || vals[10] || '').trim(),
+        paymentMethod: String(getCol(/method/i, 1) || 'EFT').trim(),
+        paymentReference: String(getCol(/reference|check/i, 2) || '').trim(),
+        paymentDate: formatDateVal(getCol(/posted\s*date|payment\s*date/i, 3)),
+        bankDate: formatDateVal(getCol(/bank\s*date/i, 4)),
+        createdBy: String(getCol(/created\s*by/i, 5) || '').trim(),
+        paymentAmount: getNumCol(/payment\s*amount|check\s*amount/i, 6),
+        totalPosted: getNumCol(/total\s*posted|posted\s*amount/i, 7),
+        unposted: getNumCol(/unposted|remaining/i, 8),
+        recoupment: getNumCol(/recoup/i, 9),
+        location: String(getCol(/location/i, null) || '').trim(),
+        remarks: String(getCol(/remark/i, 10) || '').trim(),
       });
     });
   }
@@ -1183,31 +1184,32 @@ function parseMultiSheetPrompt(wb) {
       }
       if (vals.every(v => v == null || String(v).trim() === '')) return;
 
-      const getCol = (pattern) => {
+      const getCol = (pattern, fallbackIdx) => {
         const idx = headerMap.findIndex(h => pattern.test(h));
-        return idx !== -1 ? vals[idx] : null;
+        return idx !== -1 ? vals[idx] : (fallbackIdx != null ? vals[fallbackIdx] : null);
       };
+      const getNumCol = (pattern, fallbackIdx) => parseNum(getCol(pattern, fallbackIdx));
 
-      const patientName = String(getCol(/^patient(\s*name)?$/i) || vals[0] || '').trim();
+      const patientName = String(getCol(/^patient(\s*name)?$/i, 0) || '').trim();
       if (!patientName || /^total/i.test(patientName)) return;
 
       lineItems.push({
         sourceSystem: 'Prompt',
         patientName,
-        claimNumber: String(getCol(/claim/i) || vals[1] || '').trim(),
-        dateOfService: formatDateVal(getCol(/dos|service\s*date|date\s*of\s*service/i) || vals[2]),
-        referenceNumber: String(getCol(/reference|check/i) || vals[3] || '').trim(),
-        bankDate: formatDateVal(getCol(/bank\s*date/i) || vals[4]),
-        paymentDate: formatDateVal(getCol(/remittance\s*payment|payment\s*date|posting\s*date/i) || vals[5]),
-        chargedAmount: parseNum(getCol(/submitted|charge/i) || vals[6]),
-        allowedAmount: parseNum(getCol(/allowed/i) || vals[7]),
-        insurancePayment: parseNum(getCol(/paid\s*amount|insurance\s*payment/i) || vals[8]),
-        adjustedAmount: parseNum(getCol(/adjust/i) || vals[9]),
-        transferredToSecondary: parseNum(getCol(/secondary/i) || vals[10]),
-        transferredToPatient: parseNum(getCol(/transferred\s*to\s*patient/i) || vals[11]),
-        patientPaid: parseNum(getCol(/patient\s*paid|patient\s*pay/i) || vals[12]),
-        prType: String(getCol(/pr\s*type|pmt\s*type/i) || vals[13] || 'Copay').trim(),
-        location: String(getCol(/location|facility/i) || '').trim(),
+        claimNumber: String(getCol(/claim/i, 1) || '').trim(),
+        dateOfService: formatDateVal(getCol(/dos|service\s*date|date\s*of\s*service/i, 2)),
+        referenceNumber: String(getCol(/reference|check/i, 3) || '').trim(),
+        bankDate: formatDateVal(getCol(/bank\s*date/i, 4)),
+        paymentDate: formatDateVal(getCol(/remittance\s*payment|payment\s*date|posting\s*date/i, 5)),
+        chargedAmount: getNumCol(/submitted|charge/i, 6),
+        allowedAmount: getNumCol(/allowed/i, 7),
+        insurancePayment: getNumCol(/paid\s*amount|insurance\s*payment/i, 8),
+        adjustedAmount: getNumCol(/adjust/i, 9),
+        transferredToSecondary: getNumCol(/secondary/i, 10),
+        transferredToPatient: getNumCol(/transferred\s*to\s*patient/i, 11),
+        patientPaid: getNumCol(/patient\s*paid|patient\s*pay/i, 12),
+        prType: String(getCol(/pr\s*type|pmt\s*type/i, 13) || 'Copay').trim(),
+        location: String(getCol(/location|facility/i, null) || '').trim(),
       });
     });
   }
