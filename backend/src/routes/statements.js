@@ -11,6 +11,7 @@ import { requireRole } from '../middleware/guards.js';
 import { getVisibleClinic, getVisibleStatement, statementScope } from '../services/access.js';
 import { checkUploadedPdf, renderStatementPdf } from '../services/pdf.js';
 import { insertRemark } from '../services/statements.js';
+import { mail } from '../lib/mailer.js';
 
 export const statementsRouter = Router();
 
@@ -839,3 +840,39 @@ async function handleRemoveStatement(req, res) {
 
 statementsRouter.delete('/:id', requireRole('specialist', 'admin'), handleRemoveStatement);
 statementsRouter.post('/:id/remove', requireRole('specialist', 'admin'), handleRemoveStatement);
+
+// --- Send Statement Notification Email to Patient (Reference template format) ---
+statementsRouter.post('/:id/send', requireRole('clinic_user', 'specialist', 'admin'), async (req, res) => {
+  const { id } = req.params;
+  const toEmail = req.body?.to?.trim()?.toLowerCase();
+  if (!toEmail || !toEmail.includes('@') || toEmail.length > 254) {
+    throw badRequest('Please enter a valid recipient email address.');
+  }
+
+  const s = await getVisibleStatement(pool, req, id);
+  const cRes = await pool.query('SELECT name FROM clinic WHERE id = $1', [s.clinic_id]);
+  const clinicName = cRes.rows[0]?.name || 'MY CLINIC';
+
+  const accessUrl = `${config.appUrl}/statements/${s.id}`;
+  const sent = await mail.statementNotification({
+    to: toEmail,
+    patientName: s.patient_name,
+    clinicName,
+    link: accessUrl,
+    expiryHours: 24,
+  });
+
+  await audit(pool, req, {
+    action: 'statement.notification_sent',
+    targetType: 'statement',
+    targetId: s.id,
+    clinicId: s.clinic_id,
+    details: { to: toEmail, patient: s.patient_name, clinic: clinicName },
+  });
+
+  res.json({
+    ok: true,
+    message: `Statement access message sent successfully to ${toEmail}.`,
+    sent,
+  });
+});

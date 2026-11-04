@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
-import { IconDownload, IconExternalLink, IconFileText, IconTrash, IconUpload } from '../../components/Icons.jsx';
+import { IconDownload, IconExternalLink, IconFileText, IconMail, IconSend, IconTrash, IconUpload } from '../../components/Icons.jsx';
 import { RemarksLedger } from '../../components/RemarksLedger.jsx';
 import { StatementDocument } from '../../components/StatementDocument.jsx';
 import { Alert, BackBar, Field, Modal, Spinner, StatusBadge } from '../../components/ui.jsx';
@@ -9,6 +9,117 @@ import { useAuth } from '../../lib/auth.jsx';
 import { date, dateTime, money } from '../../lib/format.js';
 import { useToast } from '../../lib/toast.jsx';
 import { NotFoundPage } from '../NotFoundPage.jsx';
+
+
+function SendStatementDialog({ statement: s, clinic, onCancel, onDone }) {
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async (e) => {
+    e?.preventDefault();
+    if (!email || !email.includes('@')) {
+      setError('Please enter a valid recipient email address.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      await api(`/statements/${s.id}/send`, {
+        method: 'POST',
+        body: { to: email },
+      });
+      onDone(`Statement notification sent successfully to ${email}`);
+    } catch (err) {
+      setError(err.message || 'Failed to send statement message.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="Send Statement Notification"
+      onClose={busy ? undefined : onCancel}
+      footer={
+        <>
+          <button type="button" className="btn btn-secondary" onClick={onCancel} disabled={busy}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={submit}
+            disabled={busy}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <IconSend size={14} /> {busy ? 'Sending…' : 'Send Message'}
+          </button>
+        </>
+      }
+    >
+      <form onSubmit={submit}>
+        <p style={{ margin: '0 0 14px 0', fontSize: '0.88rem', color: '#475569' }}>
+          Dispatch a secure statement notification email to <strong>{s.patientName}</strong> using the official US24 template.
+        </p>
+
+        {error && <div style={{ marginBottom: 12 }}><Alert tone="error">{error}</Alert></div>}
+
+        <div className="form-group" style={{ marginBottom: 16 }}>
+          <label htmlFor="patient-recipient-email" style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#1e293b', marginBottom: 6 }}>
+            Recipient Email Address *
+          </label>
+          <input
+            id="patient-recipient-email"
+            type="email"
+            className="input"
+            placeholder="patient@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoFocus
+            required
+            disabled={busy}
+            style={{ width: '100%', boxSizing: 'border-box' }}
+          />
+        </div>
+
+        {/* Live Template Preview Card */}
+        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, fontSize: '0.82rem' }}>
+          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.5px' }}>
+            Template Preview (Patient Email)
+          </div>
+          <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, overflow: 'hidden' }}>
+            <div style={{ background: 'linear-gradient(135deg, #d3ebf6, #edf6fa)', padding: '8px 12px', borderBottom: '2px solid #b9dff0', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontWeight: 900, fontSize: '1rem', color: '#153e75', letterSpacing: '-0.5px' }}>US</span>
+              <span style={{ fontWeight: 900, fontSize: '1rem', color: '#f36c21', letterSpacing: '-0.5px' }}>24</span>
+            </div>
+            <div style={{ padding: '12px 14px' }}>
+              <div style={{ fontWeight: 800, color: '#1e3a8a', textTransform: 'uppercase', fontSize: '0.88rem' }}>{clinic?.name || 'MY CLINIC'}</div>
+              <div style={{ fontWeight: 600, color: '#1e293b', margin: '4px 0 8px 0', fontSize: '0.82rem' }}>Dear Valued Patient,</div>
+              <div style={{ color: '#475569', lineHeight: 1.4, fontSize: '0.78rem', marginBottom: 12 }}>
+                Your recent statement is now available to view and download online. Please use the secure button below to access it.
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <div style={{ background: '#212529', color: '#ffffff', padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 700, lineHeight: 1.2 }}>
+                  Access<br />Statement &nbsp;&rarr;
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#64748b', lineHeight: 1.3 }}>
+                  This link will expire in 24 hours and can be used only once.
+                </div>
+              </div>
+              <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                Alternately, you can use the secure portal link below to complete your action.
+              </div>
+            </div>
+            <div style={{ background: '#1a1e22', padding: '6px 12px', color: '#94a3b8', fontSize: '0.68rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>© {new Date().getFullYear()}, {clinic?.name || 'MY CLINIC'}. All rights reserved.</span>
+              <span style={{ fontSize: '0.9rem', color: '#64748b' }}>✦</span>
+            </div>
+          </div>
+        </div>
+      </form>
+    </Modal>
+  );
+}
 
 function RemoveDialog({ patientName, statementId, clinicId, onDone, onCancel }) {
   const [busy, setBusy] = useState(false);
@@ -658,6 +769,17 @@ export function StatementDetailPage() {
         />
       </div>
 
+      {dialog === 'send' && (
+        <SendStatementDialog
+          statement={s}
+          clinic={clinic}
+          onCancel={() => setDialog(null)}
+          onDone={(msg) => {
+            setDialog(null);
+            toast(msg);
+          }}
+        />
+      )}
       {dialog === 'remove' && (
         <RemoveDialog
           patientName={s.patientName}
