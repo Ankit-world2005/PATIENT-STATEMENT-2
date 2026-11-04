@@ -374,14 +374,55 @@ export function ClinicDetailPage() {
         {data.users.length === 0 ? <p className="panel-empty">No users yet.</p> : (
           <div className="table-responsive table-always">
             <table className="statements-table compact">
-              <thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Status</th><th scope="col">Last sign-in</th></tr></thead>
+              <thead>
+                <tr>
+                  <th scope="col">Name</th>
+                  <th scope="col">Email</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Last sign-in</th>
+                  <th scope="col" style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
               <tbody>
                 {data.users.map((u) => (
                   <tr key={u.id} className="row-static">
-                    <td><Link to={`/manage/users/${u.id}`}>{u.fullName}</Link></td>
+                    <td><Link to={`/manage/users/${u.id}`} style={{ fontWeight: 600 }}>{u.fullName}</Link></td>
                     <td>{u.email}</td>
                     <td><StatusBadge status={u.status} /></td>
                     <td className="col-date">{u.lastLogin ? shortDate(u.lastLogin) : 'Never'}</td>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <Link to={`/manage/users/${u.id}`} className="btn-tertiary" style={{ marginRight: 8 }}>
+                        Manage
+                      </Link>
+                      {u.status !== 'deactivated' ? (
+                        <button
+                          type="button"
+                          className="btn-tertiary danger"
+                          onClick={() => setDialog({ userDeactivate: u })}
+                          style={{ marginRight: 8 }}
+                        >
+                          Deactivate
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn-tertiary"
+                          onClick={() => run(() => api(`/admin/users/${u.id}/reactivate`, { method: 'POST' }), 'User reactivated.')}
+                          style={{ marginRight: 8 }}
+                        >
+                          Reactivate
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="btn-tertiary danger"
+                        onClick={() => setDialog({ userDelete: u })}
+                        title="Delete user permanently"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                      >
+                        <IconTrash size={13} /> Delete
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -428,6 +469,28 @@ export function ClinicDetailPage() {
           message={`${dialog.unassign.fullName} will lose access to ${c.name} immediately.`}
           onCancel={() => setDialog(null)}
           onConfirm={() => run(() => api(`/admin/clinics/${id}/specialists/${dialog.unassign.id}`, { method: 'DELETE' }), 'Specialist unassigned.')} />
+      )}
+      {dialog?.userDeactivate && (
+        <ConfirmDialog
+          title={`Deactivate ${dialog.userDeactivate.fullName}?`}
+          destructive
+          busy={busy}
+          confirmLabel="Deactivate"
+          message={`${dialog.userDeactivate.fullName} (${dialog.userDeactivate.email}) will be signed out and unable to sign in.`}
+          onCancel={() => setDialog(null)}
+          onConfirm={() => run(() => api(`/admin/users/${dialog.userDeactivate.id}/deactivate`, { method: 'POST' }), 'User deactivated.')}
+        />
+      )}
+      {dialog?.userDelete && (
+        <ConfirmDialog
+          title={`Delete ${dialog.userDelete.fullName} permanently?`}
+          destructive
+          busy={busy}
+          confirmLabel={busy ? 'Deleting…' : 'Delete user'}
+          message={`Are you sure you want to permanently delete "${dialog.userDelete.fullName}" (${dialog.userDelete.email}) from the database? This action cannot be undone.`}
+          onCancel={() => setDialog(null)}
+          onConfirm={() => run(() => api(`/admin/users/${dialog.userDelete.id}`, { method: 'DELETE' }), `User "${dialog.userDelete.fullName}" deleted.`)}
+        />
       )}
     </div>
   );
