@@ -184,18 +184,24 @@ export function mapHeaderColumns(headerValues) {
       continue;
     }
 
-    // 4b. Account number (Acct.#: / Account)
+    // 4b. Account number (Acct.#: / ACC. #: / Account)
     if (
+      clean === 'acc' ||
       clean === 'acct' ||
       clean === 'account' ||
       clean === 'account_number' ||
       clean === 'acct_number' ||
+      clean === 'acc_number' ||
       clean === 'acct_no' ||
+      clean === 'acc_no' ||
       clean === 'account_no' ||
       clean === 'account_num' ||
+      clean === 'acc_num' ||
       clean === 'patient_account' ||
       clean === 'patient_account_number' ||
       clean === 'patient_acct' ||
+      clean === 'patient_acc' ||
+      clean.startsWith('acc_') ||
       clean.startsWith('acct') ||
       clean.startsWith('account')
     ) {

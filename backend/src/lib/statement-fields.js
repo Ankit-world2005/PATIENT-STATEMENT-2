@@ -44,6 +44,8 @@ const HEADER_ALIASES = {
   account: 'account_number', account_no: 'account_number', acct_number: 'account_number',
   acct_no: 'account_number', patient_account_number: 'account_number', account_num: 'account_number',
   acct: 'account_number', acct_: 'account_number', acct_num: 'account_number', patient_account: 'account_number', patient_acct: 'account_number',
+  acc: 'account_number', acc_: 'account_number', acc_no: 'account_number', acc_num: 'account_number', acc_number: 'account_number',
+  patient_acc: 'account_number', patient_acc_number: 'account_number', acc_id: 'account_number', acct_id: 'account_number', account_id: 'account_number',
   date: 'statement_date', stmt_date: 'statement_date',
   balance: 'balance_due', patient_balance: 'balance_due', patient_balance_due: 'balance_due', amount_due: 'balance_due',
   dob: 'patient_dob', date_of_birth: 'patient_dob', birth_date: 'patient_dob',
