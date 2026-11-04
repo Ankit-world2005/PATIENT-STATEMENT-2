@@ -270,3 +270,45 @@ test('parseCollectionExcel falls back to automatic sums if totals are missing or
   assert.equal(result.promptPosting.grandTotal, 5400); // 5000 - 100 + 500
 });
 
+
+test('parseCollectionExcel parses ICURE clinic Therabill format properly', async () => {
+  const ICURE_CSV = `Icure,,,,,Payment Type,Payment Amount
+Collection Report - October 2026,,,,,Insurance,12500.00
+Particular,Amount,,,,Recoupment,-150.00
+Insurance Payment,12500.00,,,,Deductible,450.00
+"Patient Payment(PR 1,2,3)",1250.00,,,,Coinsurance,350.00
+Total,13750.00,,,,Copay,450.00
+,,,,,Self Pay,0
+,,,,,Grand Total,13600.00
+Payee,Payer,EOB Source,ERA/EOB,Method,Check no,Check Date,Check Amount,Posted Amount,Remaining Amount,Recoupment,Status,Posted date,Remarks,Location
+Icure,Aetna,Availity,ERA,EFT,CHK-9812,10/12/2026,12500.00,12500.00,0.00,150.00,Posted,10/14/2026,Paid in full,Main Clinic
+"Client Name (Last, First)",Payer name,Check #,Check date,DOS,Service code,Charge for Service,Pmt Type,Pmt Amount,Deposit date,Facility Name
+"Smith, John",Aetna,CHK-9812,10/12/2026,10/01/2026,99214,150.00,Insurance,120.00,10/15/2026,Main Clinic
+"Doe, Jane",Patient,,10/12/2026,10/02/2026,99213,100.00,Copay,25.00,10/15/2026,Main Clinic`;
+
+  const grid = parseCsvRows(ICURE_CSV);
+  assert.equal(detectCollectionFormat(grid), 'therabill');
+
+  const result = await parseCollectionExcel(Buffer.from(ICURE_CSV));
+  assert.equal(result.detectedFormat, 'therabill');
+  assert.equal(result.monthYear, 'October 2026');
+  assert.equal(result.particulars.checkAmount, 12500);
+  assert.equal(result.particulars.patientPayment, 1250);
+  assert.equal(result.particulars.total, 13750);
+  assert.equal(result.promptPosting.insurancePayment, 12500);
+  assert.equal(result.promptPosting.recoupmentOffset, -150);
+  assert.equal(result.promptPosting.deductible, 450);
+  assert.equal(result.promptPosting.coinsurance, 350);
+  assert.equal(result.promptPosting.copay, 450);
+  assert.equal(result.promptPosting.grandTotal, 13600);
+  assert.equal(result.checkRows.length, 1);
+  assert.equal(result.checkRows[0].payer, 'Aetna');
+  assert.equal(result.checkRows[0].paymentReference, 'CHK-9812');
+  assert.equal(result.checkRows[0].location, 'Main Clinic');
+  assert.equal(result.lineItems.length, 2);
+  assert.equal(result.lineItems[0].patientName, 'Smith, John');
+  assert.equal(result.lineItems[0].serviceCode, '99214');
+  assert.equal(result.lineItems[1].patientName, 'Doe, Jane');
+  assert.equal(result.lineItems[1].prType, 'Copay');
+  assert.equal(result.lineItems[1].patientPaid, 25);
+});
