@@ -76,8 +76,8 @@ export const CLINIC_PROVISIONS = [
   },
   {
     clinic: {
-      name: 'Savan Enterprises LLC',
-      code: 'CLN-SAVN',
+      name: 'MEYERLAND',
+      code: 'CLN-2403',
       addressLine1: '400 Enterprise Plaza',
       addressLine2: null,
       city: 'San Antonio',

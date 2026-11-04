@@ -396,7 +396,6 @@ export function StatementListPage() {
   const totalStatements = data?.total ?? data?.items?.length ?? 0;
   const newStatementsCount = data?.totalNew ?? (data?.items?.filter((s) => s.isNew).length ?? 0);
   const receivedCount = data?.totalReceived !== undefined ? data.totalReceived : (data?.items?.filter(isReceivedStatement).length ?? 0);
-  const requestSentCount = data?.totalAwaiting ?? (data?.items?.filter((s) => s.awaitingReply || String(s.status || '').toLowerCase().includes('request')).length ?? 0);
 
   const totalCurrentBalanceDue =
     data?.totalCurrentBalance !== undefined && data?.totalCurrentBalance !== null
@@ -697,14 +696,6 @@ export function StatementListPage() {
                     onClick={() => handleSegmentedChange('received')}
                   >
                     Received · {receivedCount}
-                  </button>
-                  <button
-                    type="button"
-                    className={`segmented-tab-btn ${segmentedStatus === 'request_sent' ? 'active' : ''}`}
-                    aria-pressed={segmentedStatus === 'request_sent'}
-                    onClick={() => handleSegmentedChange('request_sent')}
-                  >
-                    Request sent · {requestSentCount}
                   </button>
                 </div>
 
