@@ -10,7 +10,7 @@ import {
   IconExternalLink,
   IconPaperclip,
   IconAlert,
-} from './icons.jsx';
+} from './Icons.jsx';
 import {
   useAttachmentUploader,
   RemarkAttachmentBar,
