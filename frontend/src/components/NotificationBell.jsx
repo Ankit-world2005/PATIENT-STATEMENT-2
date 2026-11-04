@@ -49,9 +49,10 @@ export function NotificationBell() {
     if (!user) return;
     try {
       setLoading(true);
-      const res = await api('/notifications?limit=20');
+      const res = await api('/notifications?limit=20', { skipActivity: true });
       setNotifications(res?.notifications || []);
     } catch (err) {
+      if (err?.status === 401 || err?.status === 403) return;
       console.error('Failed to fetch notifications:', err);
     } finally {
       setLoading(false);
@@ -59,10 +60,27 @@ export function NotificationBell() {
   };
 
   useEffect(() => {
+    if (!user) return;
     loadNotifications();
-    // Refresh notifications every 60 seconds
-    const interval = setInterval(loadNotifications, 60000);
-    return () => clearInterval(interval);
+
+    // Refresh notifications every 60 seconds only while page is active
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        loadNotifications();
+      }
+    }, 60000);
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadNotifications();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [user?.id]);
 
   // Handle click outside to close popover

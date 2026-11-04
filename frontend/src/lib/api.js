@@ -44,7 +44,7 @@ export const activity = {
   },
 };
 
-export async function api(path, { method = 'GET', body, form } = {}) {
+export async function api(path, { method = 'GET', body, form, skipActivity = false } = {}) {
   const headers = { 'X-Requested-With': 'MyPatient' };
   let payload;
   if (form) payload = form;
@@ -59,7 +59,7 @@ export async function api(path, { method = 'GET', body, form } = {}) {
   } catch {
     throw new ApiError(0, { error: "Couldn't reach the server. Check your connection and try again." });
   }
-  if (!path.startsWith('/auth/session-status')) activity.touch();
+  if (!path.startsWith('/auth/session-status') && !path.startsWith('/notifications') && !skipActivity) activity.touch();
 
   const isJson = (res.headers.get('content-type') || '').includes('application/json');
   const data = res.status === 204 ? null : isJson ? await res.json() : null;

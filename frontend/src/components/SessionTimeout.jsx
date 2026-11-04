@@ -25,6 +25,27 @@ export function SessionTimeout() {
       logout('timeout');
     };
 
+    // Track active user interactions (typing, scrolling, clicking)
+    let lastUserTouch = Date.now();
+    let lastKeepalive = Date.now();
+    const onUserInteraction = () => {
+      const now = Date.now();
+      if (now - lastUserTouch > 15000) {
+        lastUserTouch = now;
+        activity.touch();
+        // If actively working and 5 minutes passed, refresh server session
+        if (now - lastKeepalive > 5 * 60 * 1000) {
+          lastKeepalive = now;
+          api('/auth/keepalive', { method: 'POST' }).catch(() => {});
+        }
+      }
+    };
+
+    window.addEventListener('mousedown', onUserInteraction, { passive: true });
+    window.addEventListener('keydown', onUserInteraction, { passive: true });
+    window.addEventListener('scroll', onUserInteraction, { passive: true });
+    window.addEventListener('touchstart', onUserInteraction, { passive: true });
+
     const tick = async () => {
       if (stopped || checking.current) return;
       const idle = Date.now() - activity.get();
@@ -57,6 +78,10 @@ export function SessionTimeout() {
     return () => {
       stopped = true;
       clearInterval(timer);
+      window.removeEventListener('mousedown', onUserInteraction);
+      window.removeEventListener('keydown', onUserInteraction);
+      window.removeEventListener('scroll', onUserInteraction);
+      window.removeEventListener('touchstart', onUserInteraction);
     };
   }, [logout]);
 

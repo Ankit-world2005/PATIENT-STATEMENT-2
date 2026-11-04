@@ -99,8 +99,14 @@ export async function loadSession(req, res, next) {
   };
   req.user = user;
 
-  // Sliding inactivity window (FR-1.9). The status poll must not count as activity.
-  if (row.stage === 'verified' && req.path !== '/api/auth/session-status') {
+  // Sliding inactivity window (FR-1.9). The status poll & background notification poll must not count as user activity.
+  const isBackgroundPoll =
+    req.path === '/auth/session-status' ||
+    req.path === '/notifications' ||
+    req.originalUrl?.startsWith('/api/auth/session-status') ||
+    req.originalUrl?.startsWith('/api/notifications');
+
+  if (row.stage === 'verified' && !isBackgroundPoll) {
     await query(
       `UPDATE user_session SET last_activity_at = now(), expires_at = now() + $2::interval WHERE id_hash = $1`,
       [idHash, idleInterval],
