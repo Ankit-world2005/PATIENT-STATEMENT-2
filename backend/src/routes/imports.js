@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { pool } from '../db/pool.js';
 import { parseOrThrow } from '../lib/errors.js';
+import { storage } from '../lib/storage.js';
 import {
   cancelImport, checkImport, getErrorReport, getImportDetail, publishImport, setDuplicateDecisions,
 } from '../services/imports/service.js';
@@ -17,6 +19,62 @@ const importUpload = multer({
   { name: 'file', maxCount: 1 },
   { name: 'zip', maxCount: 1 },
 ]);
+
+const chunkUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+}).single('chunk');
+
+// Chunked upload for statement ZIP files (bypasses serverless 4.5MB payload limit)
+importsRouter.post('/chunk', (req, res, next) => {
+  chunkUpload(req, res, (err) => {
+    if (err) return next(err);
+    next();
+  });
+}, async (req, res, next) => {
+  try {
+    const uploadId = req.body?.uploadId;
+    const chunkIndex = parseInt(req.body?.chunkIndex, 10);
+    const totalChunks = parseInt(req.body?.totalChunks, 10);
+    const file = req.file;
+
+    if (!uploadId || isNaN(chunkIndex) || isNaN(totalChunks) || !file) {
+      return res.status(400).json({ error: 'Missing chunk upload parameters.' });
+    }
+
+    await pool.query(
+      `INSERT INTO upload_chunk (upload_id, chunk_index, total_chunks, data)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (upload_id, chunk_index) DO UPDATE SET data = EXCLUDED.data`,
+      [uploadId, chunkIndex, totalChunks, file.buffer],
+    );
+
+    const countRes = await pool.query(
+      `SELECT count(*)::int AS count FROM upload_chunk WHERE upload_id = $1`,
+      [uploadId],
+    );
+    const receivedCount = countRes.rows[0]?.count || 0;
+
+    if (receivedCount === totalChunks) {
+      const { rows } = await pool.query(
+        `SELECT data FROM upload_chunk WHERE upload_id = $1 ORDER BY chunk_index ASC`,
+        [uploadId],
+      );
+
+      const totalBuffer = Buffer.concat(rows.map((r) => r.data));
+      const zipKey = `imports/zip/${uploadId}.zip`;
+      await storage.put(zipKey, totalBuffer);
+
+      await pool.query('DELETE FROM upload_chunk WHERE upload_id = $1', [uploadId]);
+
+      return res.json({ completed: true, zipKey, size: totalBuffer.length });
+    }
+
+    res.json({ completed: false, chunkIndex, totalChunks, receivedCount });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // FR-7.2: downloadable template.
 importsRouter.get('/template.xlsx', async (_req, res) => {
@@ -41,7 +99,15 @@ importsRouter.post('/', (req, res, next) => {
   try {
     const file = req.files?.file?.[0] || req.file;
     const zipFile = req.files?.zip?.[0];
-    const result = await checkImport(req, { clinicId: req.body?.clinicId, file, zipFile });
+    const zipKey = req.body?.zipKey;
+    const zipName = req.body?.zipName;
+    const result = await checkImport(req, {
+      clinicId: req.body?.clinicId,
+      file,
+      zipFile,
+      zipKey,
+      zipName,
+    });
     res.status(201).json(result);
   } catch (err) {
     next(err);

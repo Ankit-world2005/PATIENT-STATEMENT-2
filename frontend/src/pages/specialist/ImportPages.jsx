@@ -5,6 +5,7 @@ import { Alert, BackBar, ConfirmDialog, Field, PageHeader, Spinner, StatusBadge 
 import { api, downloadFile } from '../../lib/api.js';
 import { date, dateTime, fileSize, money, shortDate } from '../../lib/format.js';
 import { useToast } from '../../lib/toast.jsx';
+import { uploadInChunks, CHUNK_THRESHOLD } from '../../lib/chunkUpload.js';
 import { NotFoundPage } from '../NotFoundPage.jsx';
 
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -35,6 +36,7 @@ export function ImportNewPage() {
   const [errors, setErrors] = useState({});
   const [failure, setFailure] = useState('');
   const [busy, setBusy] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
   const [elapsed, setElapsed] = useState(0);
   const fileInput = useRef(null);
   const zipInput = useRef(null);
@@ -97,11 +99,26 @@ export function ImportNewPage() {
     setFailure('');
     if (Object.keys(fe).length) return;
     setBusy(true);
+    setStatusMessage('');
     try {
+      let zipKey = null;
+      if (zipFile.size > CHUNK_THRESHOLD) {
+        setStatusMessage(`Uploading statement PDFs archive (chunk 1 of ${Math.ceil(zipFile.size / (2 * 1024 * 1024))})…`);
+        zipKey = await uploadInChunks(zipFile, (curr, total) => {
+          setStatusMessage(`Uploading statement PDFs archive (chunk ${curr} of ${total})…`);
+        });
+        setStatusMessage('Checking spreadsheet and matching patient statement PDFs…');
+      }
+
       const form = new FormData();
       form.set('clinicId', clinicId);
       form.set('file', file, file.name);
-      form.set('zip', zipFile, zipFile.name);
+      if (zipKey) {
+        form.set('zipKey', zipKey);
+        form.set('zipName', zipFile.name);
+      } else {
+        form.set('zip', zipFile, zipFile.name);
+      }
       const result = await api('/imports', { method: 'POST', form });
       if (result.status === 'failed') {
         setFailure(result.failureReason);
@@ -115,6 +132,7 @@ export function ImportNewPage() {
       setFailure(err.status === 0 ? "The check didn't finish. Try again." : `${err.message}${detail}${ref}`);
     } finally {
       setBusy(false);
+      setStatusMessage('');
     }
   };
 
@@ -191,7 +209,7 @@ export function ImportNewPage() {
         {busy && (
           <div className="checking-banner" role="status" aria-live="polite">
             <span className="spinner" aria-hidden="true" />
-            <span>Checking your file{clinicName ? ` for ${clinicName}` : ''}… this can take up to 2 minutes.{elapsed >= 20 ? ` (${elapsed}s)` : ''}</span>
+            <span>{statusMessage || `Checking your file${clinicName ? ` for ${clinicName}` : ''}… this can take up to 2 minutes.`}{elapsed >= 20 ? ` (${elapsed}s)` : ''}</span>
           </div>
         )}
 

@@ -322,3 +322,18 @@ test('checkUploadedPdf validates PDF magic bytes and valid pdf structure', async
 
 
 
+
+test('storage persists and retrieves zip files with .zip extension', async () => {
+  const { storage } = await import('../src/lib/storage.js');
+  const zip = new JSZip();
+  const doc = await PDFDocument.create();
+  doc.addPage([200, 200]);
+  const pdfBytes = await doc.save();
+  zip.file('DOE, JOHN_$100.00_CLN_1st.pdf', pdfBytes);
+  const zipBuf = await zip.generateAsync({ type: 'nodebuffer' });
+
+  const testKey = 'imports/zip/test-assembly.zip';
+  await storage.put(testKey, zipBuf);
+  const retrieved = await storage.get(testKey);
+  assert.equal(retrieved.length, zipBuf.length);
+});

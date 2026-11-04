@@ -46,11 +46,22 @@ async function insertImportRows(db, batchId, rows) {
 }
 
 /** S4 "Check file": validates the spreadsheet and extracts/matches PDFs from zip. Nothing is published. */
-export async function checkImport(req, { clinicId, file, zipFile }) {
+export async function checkImport(req, { clinicId, file, zipFile, zipKey, zipName }) {
   await runCleanup();
   const clinic = await getPublishableClinic(pool, req, clinicId);
   if (!file) throw badRequest('Choose a file to import.', { file: 'Choose an .xlsx or .csv file.' });
-  if (!zipFile) {
+
+  let zipBuffer = zipFile?.buffer;
+  let zipOriginalName = zipFile?.originalname || zipName || 'statements.zip';
+  if (!zipBuffer && zipKey) {
+    try {
+      zipBuffer = await storage.get(zipKey);
+    } catch (err) {
+      console.warn('[imports] Failed to retrieve zip from storage key', zipKey, err.message);
+    }
+  }
+
+  if (!zipBuffer) {
     throw badRequest('Upload the ZIP file containing patient statement PDFs.', {
       zip: 'Upload a .zip file containing patient statement PDFs.',
     });
@@ -66,7 +77,7 @@ export async function checkImport(req, { clinicId, file, zipFile }) {
   if (!format) throw badRequest('Upload an .xlsx or .csv file.', { file: 'Upload an .xlsx or .csv file.' });
 
   // Extract statement PDFs from ZIP
-  const pdfEntries = await extractPdfsFromZip(zipFile.buffer);
+  const pdfEntries = await extractPdfsFromZip(zipBuffer);
 
   let parsed = null;
   let failureReason = null;
@@ -151,7 +162,7 @@ export async function checkImport(req, { clinicId, file, zipFile }) {
         rows_duplicate: counts.duplicate,
         pdfs_total: pdfEntries.length,
         pdfs_matched: matchedPdfCount,
-        zip_name: zipFile.originalname,
+        zip_name: zipOriginalName,
       },
     });
   });
@@ -164,7 +175,7 @@ export async function checkImport(req, { clinicId, file, zipFile }) {
     zipSummary: {
       totalPdfs: pdfEntries.length,
       matchedPdfs: matchedPdfCount,
-      zipFilename: zipFile.originalname,
+      zipFilename: zipOriginalName,
     },
   };
 }

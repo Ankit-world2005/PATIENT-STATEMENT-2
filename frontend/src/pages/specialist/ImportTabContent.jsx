@@ -5,6 +5,7 @@ import { Alert, EmptyState, Field, Spinner, StatusBadge } from '../../components
 import { api } from '../../lib/api.js';
 import { fileSize, shortDate } from '../../lib/format.js';
 import { TemplateLinks, useDownload } from './ImportPages.jsx';
+import { uploadInChunks, CHUNK_THRESHOLD } from '../../lib/chunkUpload.js';
 
 const MAX_BYTES = 10 * 1024 * 1024;
 
@@ -17,6 +18,7 @@ export function ImportTabContent({ clinics: initialClinics, recentImports = [] }
   const [errors, setErrors] = useState({});
   const [failure, setFailure] = useState('');
   const [busy, setBusy] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
   const [elapsed, setElapsed] = useState(0);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isZipDragOver, setIsZipDragOver] = useState(false);
@@ -94,11 +96,26 @@ export function ImportTabContent({ clinics: initialClinics, recentImports = [] }
     if (Object.keys(fe).length) return;
 
     setBusy(true);
+    setStatusMessage('');
     try {
+      let zipKey = null;
+      if (zipFile.size > CHUNK_THRESHOLD) {
+        setStatusMessage(`Uploading statement PDFs archive (chunk 1 of ${Math.ceil(zipFile.size / (2 * 1024 * 1024))})…`);
+        zipKey = await uploadInChunks(zipFile, (curr, total) => {
+          setStatusMessage(`Uploading statement PDFs archive (chunk ${curr} of ${total})…`);
+        });
+        setStatusMessage('Checking spreadsheet and matching patient statement PDFs…');
+      }
+
       const form = new FormData();
       form.set('clinicId', clinicId);
       form.set('file', file, file.name);
-      form.set('zip', zipFile, zipFile.name);
+      if (zipKey) {
+        form.set('zipKey', zipKey);
+        form.set('zipName', zipFile.name);
+      } else {
+        form.set('zip', zipFile, zipFile.name);
+      }
       const result = await api('/imports', { method: 'POST', form });
       if (result.status === 'failed') {
         setFailure(result.failureReason);
@@ -110,6 +127,7 @@ export function ImportTabContent({ clinics: initialClinics, recentImports = [] }
       setFailure(err.status === 0 ? "The check didn't finish. Try again." : err.message);
     } finally {
       setBusy(false);
+      setStatusMessage('');
     }
   };
 
@@ -329,7 +347,7 @@ export function ImportTabContent({ clinics: initialClinics, recentImports = [] }
               <div className="checking-banner" role="status" aria-live="polite">
                 <span className="spinner" aria-hidden="true" />
                 <span>
-                  Checking your file{clinicName ? ` for ${clinicName}` : ''}… validating schema and checking for duplicate statements.
+                  {statusMessage || `Checking your file${clinicName ? ` for ${clinicName}` : ''}… validating schema and checking for duplicate statements.`}
                   {elapsed >= 10 ? ` (${elapsed}s)` : ''}
                 </span>
               </div>
