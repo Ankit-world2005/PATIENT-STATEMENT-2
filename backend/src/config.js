@@ -38,11 +38,11 @@ const appSecret = required('APP_SECRET');
 if (appSecret.length < 32) throw new Error('APP_SECRET must be at least 32 characters.');
 
 function resolveAppUrl() {
-  if (env.APP_URL && !env.APP_URL.includes('us24solutions.vercel.app')) return env.APP_URL;
-  if (isProduction || env.VERCEL_ENV === 'production' || process.env.VERCEL) {
+  const url = (env.APP_URL || '').trim();
+  if (isProduction || env.VERCEL_ENV === 'production' || process.env.VERCEL || url.includes('vercel.app')) {
     return 'https://statement.us24solutions.com';
   }
-  if (env.APP_URL) return env.APP_URL;
+  if (url) return url;
   return 'http://localhost:5173';
 }
 
@@ -67,7 +67,7 @@ export const config = {
     user: env.SMTP_USER || '',
     pass: env.SMTP_PASS || '',
   },
-  mailFrom: env.MAIL_FROM || (env.SMTP_USER ? `My Patient <${env.SMTP_USER}>` : 'My Patient <no-reply@us24solutions.com>'),
+  mailFrom: env.MAIL_FROM || (env.SMTP_USER ? `US24 Solutions <${env.SMTP_USER}>` : 'US24 Solutions <no-reply@us24solutions.com>'),
   // Development aid: print codes and links to the console. Can be enabled in staging via DEV_LOG_EMAIL=true.
   devLogEmail: bool('DEV_LOG_EMAIL', !isProduction),
   breachedPasswordCheck: bool('BREACHED_PASSWORD_CHECK', true),
@@ -78,6 +78,6 @@ export const config = {
     otpResendCooldownSeconds: 60, // I-02
   },
   lockout: { maxFailures: 5, minutes: 15 }, // FR-1.5
-  tokens: { resetMinutes: 30, inviteHours: 72 }, // FR-1.7, FR-1.8
+  tokens: { resetMinutes: 30, inviteHours: Number(env.TOKEN_INVITE_HOURS || 24) }, // FR-1.7, FR-1.8
   uploads: { maxBytes: 10 * 1024 * 1024, maxImportRows: 5000 }, // FR-6.2, FR-7.7
 };
