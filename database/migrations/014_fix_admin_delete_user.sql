@@ -63,3 +63,4 @@ BEGIN
   DELETE FROM app_user WHERE id = p_user_id;
 END;
 $function$;
+

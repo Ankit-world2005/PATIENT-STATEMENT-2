@@ -58,7 +58,16 @@ const clinicSchema = z.object({
   postalCode: z.string().trim().regex(/^\d{5}(-\d{4})?$/, 'Use a 5-digit ZIP code.'),
   contactName: z.string().trim().max(200).optional().default(''),
   contactPhone: z.string().trim().max(32).refine((v) => v.replace(/\D/g, '').length === 10, 'Enter a 10-digit phone number.'),
-  contactEmail: z.email('Enter a valid email address.').max(254).transform((s) => s.toLowerCase()),
+  contactEmail: z
+    .string()
+    .trim()
+    .max(254)
+    .optional()
+    .default('')
+    .refine((val) => !val || z.string().email().safeParse(val).success, {
+      message: 'Enter a valid email address.',
+    })
+    .transform((s) => (s ? s.toLowerCase() : '')),
 });
 
 const CLINIC_COLUMNS = {

@@ -501,7 +501,7 @@ const CLINIC_FIELDS = [
   ['name', 'Clinic name', true], ['clinicCode', 'Clinic ID', true, 'Letters, digits, - or _. Example: CLN-4082'],
   ['addressLine1', 'Street address', true], ['addressLine2', 'Address line 2', false],
   ['city', 'City', true], ['state', 'State', true, '2-letter code, e.g. IL'], ['postalCode', 'ZIP code', true],
-  ['contactPhone', 'Contact phone', true], ['contactEmail', 'Contact email', true],
+  ['contactPhone', 'Contact phone', true], ['contactEmail', 'Contact email', false],
 ];
 const BLANK = Object.fromEntries(CLINIC_FIELDS.map(([k]) => [k, '']));
 
