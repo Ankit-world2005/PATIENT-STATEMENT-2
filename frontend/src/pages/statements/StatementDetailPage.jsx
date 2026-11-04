@@ -93,7 +93,9 @@ function SendStatementDialog({ statement: s, clinic, onCancel, onDone }) {
               <span style={{ fontWeight: 900, fontSize: '1rem', color: '#f36c21', letterSpacing: '-0.5px' }}>24</span>
             </div>
             <div style={{ padding: '12px 14px' }}>
-              <div style={{ fontWeight: 800, color: '#1e3a8a', textTransform: 'uppercase', fontSize: '0.88rem' }}>{clinic?.name || 'MY CLINIC'}</div>
+              <div style={{ fontWeight: 800, color: '#1e3a8a', textTransform: 'uppercase', fontSize: '0.92rem', textAlign: 'center', margin: '4px 0 10px 0' }}>
+                {clinic?.name || 'MY CLINIC'}
+              </div>
               <div style={{ fontWeight: 600, color: '#1e293b', margin: '4px 0 8px 0', fontSize: '0.82rem' }}>Dear Valued Patient,</div>
               <div style={{ color: '#475569', lineHeight: 1.4, fontSize: '0.78rem', marginBottom: 12 }}>
                 Your recent statement is now available to view and download online. Please use the secure button below to access it.
@@ -111,7 +113,7 @@ function SendStatementDialog({ statement: s, clinic, onCancel, onDone }) {
               </div>
             </div>
             <div style={{ background: '#1a1e22', padding: '6px 12px', color: '#94a3b8', fontSize: '0.68rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>© {new Date().getFullYear()}, {clinic?.name || 'MY CLINIC'}. All rights reserved.</span>
+              <span>© {new Date().getFullYear()} US24 Solutions. All rights reserved.</span>
               <span style={{ fontSize: '0.9rem', color: '#64748b' }}>✦</span>
             </div>
           </div>

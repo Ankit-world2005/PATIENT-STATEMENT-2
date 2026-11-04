@@ -20,8 +20,9 @@ test('emailWrapper generates branded US24 email matching reference specification
   assert.ok(html.includes('US24'), 'Should include US24 branding');
   assert.ok(html.includes('us24solutions.com'), 'Should reference US24 logo URL');
 
-  // Verify Clinic Name & Greeting
+  // Verify Clinic Name & Greeting & Alignment
   assert.ok(html.includes('ICURE PHYSICAL THERAPY'), 'Should render uppercase clinic name');
+  assert.ok(html.includes('text-align: center;'), 'Should center-align clinic heading');
   assert.ok(html.includes('Dear Valued Patient,'), 'Should render exact greeting');
 
   // Verify Body text & Action button
@@ -35,7 +36,7 @@ test('emailWrapper generates branded US24 email matching reference specification
   assert.ok(html.includes('https://statement.us24solutions.com/statements/test-id-123'), 'Should include direct link');
 
   // Verify Footer
-  assert.ok(html.includes('Copyright &copy; 2026, ICure Physical Therapy. All rights reserved.'), 'Should render copyright');
+  assert.ok(html.includes('&copy; 2026 US24 Solutions. All rights reserved.'), 'Should render © 2026 US24 Solutions');
   assert.ok(html.includes('Account Help'), 'Should include Account Help link');
   assert.ok(html.includes('Terms of Use'), 'Should include Terms of Use link');
   assert.ok(html.includes('Privacy'), 'Should include Privacy link');
@@ -53,3 +54,4 @@ test('mail.statementNotification dispatches with correct subject, text, and html
 
   assert.ok(result, 'Send should succeed in dev / test mode');
 });
+

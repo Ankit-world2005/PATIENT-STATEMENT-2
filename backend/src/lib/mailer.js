@@ -55,7 +55,7 @@ async function send({ to, subject, text, html }) {
   }
   try {
     const transporter = createTransporter();
-    const from = config.mailFrom || (config.smtp.user ? `My Patient <${config.smtp.user}>` : undefined);
+    const from = config.mailFrom || (config.smtp.user ? `US24 Solutions <${config.smtp.user}>` : undefined);
     const info = await transporter.sendMail({ from, to, subject, text, html });
     console.log(`[mail] Email successfully sent to ${to} (Message ID: ${info.messageId})`);
     return true;
@@ -66,7 +66,7 @@ async function send({ to, subject, text, html }) {
   }
 }
 
-const footerText = '\n\n— US24 Solutions · My Patient\nIf you did not expect this email, you can safely ignore it.';
+const footerText = '\n\n— © 2026 US24 Solutions.\nIf you did not expect this email, you can safely ignore it.';
 
 const LOGO_URL = 'https://us24solutions.com/wp-content/uploads/2022/09/us-24-copyq-2-min-1-e1664550612654.png';
 
@@ -74,12 +74,12 @@ const LOGO_URL = 'https://us24solutions.com/wp-content/uploads/2022/09/us-24-cop
  * Standard branded HTML Email layout matching the US24 portal reference design.
  * Features:
  * - Header banner with medical gradient backdrop & official US24 logo
- * - Bold uppercase clinic/service title
+ * - Centered bold uppercase clinic title (MY CLINIC)
  * - Dedicated greeting
  * - Clear body content
  * - Side-by-side Dark pill Action button + Expiry notice
  * - Fallback direct portal link
- * - Dark high-contrast footer with copyright, navigation links, and hallmark star icon
+ * - Dark high-contrast footer with © 2026 US24 Solutions, navigation links, and hallmark star icon
  */
 export function emailWrapper(optsOrTitle, legacyBodyHtml) {
   let opts = {};
@@ -103,7 +103,6 @@ export function emailWrapper(optsOrTitle, legacyBodyHtml) {
   const extraHtml = opts.extraHtml || '';
   const fallbackNote = opts.fallbackNote || (button?.url ? 'Alternately, you can use the secure portal link below to complete your action.' : '');
   const fallbackUrl = opts.fallbackUrl || button?.url || '';
-  const footerClinicName = opts.footerClinicName || clinicName;
   const currentYear = new Date().getFullYear();
   const helpUrl = opts.helpUrl || `${config.appUrl}/contact-us24`;
   const termsUrl = opts.termsUrl || `${config.appUrl}/privacy`;
@@ -154,8 +153,8 @@ export function emailWrapper(optsOrTitle, legacyBodyHtml) {
           <!-- Body Content Area -->
           <tr>
             <td style="padding: 34px 32px 28px 32px; background-color: #ffffff;">
-              <!-- Clinic Name Heading -->
-              <h1 style="margin: 0 0 6px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 24px; font-weight: 800; color: #1e3a8a; letter-spacing: 0.5px; text-transform: uppercase;">
+              <!-- Clinic Name Heading (Centered) -->
+              <h1 style="margin: 0 0 12px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 24px; font-weight: 800; color: #1e3a8a; letter-spacing: 0.5px; text-transform: uppercase; text-align: center;">
                 ${clinicName}
               </h1>
 
@@ -216,7 +215,7 @@ export function emailWrapper(optsOrTitle, legacyBodyHtml) {
               <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="left" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 12px; color: #94a3b8; line-height: 1.6;">
-                    Copyright &copy; ${currentYear}, ${footerClinicName}. All rights reserved.<br>
+                    &copy; ${currentYear} US24 Solutions. All rights reserved.<br>
                     <a href="${helpUrl}" style="color: #cbd5e1; text-decoration: none; font-weight: 600;">Account Help</a> &nbsp;<span style="color: #475569;">|</span>&nbsp;
                     <a href="${termsUrl}" style="color: #cbd5e1; text-decoration: none; font-weight: 600;">Terms of Use</a> &nbsp;<span style="color: #475569;">|</span>&nbsp;
                     <a href="${privacyUrl}" style="color: #cbd5e1; text-decoration: none; font-weight: 600;">Privacy</a>
@@ -258,7 +257,7 @@ export const mail = {
       },
       fallbackNote: 'Alternately, you can use the secure portal link below to complete your action.',
       fallbackUrl: link,
-      footerClinicName: displayClinic,
+      footerClinicName: 'US24 Solutions',
     });
 
     return send({
@@ -269,32 +268,32 @@ export const mail = {
     });
   },
 
-  otpCode: (to, name, code, clinicName = 'MY PATIENT') => {
+  otpCode: (to, name, code, clinicName = 'MY CLINIC') => {
     const text = `Hello ${name},\n\nYour sign-in code is: ${code}\n\nIt expires in ${config.session.otpMinutes} minutes and can be used once.${footerText}`;
     const html = emailWrapper({
-      title: 'Your My Patient sign-in code',
-      clinicName: clinicName || 'MY PATIENT',
+      title: 'Your sign-in code',
+      clinicName: clinicName || 'MY CLINIC',
       recipientGreeting: `Dear ${name},`,
       bodyText: 'Your sign-in verification code is ready. Use the secure code below to access your account:',
       extraHtml: `
         <div style="background-color: #f0f4ff; border: 2px dashed #253B80; border-radius: 8px; padding: 18px; text-align: center; margin: 18px 0 24px 0;">
           <span style="font-family: 'Courier New', Courier, monospace; font-size: 32px; font-weight: 700; letter-spacing: 6px; color: #253B80;">${code}</span>
         </div>
-        <p style="margin: 0 0 20px 0; color: #64748b; font-size: 13px; line-height: 1.5;">
+        <p style="margin: 0 0 20px 0; color: #64748b; font-size: 13px; line-height: 1.5; text-align: center;">
           ⏱️ This code will expire in <strong>${config.session.otpMinutes} minutes</strong> and can only be used once.<br>
           🔒 For your security, never share this code with anyone.
         </p>
       `,
-      footerClinicName: clinicName || 'MY PATIENT',
+      footerClinicName: 'US24 Solutions',
     });
-    return send({ to, subject: 'Your My Patient sign-in code', text, html });
+    return send({ to, subject: 'Your sign-in code', text, html });
   },
 
-  invitation: (to, name, link, clinicName = 'US24 Solutions') => {
-    const text = `Hello ${name},\n\nUS24 Solutions has created a My Patient account for you. Set your password here:\n\n${link}\n\nThis link expires in ${config.tokens.inviteHours} hours.${footerText}`;
+  invitation: (to, name, link, clinicName = 'MY CLINIC') => {
+    const text = `Hello ${name},\n\nUS24 Solutions has created an account for you. Set your password here:\n\n${link}\n\nThis link expires in ${config.tokens.inviteHours} hours.${footerText}`;
     const html = emailWrapper({
-      title: "You've been invited to My Patient",
-      clinicName: clinicName || 'US24 Solutions',
+      title: "You've been invited",
+      clinicName: clinicName || 'MY CLINIC',
       recipientGreeting: `Dear ${name},`,
       bodyText: 'US24 Solutions has created an account for you. Please use the secure button below to set your password and activate your account.',
       button: {
@@ -304,16 +303,16 @@ export const mail = {
       },
       fallbackNote: 'Alternately, you can use the secure portal link below to complete your action.',
       fallbackUrl: link,
-      footerClinicName: clinicName || 'US24 Solutions',
+      footerClinicName: 'US24 Solutions',
     });
-    return send({ to, subject: "You've been invited to My Patient", text, html });
+    return send({ to, subject: "You've been invited", text, html });
   },
 
-  passwordReset: (to, name, link, clinicName = 'US24 Solutions') => {
+  passwordReset: (to, name, link, clinicName = 'MY CLINIC') => {
     const text = `Hello ${name},\n\nUse this link to set a new password:\n\n${link}\n\nThis link expires in ${config.tokens.resetMinutes} minutes and can be used once.${footerText}`;
     const html = emailWrapper({
-      title: 'Reset your My Patient password',
-      clinicName: clinicName || 'US24 Solutions',
+      title: 'Reset your password',
+      clinicName: clinicName || 'MY CLINIC',
       recipientGreeting: `Dear ${name},`,
       bodyText: 'We received a request to reset your password. Please use the secure button below to choose a new password.',
       button: {
@@ -323,8 +322,8 @@ export const mail = {
       },
       fallbackNote: 'Alternately, you can use the secure portal link below to complete your action.',
       fallbackUrl: link,
-      footerClinicName: clinicName || 'US24 Solutions',
+      footerClinicName: 'US24 Solutions',
     });
-    return send({ to, subject: 'Reset your My Patient password', text, html });
+    return send({ to, subject: 'Reset your password', text, html });
   },
 };
