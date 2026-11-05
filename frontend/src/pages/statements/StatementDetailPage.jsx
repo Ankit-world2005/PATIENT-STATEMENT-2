@@ -114,7 +114,7 @@ function SendStatementDialog({ statement: s, clinic, onCancel, onDone }) {
             </div>
             <div style={{ background: '#1a1e22', padding: '6px 12px', color: '#94a3b8', fontSize: '0.68rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>© {new Date().getFullYear()} US24 Solutions. All rights reserved.</span>
-              <span style={{ fontSize: '0.9rem', color: '#64748b' }}>✦</span>
+              
             </div>
           </div>
         </div>

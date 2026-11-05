@@ -158,6 +158,46 @@ export function ClinicRemarksPage() {
         </div>
       )}
 
+      {/* User Role Segmented Filter Track */}
+      <div className="segmented-status-track" style={{ marginBottom: 16 }} role="tablist" aria-label="Filter remarks by user role">
+        <button
+          type="button"
+          className={`segmented-tab-btn ${type === 'all' ? 'active' : ''}`}
+          onClick={() => update({ type: 'all', page: 1 })}
+          role="tab"
+          aria-selected={type === 'all'}
+        >
+          All Remarks
+        </button>
+        <button
+          type="button"
+          className={`segmented-tab-btn ${type === 'clinic' ? 'active' : ''}`}
+          onClick={() => update({ type: 'clinic', page: 1 })}
+          role="tab"
+          aria-selected={type === 'clinic'}
+        >
+          Clinic Users
+        </button>
+        <button
+          type="button"
+          className={`segmented-tab-btn ${type === 'specialist' ? 'active' : ''}`}
+          onClick={() => update({ type: 'specialist', page: 1 })}
+          role="tab"
+          aria-selected={type === 'specialist'}
+        >
+          US24 Specialists
+        </button>
+        <button
+          type="button"
+          className={`segmented-tab-btn ${type === 'insurance' ? 'active' : ''}`}
+          onClick={() => update({ type: 'insurance', page: 1 })}
+          role="tab"
+          aria-selected={type === 'insurance'}
+        >
+          Insurance
+        </button>
+      </div>
+
       {/* Filter Sheet */}
       <div className="filter-bar-sheet">
         <div className="filter-grid filter-grid-4">

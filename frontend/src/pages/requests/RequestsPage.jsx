@@ -667,6 +667,49 @@ export function RequestsContent({ clinicId: propClinicId, embedded = false }) {
         </div>
       )}
 
+      {/* Portal Admin Role Segmented Filter Track */}
+      {user.role === 'admin' && (
+        <div className="segmented-status-track" style={{ marginTop: 20, marginBottom: 0 }} role="tablist" aria-label="Portal Admin: filter requests by user role">
+          <button
+            type="button"
+            className={`segmented-tab-btn ${status === 'all' ? 'active' : ''}`}
+            onClick={() => update({ status: 'all', page: 1 })}
+            role="tab"
+            aria-selected={status === 'all'}
+          >
+            All Requests ({data?.metrics?.totalRequests ?? 0})
+          </button>
+          <button
+            type="button"
+            className={`segmented-tab-btn ${status === 'awaiting' ? 'active' : ''}`}
+            onClick={() => update({ status: 'awaiting', page: 1 })}
+            role="tab"
+            aria-selected={status === 'awaiting'}
+          >
+            Clinic Users (Awaiting Reply)
+            {data?.metrics?.awaitingCount > 0 && (
+              <span className="badge badge-warning" style={{ marginLeft: 6 }}>
+                {data.metrics.awaitingCount}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            className={`segmented-tab-btn ${status === 'answered' ? 'active' : ''}`}
+            onClick={() => update({ status: 'answered', page: 1 })}
+            role="tab"
+            aria-selected={status === 'answered'}
+          >
+            US24 Specialists (Answered)
+            {data?.metrics?.answeredCount > 0 && (
+              <span className="badge badge-open" style={{ marginLeft: 6 }}>
+                {data.metrics.answeredCount}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* Filter and Search Bar */}
       <div className="filter-bar-sheet" style={{ marginTop: 20 }}>
         <div className="requests-filter-row">

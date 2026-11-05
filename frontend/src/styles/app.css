@@ -2230,10 +2230,10 @@ a.hub-card { text-decoration: none; color: inherit; }
 /* --- Administration 4-Cards Grid Layout --- */
 .admin-cards-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 20px;
   width: 100%;
-  max-width: 1140px;
+  max-width: 1280px;
 }
 
 @media (max-width: 960px) {

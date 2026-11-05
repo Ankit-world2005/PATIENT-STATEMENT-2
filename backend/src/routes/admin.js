@@ -43,7 +43,12 @@ adminRouter.get('/summary', async (_req, res) => {
            (SELECT count(*) FROM audit_event WHERE action = 'access.blocked' AND occurred_at > now() - interval '7 days')::int AS blocked_7d,
            (SELECT count(*) FROM remark)::int AS total_remarks,
            (SELECT count(*) FROM statement WHERE awaiting_reply_since IS NOT NULL AND status = 'active')::int AS awaiting_remarks,
-           (SELECT count(*) FROM statement WHERE last_remark_at > now() - interval '7 days')::int AS recent_remarks_7d`);
+           (SELECT count(*) FROM statement WHERE last_remark_at > now() - interval '7 days')::int AS recent_remarks_7d,
+           (SELECT count(*) FROM remark WHERE type = 'clinic')::int AS clinic_remarks,
+           (SELECT count(*) FROM remark WHERE type = 'specialist')::int AS specialist_remarks,
+           (SELECT count(*) FROM remark WHERE type = 'clinic' AND statement_id IN (SELECT id FROM statement WHERE status = 'active'))::int AS total_requests,
+           (SELECT count(*) FROM remark WHERE type = 'clinic' AND statement_id IN (SELECT id FROM statement WHERE awaiting_reply_since IS NOT NULL AND status = 'active'))::int AS awaiting_requests,
+           (SELECT count(*) FROM remark WHERE type = 'specialist' AND statement_id IN (SELECT id FROM statement WHERE status = 'active'))::int AS answered_requests`);
   res.json(rows[0]);
 });
 

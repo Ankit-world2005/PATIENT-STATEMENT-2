@@ -220,10 +220,6 @@ export function emailWrapper(optsOrTitle, legacyBodyHtml) {
                     <a href="${termsUrl}" style="color: #cbd5e1; text-decoration: none; font-weight: 600;">Terms of Use</a> &nbsp;<span style="color: #475569;">|</span>&nbsp;
                     <a href="${privacyUrl}" style="color: #cbd5e1; text-decoration: none; font-weight: 600;">Privacy</a>
                   </td>
-                  <td align="right" style="vertical-align: middle; width: 40px;">
-                    <!-- Hallmark Diamond Star Icon -->
-                    <span style="font-size: 26px; color: #64748b; line-height: 1; user-select: none;">&#10022;</span>
-                  </td>
                 </tr>
               </table>
             </td>

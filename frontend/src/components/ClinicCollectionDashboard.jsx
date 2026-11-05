@@ -23,6 +23,37 @@ function formatMoney(amount) {
   return num < 0 ? `-$${absFormatted}` : `$${absFormatted}`;
 }
 
+function formatDate(v) {
+  if (!v) return '—';
+  if (v instanceof Date) {
+    if (isNaN(v.getTime())) return '—';
+    const m = String(v.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(v.getUTCDate()).padStart(2, '0');
+    const y = v.getUTCFullYear();
+    return `${m}/${d}/${y}`;
+  }
+  const s = String(v).trim();
+  if (!s || s === '—' || s === '-') return '—';
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) return s;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const parts = s.slice(0, 10).split('-');
+    return `${parts[1]}/${parts[2]}/${parts[0]}`;
+  }
+  const parsed = new Date(s);
+  if (!isNaN(parsed.getTime())) {
+    if (s.includes('GMT') || s.includes('T') || s.includes('Z')) {
+      const m = String(parsed.getUTCMonth() + 1).padStart(2, '0');
+      const d = String(parsed.getUTCDate()).padStart(2, '0');
+      const y = parsed.getUTCFullYear();
+      return `${m}/${d}/${y}`;
+    }
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const d = String(parsed.getDate()).padStart(2, '0');
+    const y = parsed.getFullYear();
+    return `${m}/${d}/${y}`;
+  }
+  return s;
+}
 
 const PAYER_COLORS = [
   '#1E3A8A', // Deep Blue
