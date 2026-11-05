@@ -1,65 +1,89 @@
-import ExcelJS from 'exceljs';
-
-export function extractCellValue(v) {
-  if (v == null) return '';
-  if (typeof v === 'object') {
-    if (v instanceof Date) return v;
-    if (v.result !== undefined) {
-      return v.result != null ? v.result : '';
-    }
-    if (v.text !== undefined) return v.text;
-    if (Array.isArray(v.richText)) {
-      return v.richText.map(t => (t && t.text ? t.text : '')).join('');
-    }
-    if (v.sharedString !== undefined) return v.sharedString;
-  }
-  return v;
-}
-
-export function parseNum(v) {
-  if (v == null || v === '') return 0;
-  if (typeof v === 'object') {
-    if (v.result !== undefined) {
-      v = v.result;
-    } else if (v.text !== undefined) {
-      v = v.text;
-    }
-  }
-  if (typeof v === 'number') return isNaN(v) ? 0 : v;
-  let str = String(v).trim();
-  if (!str) return 0;
-
-  // Handle accounting format: "(159.25)" -> -159.25 or "($159.25)" -> -159.25
-  const isParenNegative = /^\s*\(\s*\$?\s*([\d,]+(?:\.\d+)?)\s*\)\s*$/.test(str);
-  if (isParenNegative) {
-    const matched = str.match(/^\s*\(\s*\$?\s*([\d,]+(?:\.\d+)?)\s*\)\s*$/);
-    const n = Number(matched[1].replace(/,/g, ''));
-    return isNaN(n) ? 0 : -n;
-  }
-
-  // Handle standard negative or positive with dollar signs / commas
-  const cleaned = str.replace(/[$,\s]/g, '');
-  const n = Number(cleaned);
-  return isNaN(n) ? 0 : n;
-}
-
-function formatDateVal(v) {
-  if (!v) return '';
-  if (v instanceof Date) {
-    const m = String(v.getUTCMonth() + 1).padStart(2, '0');
-    const d = String(v.getUTCDate()).padStart(2, '0');
-    const y = v.getUTCFullYear();
-    return `${m}/${d}/${y}`;
-  }
-  const s = String(v).trim();
-  // If ISO date like 2026-09-05, reformat to MM/DD/YYYY for display
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
-    const parts = s.slice(0, 10).split('-');
-    return `${parts[1]}/${parts[2]}/${parts[0]}`;
-  }
-  return s;
-}
-
+import ExcelJS from 'exceljs';
+
+export function formatDateVal(v) {
+  if (!v) return '';
+  if (v instanceof Date) {
+    if (isNaN(v.getTime())) return '';
+    const m = String(v.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(v.getUTCDate()).padStart(2, '0');
+    const y = v.getUTCFullYear();
+    return `${m}/${d}/${y}`;
+  }
+  // Handle Excel date serial numbers (e.g. 45530)
+  if (typeof v === 'number' && v > 20000 && v < 65000) {
+    const epoch = new Date(Date.UTC(1899, 11, 30));
+    epoch.setUTCDate(epoch.getUTCDate() + Math.floor(v));
+    const m = String(epoch.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(epoch.getUTCDate()).padStart(2, '0');
+    const y = epoch.getUTCFullYear();
+    return `${m}/${d}/${y}`;
+  }
+  const s = String(v).trim();
+  if (!s || s === '—' || s === '-') return '';
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) return s;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const parts = s.slice(0, 10).split('-');
+    return `${parts[1]}/${parts[2]}/${parts[0]}`;
+  }
+  const parsed = new Date(s);
+  if (!isNaN(parsed.getTime())) {
+    if (s.includes('GMT') || s.includes('T') || s.includes('Z')) {
+      const m = String(parsed.getUTCMonth() + 1).padStart(2, '0');
+      const d = String(parsed.getUTCDate()).padStart(2, '0');
+      const y = parsed.getUTCFullYear();
+      return `${m}/${d}/${y}`;
+    }
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const d = String(parsed.getDate()).padStart(2, '0');
+    const y = parsed.getFullYear();
+    return `${m}/${d}/${y}`;
+  }
+  return s;
+}
+
+export function extractCellValue(v) {
+  if (v == null) return '';
+  if (typeof v === 'object') {
+    if (v instanceof Date) return formatDateVal(v);
+    if (v.result !== undefined) {
+      return v.result != null ? v.result : '';
+    }
+    if (v.text !== undefined) return v.text;
+    if (Array.isArray(v.richText)) {
+      return v.richText.map(t => (t && t.text ? t.text : '')).join('');
+    }
+    if (v.sharedString !== undefined) return v.sharedString;
+  }
+  return v;
+}
+
+export function parseNum(v) {
+  if (v == null || v === '') return 0;
+  if (typeof v === 'object') {
+    if (v.result !== undefined) {
+      v = v.result;
+    } else if (v.text !== undefined) {
+      v = v.text;
+    }
+  }
+  if (typeof v === 'number') return isNaN(v) ? 0 : v;
+  let str = String(v).trim();
+  if (!str) return 0;
+
+  // Handle accounting format: "(159.25)" -> -159.25 or "($159.25)" -> -159.25
+  const isParenNegative = /^\s*\(\s*\$?\s*([\d,]+(?:\.\d+)?)\s*\)\s*$/.test(str);
+  if (isParenNegative) {
+    const matched = str.match(/^\s*\(\s*\$?\s*([\d,]+(?:\.\d+)?)\s*\)\s*$/);
+    const n = Number(matched[1].replace(/,/g, ''));
+    return isNaN(n) ? 0 : -n;
+  }
+
+  // Handle standard negative or positive with dollar signs / commas
+  const cleaned = str.replace(/[$,\s]/g, '');
+  const n = Number(cleaned);
+  return isNaN(n) ? 0 : n;
+}
+
 export function parseCsvRows(text) {
   const rows = [];
   let currentRow = [];
@@ -668,55 +692,95 @@ export function parseTherabillGrid(grid) {
         return idx !== -1 ? row[idx] : '';
       };
 
-      if (activeTableType === 'TB_CHECK') {
-        const payer = getVal(/^payer/) || row[1] || row[0];
-        if (!payer || /^total/i.test(payer)) continue;
-
-        checkRows.push({
-          sourceSystem: 'Therabill',
-          payer,
-          paymentMethod: getVal(/method/) || 'EFT',
-          paymentReference: getVal(/check no|check\s*#|reference/) || row[5] || '',
-          paymentDate: formatDateVal(getVal(/posted date/) || getVal(/check date/) || row[6]),
-          bankDate: formatDateVal(getVal(/check date/) || row[6]),
-          paymentAmount: parseNum(getVal(/check amount|payment amount/) || row[7]),
-          totalPosted: parseNum(getVal(/posted amount|total posted/) || row[8]),
-          unposted: parseNum(getVal(/remaining amount|unposted/) || row[9]),
-          recoupment: parseNum(getVal(/recoupment/) || row[10]),
-          status: getVal(/status/) || 'Posted',
-          eobSource: getVal(/eob source/) || '',
-          eraEob: getVal(/era\/eob/) || '',
-          location: getVal(/location|locations|clinic|facility/) || '',
-          remarks: getVal(/remark/) || '',
-        });
-      } else if (activeTableType === 'TB_LINE') {
-        const patientName = getVal(/client name|patient name/) || row[0];
-        if (!patientName || /^total/i.test(patientName)) continue;
-
-        const pmtType = getVal(/pmt type|pr type/) || 'Copay';
-        const pmtAmt = parseNum(getVal(/pmt amount|paid amount|payment amount/) || row[8]);
-        const isInsurance = /insurance/i.test(pmtType);
-
-        lineItems.push({
-          sourceSystem: 'Therabill',
-          patientName,
-          payerName: getVal(/payer/) || row[1] || '',
-          referenceNumber: getVal(/check\s*#|check no|reference/) || row[2] || '',
-          dateOfService: formatDateVal(getVal(/dos|service date|date of service/) || row[4]),
-          serviceCode: getVal(/service code/) || row[5] || '',
-          chargedAmount: parseNum(getVal(/charge for service|charged amount|submitted amount/) || row[6]),
-          allowedAmount: 0,
-          insurancePayment: isInsurance ? pmtAmt : 0,
-          adjustedAmount: 0,
-          transferredToSecondary: 0,
-          transferredToPatient: 0,
-          patientPaid: isInsurance ? 0 : pmtAmt,
-          prType: pmtType,
-          bankDate: formatDateVal(getVal(/deposit date|check date/) || row[9]),
-          paymentDate: formatDateVal(getVal(/check date|deposit date/) || row[3]),
-          location: getVal(/facility name|locations|location/) || row[10] || '',
-        });
-      }
+      if (activeTableType === 'TB_CHECK') {
+        const payer = getVal(/^payer/) || row[1] || row[0];
+        if (!payer || /^total/i.test(payer)) continue;
+
+        const payee = getVal(/^payee/) || (activeHeaderMap.includes('payee') ? row[activeHeaderMap.indexOf('payee')] : (row.length >= 15 ? row[0] : ''));
+        const eobSource = getVal(/eob source/) || '';
+        const eraEob = getVal(/era\/eob/) || '';
+        const method = getVal(/^method$/) || 'EFT';
+        const checkNo = getVal(/check no|check\s*#|reference/) || row[5] || '';
+        const checkDate = formatDateVal(getVal(/check date/) || row[6]);
+        const checkAmount = parseNum(getVal(/check amount|payment amount/) || row[7]);
+        const postedAmount = parseNum(getVal(/posted amount|total posted/) || row[8]);
+        const remainingAmount = parseNum(getVal(/remaining amount|unposted/) || row[9]);
+        const recoupment = parseNum(getVal(/recoupment/) || row[10]);
+        const status = getVal(/^status$/) || 'Posted';
+        const postedDate = formatDateVal(getVal(/posted date/) || row[12] || row[6]);
+        const remarks = getVal(/remark/) || '';
+        const location = getVal(/location|locations|clinic|facility/) || (row.length >= 15 ? row[14] : '');
+
+        checkRows.push({
+          sourceSystem: 'Therabill',
+          payee,
+          payer,
+          eobSource,
+          eraEob,
+          method,
+          paymentMethod: method,
+          checkNo,
+          paymentReference: checkNo,
+          checkDate,
+          paymentDate: postedDate || checkDate,
+          bankDate: checkDate,
+          checkAmount,
+          paymentAmount: checkAmount,
+          postedAmount,
+          totalPosted: postedAmount,
+          remainingAmount,
+          unposted: remainingAmount,
+          recoupment,
+          status,
+          postedDate,
+          remarks,
+          location,
+        });
+      } else if (activeTableType === 'TB_LINE') {
+        const patientName = getVal(/client name|patient name/) || row[0];
+        if (!patientName || /^total/i.test(patientName)) continue;
+
+        const payerName = getVal(/payer/) || row[1] || '';
+        const checkNo = getVal(/check\s*#|check no|reference/) || row[2] || '';
+        const checkDate = formatDateVal(getVal(/check date/) || row[3]);
+        const dateOfService = formatDateVal(getVal(/dos|service date|date of service/) || row[4]);
+        const serviceCode = getVal(/service code/) || row[5] || '';
+        const chargedAmount = parseNum(getVal(/charge for service|charged amount|submitted amount/) || row[6]);
+        const pmtType = getVal(/pmt type|pr type/) || 'Copay';
+        const pmtAmt = parseNum(getVal(/pmt amount|paid amount|payment amount/) || row[8]);
+        const isInsurance = /insurance/i.test(pmtType);
+        const depositDate = formatDateVal(getVal(/deposit date|bank date/) || row[9]);
+        const facilityName = getVal(/facility name|locations|location/) || row[10] || '';
+
+        lineItems.push({
+          sourceSystem: 'Therabill',
+          patientName,
+          clientName: patientName,
+          payerName,
+          referenceNumber: checkNo,
+          checkNo,
+          checkDate,
+          dateOfService,
+          dos: dateOfService,
+          serviceCode,
+          chargedAmount,
+          chargeForService: chargedAmount,
+          allowedAmount: 0,
+          insurancePayment: isInsurance ? pmtAmt : 0,
+          adjustedAmount: 0,
+          transferredToSecondary: 0,
+          transferredToPatient: 0,
+          patientPaid: isInsurance ? 0 : pmtAmt,
+          prType: pmtType,
+          pmtType,
+          pmtAmount: pmtAmt,
+          depositDate,
+          bankDate: depositDate,
+          paymentDate: checkDate,
+          location: facilityName,
+          facilityName,
+        });
+      }
     }
   }
 

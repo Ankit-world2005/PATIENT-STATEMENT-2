@@ -303,6 +303,9 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
     detectedFormat === 'therabill' ? 'Therabill Format' : 'Prompt Format'
   );
   const isCombined = detectedFormat === 'combined' || (data?.checkRows || []).some(r => r.sourceSystem && r.sourceSystem !== (data?.checkRows[0]?.sourceSystem || 'Prompt'));
+  const isTherabill = detectedFormat === 'therabill'
+    || clinic?.name?.toLowerCase().includes('icure')
+    || (data?.checkRows || []).some(r => r.sourceSystem?.toLowerCase() === 'therabill' || r.payee !== undefined || r.eobSource !== undefined);
 
   const therabillCheckCount = useMemo(() => (data?.checkRows || []).filter(r => r.sourceSystem === 'Therabill').length, [data?.checkRows]);
   const promptCheckCount = useMemo(() => (data?.checkRows || []).filter(r => r.sourceSystem !== 'Therabill').length, [data?.checkRows]);
@@ -1149,7 +1152,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
             >
               <IconDocument size={15} />
               <span>
-                {detectedFormat === 'therabill' ? 'Therabill - Check Remittances' :
+                {isTherabill ? 'Therabill - Check Remittances' :
                  detectedFormat === 'combined' ? 'Reconciled Checks & Remittances' :
                  'Prompt - Check Sheet'}
               </span>
@@ -1165,7 +1168,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
             >
               <IconWallet size={15} />
               <span>
-                {detectedFormat === 'therabill' ? 'Therabill - Line Items' :
+                {isTherabill ? 'Therabill - Line Items' :
                  detectedFormat === 'combined' ? 'Reconciled Patient Line Items' :
                  'Prompt - Lineitem'}
               </span>
@@ -1282,22 +1285,44 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
               <thead>
                 <tr>
                   {isCombined && <th scope="col">System</th>}
-                  <th scope="col">Payer</th>
-                  <th scope="col">Payment Method</th>
-                  <th scope="col">Payment Reference</th>
-                  <th scope="col">Payment Date</th>
-                  <th scope="col">Bank Date</th>
-                  <th scope="col" className="text-right">Payment Amount</th>
-                  <th scope="col" className="text-right">Total Posted</th>
-                  <th scope="col" className="text-right">Unposted</th>
-                  <th scope="col" className="text-right">Recoupment</th>
-                  <th scope="col">Remarks</th>
+                  {isTherabill ? (
+                    <>
+                      <th scope="col">Payee</th>
+                      <th scope="col">Payer</th>
+                      <th scope="col">EOB Source</th>
+                      <th scope="col">ERA/EOB</th>
+                      <th scope="col">Method</th>
+                      <th scope="col">Check no</th>
+                      <th scope="col">Check Date</th>
+                      <th scope="col" className="text-right">Check Amount</th>
+                      <th scope="col" className="text-right">Posted Amount</th>
+                      <th scope="col" className="text-right">Remaining Amount</th>
+                      <th scope="col" className="text-right">Recoupment</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Posted date</th>
+                      <th scope="col">Remarks</th>
+                      <th scope="col">Location</th>
+                    </>
+                  ) : (
+                    <>
+                      <th scope="col">Payer</th>
+                      <th scope="col">Payment Method</th>
+                      <th scope="col">Payment Reference</th>
+                      <th scope="col">Payment Date</th>
+                      <th scope="col">Bank Date</th>
+                      <th scope="col" className="text-right">Payment Amount</th>
+                      <th scope="col" className="text-right">Total Posted</th>
+                      <th scope="col" className="text-right">Unposted</th>
+                      <th scope="col" className="text-right">Recoupment</th>
+                      <th scope="col">Remarks</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {filteredCheckRows.length === 0 ? (
                   <tr>
-                    <td colSpan={10 + (isCombined ? 1 : 0)} className="table-empty-msg">
+                    <td colSpan={(isTherabill ? 15 : 10) + (isCombined ? 1 : 0)} className="table-empty-msg">
                       No check records match your filter criteria.
                     </td>
                   </tr>
@@ -1311,71 +1336,140 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                           </span>
                         </td>
                       )}
-                      <td className="col-payer-name relative-corner-cell">
-                        {/* Corner Pouch Dog-Ear Fold */}
-                        <button
-                          type="button"
-                          className={`row-corner-pouch ${
-                            row.flags && row.flags.length > 0
-                              ? 'pouch-flagged'
-                              : Number(row.unposted) > 0
-                                ? 'pouch-unposted'
-                                : 'pouch-normal'
-                          }`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenPouch(row, idx, 'check', e.currentTarget.getBoundingClientRect());
-                          }}
-                          onMouseEnter={(e) => handlePouchMouseEnter(row, idx, 'check', e.currentTarget.getBoundingClientRect())}
-                          onMouseLeave={handlePouchMouseLeave}
-                          title={`Remittance Pouch: Hover or click to view logs & flags (${row.flags?.length || 0} flags, ${row.logs?.length || 0} logs)`}
-                          aria-label={`Open logs and flags for check ${row.paymentReference || row.payer}`}
-                        />
-                        <div className="payer-title-wrap">
-                          <strong>{row.payer || '—'}</strong>
-                          {row.flags && row.flags.length > 0 && (
-                            <span
-                              className="pouch-chip-flag"
-                              title={row.flags.map((f) => f.type).join(', ')}
+                      {isTherabill ? (
+                        <>
+                          <td>{row.payee || clinic?.name || '—'}</td>
+                          <td className="col-payer-name relative-corner-cell">
+                            <button
+                              type="button"
+                              className={`row-corner-pouch ${
+                                row.flags && row.flags.length > 0
+                                  ? 'pouch-flagged'
+                                  : Number(row.remainingAmount != null ? row.remainingAmount : row.unposted) > 0
+                                    ? 'pouch-unposted'
+                                    : 'pouch-normal'
+                              }`}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleOpenPouch(row, idx, 'check', e.currentTarget.getBoundingClientRect());
                               }}
                               onMouseEnter={(e) => handlePouchMouseEnter(row, idx, 'check', e.currentTarget.getBoundingClientRect())}
                               onMouseLeave={handlePouchMouseLeave}
-                            >
-                              🚩 {row.flags.length}
+                              title={`Remittance Pouch: Hover or click to view logs & flags (${row.flags?.length || 0} flags, ${row.logs?.length || 0} logs)`}
+                              aria-label={`Open logs and flags for check ${row.checkNo || row.paymentReference || row.payer}`}
+                            />
+                            <div className="payer-title-wrap">
+                              <strong>{row.payer || '—'}</strong>
+                              {row.flags && row.flags.length > 0 && (
+                                <span
+                                  className="pouch-chip-flag"
+                                  title={row.flags.map((f) => f.type).join(', ')}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenPouch(row, idx, 'check', e.currentTarget.getBoundingClientRect());
+                                  }}
+                                  onMouseEnter={(e) => handlePouchMouseEnter(row, idx, 'check', e.currentTarget.getBoundingClientRect())}
+                                  onMouseLeave={handlePouchMouseLeave}
+                                >
+                                  🚩 {row.flags.length}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td>{row.eobSource || '—'}</td>
+                          <td>{row.eraEob || '—'}</td>
+                          <td>
+                            <span className={`badge-method ${(row.method || row.paymentMethod)?.toLowerCase() === 'eft' ? 'method-eft' : 'method-check'}`}>
+                              {row.method || row.paymentMethod || 'EFT'}
                             </span>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`badge-method ${row.paymentMethod?.toLowerCase() === 'eft' ? 'method-eft' : 'method-check'}`}>
-                          {row.paymentMethod || 'EFT'}
-                        </span>
-                      </td>
-                      <td className="col-mono">{row.paymentReference || '—'}</td>
-                      <td>{row.paymentDate || '—'}</td>
-                      <td>{row.bankDate || '—'}</td>
-                      <td className="text-right col-mono col-bold-navy">{formatMoney(row.paymentAmount)}</td>
-                      <td className="text-right col-mono">{formatMoney(row.totalPosted)}</td>
-                      <td className={`text-right col-mono ${Number(row.unposted) > 0 ? 'col-warning' : 'text-muted'}`}>
-                        {formatMoney(row.unposted)}
-                      </td>
-                      <td className="text-right col-mono text-muted">{formatMoney(row.recoupment)}</td>
-                      <td className="col-remarks-text">{row.remarks || '—'}</td>
+                          </td>
+                          <td className="col-mono">{row.checkNo || row.paymentReference || '—'}</td>
+                          <td>{formatDate(row.checkDate || row.bankDate)}</td>
+                          <td className="text-right col-mono col-bold-navy">{formatMoney(row.checkAmount != null ? row.checkAmount : row.paymentAmount)}</td>
+                          <td className="text-right col-mono">{formatMoney(row.postedAmount != null ? row.postedAmount : row.totalPosted)}</td>
+                          <td className={`text-right col-mono ${Number(row.remainingAmount != null ? row.remainingAmount : row.unposted) > 0 ? 'col-warning' : 'text-muted'}`}>
+                            {formatMoney(row.remainingAmount != null ? row.remainingAmount : row.unposted)}
+                          </td>
+                          <td className="text-right col-mono text-muted">{formatMoney(row.recoupment)}</td>
+                          <td>
+                            <span className="badge-status">
+                              {row.status || 'Posted'}
+                            </span>
+                          </td>
+                          <td>{formatDate(row.postedDate || row.paymentDate)}</td>
+                          <td className="col-remarks-text">{row.remarks || '—'}</td>
+                          <td>{row.location || clinic?.name || '—'}</td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="col-payer-name relative-corner-cell">
+                            <button
+                              type="button"
+                              className={`row-corner-pouch ${
+                                row.flags && row.flags.length > 0
+                                  ? 'pouch-flagged'
+                                  : Number(row.unposted) > 0
+                                    ? 'pouch-unposted'
+                                    : 'pouch-normal'
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenPouch(row, idx, 'check', e.currentTarget.getBoundingClientRect());
+                              }}
+                              onMouseEnter={(e) => handlePouchMouseEnter(row, idx, 'check', e.currentTarget.getBoundingClientRect())}
+                              onMouseLeave={handlePouchMouseLeave}
+                              title={`Remittance Pouch: Hover or click to view logs & flags (${row.flags?.length || 0} flags, ${row.logs?.length || 0} logs)`}
+                              aria-label={`Open logs and flags for check ${row.paymentReference || row.payer}`}
+                            />
+                            <div className="payer-title-wrap">
+                              <strong>{row.payer || '—'}</strong>
+                              {row.flags && row.flags.length > 0 && (
+                                <span
+                                  className="pouch-chip-flag"
+                                  title={row.flags.map((f) => f.type).join(', ')}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenPouch(row, idx, 'check', e.currentTarget.getBoundingClientRect());
+                                  }}
+                                  onMouseEnter={(e) => handlePouchMouseEnter(row, idx, 'check', e.currentTarget.getBoundingClientRect())}
+                                  onMouseLeave={handlePouchMouseLeave}
+                                >
+                                  🚩 {row.flags.length}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`badge-method ${row.paymentMethod?.toLowerCase() === 'eft' ? 'method-eft' : 'method-check'}`}>
+                              {row.paymentMethod || 'EFT'}
+                            </span>
+                          </td>
+                          <td className="col-mono">{row.paymentReference || '—'}</td>
+                          <td>{formatDate(row.paymentDate)}</td>
+                          <td>{formatDate(row.bankDate)}</td>
+                          <td className="text-right col-mono col-bold-navy">{formatMoney(row.paymentAmount)}</td>
+                          <td className="text-right col-mono">{formatMoney(row.totalPosted)}</td>
+                          <td className={`text-right col-mono ${Number(row.unposted) > 0 ? 'col-warning' : 'text-muted'}`}>
+                            {formatMoney(row.unposted)}
+                          </td>
+                          <td className="text-right col-mono text-muted">{formatMoney(row.recoupment)}</td>
+                          <td className="col-remarks-text">{row.remarks || '—'}</td>
+                        </>
+                      )}
                     </tr>
                   ))
                 )}
               </tbody>
               <tfoot>
                 <tr className="table-footer-totals">
-                  <td colSpan={5 + (isCombined ? 1 : 0)} className="text-right"><strong>Check Sheet Totals ({filteredCheckRows.length} rows):</strong></td>
+                  <td colSpan={(isTherabill ? 7 : 5) + (isCombined ? 1 : 0)} className="text-right">
+                    <strong>Check Sheet Totals ({filteredCheckRows.length} rows):</strong>
+                  </td>
                   <td className="text-right col-mono col-bold-navy">{formatMoney(checkTotals.paymentAmount)}</td>
                   <td className="text-right col-mono">{formatMoney(checkTotals.totalPosted)}</td>
                   <td className="text-right col-mono">{formatMoney(checkTotals.unposted)}</td>
                   <td className="text-right col-mono">{formatMoney(checkTotals.recoupment)}</td>
-                  <td></td>
+                  <td colSpan={isTherabill ? 4 : 1}></td>
                 </tr>
               </tfoot>
             </table>
@@ -1384,25 +1478,43 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
               <thead>
                 <tr>
                   {isCombined && <th scope="col">System</th>}
-                  <th scope="col">Patient Name</th>
-                  <th scope="col">Date of Service</th>
-                  <th scope="col">Reference Number</th>
-                  <th scope="col">Bank Date</th>
-                  <th scope="col">Payment Date</th>
-                  <th scope="col" className="text-right">Charged Amount</th>
-                  <th scope="col" className="text-right">Allowed Amount</th>
-                  <th scope="col" className="text-right">Insurance Payment</th>
-                  <th scope="col" className="text-right">Adjusted Amount</th>
-                  <th scope="col" className="text-right">Transferred to Secondary</th>
-                  <th scope="col" className="text-right">Transferred to Patient</th>
-                  <th scope="col" className="text-right">Patient Paid</th>
-                  <th scope="col">PR Type</th>
+                  {isTherabill ? (
+                    <>
+                      <th scope="col">Client Name (Last, First)</th>
+                      <th scope="col">Payer name</th>
+                      <th scope="col">Check #</th>
+                      <th scope="col">Check date</th>
+                      <th scope="col">DOS</th>
+                      <th scope="col">Service code</th>
+                      <th scope="col" className="text-right">Charge for Service</th>
+                      <th scope="col">Pmt Type</th>
+                      <th scope="col" className="text-right">Pmt Amount</th>
+                      <th scope="col">Deposit date</th>
+                      <th scope="col">Facility Name</th>
+                    </>
+                  ) : (
+                    <>
+                      <th scope="col">Patient Name</th>
+                      <th scope="col">Date of Service</th>
+                      <th scope="col">Reference Number</th>
+                      <th scope="col">Bank Date</th>
+                      <th scope="col">Payment Date</th>
+                      <th scope="col" className="text-right">Charged Amount</th>
+                      <th scope="col" className="text-right">Allowed Amount</th>
+                      <th scope="col" className="text-right">Insurance Payment</th>
+                      <th scope="col" className="text-right">Adjusted Amount</th>
+                      <th scope="col" className="text-right">Transferred to Secondary</th>
+                      <th scope="col" className="text-right">Transferred to Patient</th>
+                      <th scope="col" className="text-right">Patient Paid</th>
+                      <th scope="col">PR Type</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {filteredLineItems.length === 0 ? (
                   <tr>
-                    <td colSpan={13 + (isCombined ? 1 : 0)} className="table-empty-msg">
+                    <td colSpan={(isTherabill ? 11 : 13) + (isCombined ? 1 : 0)} className="table-empty-msg">
                       No patient claim line items match your filter criteria.
                     </td>
                   </tr>
@@ -1416,72 +1528,148 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                           </span>
                         </td>
                       )}
-                      <td className="col-patient-name relative-corner-cell">
-                        <button
-                          type="button"
-                          className={`row-corner-pouch ${
-                            item.flags && item.flags.length > 0
-                              ? 'pouch-flagged'
-                              : 'pouch-normal'
-                          }`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenPouch(item, idx, 'lineitem', e.currentTarget.getBoundingClientRect());
-                          }}
-                          onMouseEnter={(e) => handlePouchMouseEnter(item, idx, 'lineitem', e.currentTarget.getBoundingClientRect())}
-                          onMouseLeave={handlePouchMouseLeave}
-                          title={`Claim Pouch: Hover or click to view logs & flags (${item.flags?.length || 0} flags, ${item.logs?.length || 0} logs)`}
-                          aria-label={`Open logs and flags for ${item.patientName}`}
-                        />
-                        <div className="patient-title-wrap">
-                          <strong>{item.patientName || '—'}</strong>
-                          {item.flags && item.flags.length > 0 && (
-                            <span
-                              className="pouch-chip-flag"
-                              title={item.flags.map((f) => f.type).join(', ')}
+                      {isTherabill ? (
+                        <>
+                          <td className="col-patient-name relative-corner-cell">
+                            <button
+                              type="button"
+                              className={`row-corner-pouch ${
+                                item.flags && item.flags.length > 0
+                                  ? 'pouch-flagged'
+                                  : 'pouch-normal'
+                              }`}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleOpenPouch(item, idx, 'lineitem', e.currentTarget.getBoundingClientRect());
                               }}
                               onMouseEnter={(e) => handlePouchMouseEnter(item, idx, 'lineitem', e.currentTarget.getBoundingClientRect())}
                               onMouseLeave={handlePouchMouseLeave}
-                            >
-                              🚩 {item.flags.length}
+                              title={`Claim Pouch: Hover or click to view logs & flags (${item.flags?.length || 0} flags, ${item.logs?.length || 0} logs)`}
+                              aria-label={`Open logs and flags for ${item.clientName || item.patientName}`}
+                            />
+                            <div className="patient-title-wrap">
+                              <strong>{item.clientName || item.patientName || '—'}</strong>
+                              {item.flags && item.flags.length > 0 && (
+                                <span
+                                  className="pouch-chip-flag"
+                                  title={item.flags.map((f) => f.type).join(', ')}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenPouch(item, idx, 'lineitem', e.currentTarget.getBoundingClientRect());
+                                  }}
+                                  onMouseEnter={(e) => handlePouchMouseEnter(item, idx, 'lineitem', e.currentTarget.getBoundingClientRect())}
+                                  onMouseLeave={handlePouchMouseLeave}
+                                >
+                                  🚩 {item.flags.length}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td>{item.payerName || '—'}</td>
+                          <td className="col-mono">{item.checkNo || item.referenceNumber || '—'}</td>
+                          <td>{formatDate(item.checkDate || item.paymentDate)}</td>
+                          <td>{formatDate(item.dos || item.dateOfService)}</td>
+                          <td className="col-mono">{item.serviceCode || '—'}</td>
+                          <td className="text-right col-mono">{formatMoney(item.chargeForService != null ? item.chargeForService : item.chargedAmount)}</td>
+                          <td>
+                            <span className={`badge-pr-item ${(item.pmtType || item.prType)?.toLowerCase().includes('insurance') ? 'pr-insurance' : (item.pmtType || item.prType)?.toLowerCase().includes('deduct') ? 'pr-deduct' : 'pr-other'}`}>
+                              {item.pmtType || item.prType || '—'}
                             </span>
-                          )}
-                        </div>
-                      </td>
-                      <td>{item.dateOfService || '—'}</td>
-                      <td className="col-mono">{item.referenceNumber || '—'}</td>
-                      <td>{item.bankDate || '—'}</td>
-                      <td>{item.paymentDate || '—'}</td>
-                      <td className="text-right col-mono">{formatMoney(item.chargedAmount)}</td>
-                      <td className="text-right col-mono">{formatMoney(item.allowedAmount)}</td>
-                      <td className="text-right col-mono col-bold-green">{formatMoney(item.insurancePayment)}</td>
-                      <td className="text-right col-mono text-muted">{formatMoney(item.adjustedAmount)}</td>
-                      <td className="text-right col-mono text-muted">{formatMoney(item.transferredToSecondary)}</td>
-                      <td className="text-right col-mono text-orange">{formatMoney(item.transferredToPatient)}</td>
-                      <td className="text-right col-mono col-bold-navy">{formatMoney(item.patientPaid)}</td>
-                      <td>
-                        <span className={`badge-pr-item ${item.prType?.toLowerCase().includes('deduct') ? 'pr-deduct' : 'pr-other'}`}>
-                          {item.prType || 'Deductible Applied'}
-                        </span>
-                      </td>
+                          </td>
+                          <td className="text-right col-mono col-bold-navy">
+                            {formatMoney(item.pmtAmount != null ? item.pmtAmount : (item.insurancePayment || item.patientPaid))}
+                          </td>
+                          <td>{formatDate(item.depositDate || item.bankDate)}</td>
+                          <td>{item.facilityName || item.location || clinic?.name || '—'}</td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="col-patient-name relative-corner-cell">
+                            <button
+                              type="button"
+                              className={`row-corner-pouch ${
+                                item.flags && item.flags.length > 0
+                                  ? 'pouch-flagged'
+                                  : 'pouch-normal'
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenPouch(item, idx, 'lineitem', e.currentTarget.getBoundingClientRect());
+                              }}
+                              onMouseEnter={(e) => handlePouchMouseEnter(item, idx, 'lineitem', e.currentTarget.getBoundingClientRect())}
+                              onMouseLeave={handlePouchMouseLeave}
+                              title={`Claim Pouch: Hover or click to view logs & flags (${item.flags?.length || 0} flags, ${item.logs?.length || 0} logs)`}
+                              aria-label={`Open logs and flags for ${item.patientName}`}
+                            />
+                            <div className="patient-title-wrap">
+                              <strong>{item.patientName || '—'}</strong>
+                              {item.flags && item.flags.length > 0 && (
+                                <span
+                                  className="pouch-chip-flag"
+                                  title={item.flags.map((f) => f.type).join(', ')}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenPouch(item, idx, 'lineitem', e.currentTarget.getBoundingClientRect());
+                                  }}
+                                  onMouseEnter={(e) => handlePouchMouseEnter(item, idx, 'lineitem', e.currentTarget.getBoundingClientRect())}
+                                  onMouseLeave={handlePouchMouseLeave}
+                                >
+                                  🚩 {item.flags.length}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td>{formatDate(item.dateOfService)}</td>
+                          <td className="col-mono">{item.referenceNumber || '—'}</td>
+                          <td>{formatDate(item.bankDate)}</td>
+                          <td>{formatDate(item.paymentDate)}</td>
+                          <td className="text-right col-mono">{formatMoney(item.chargedAmount)}</td>
+                          <td className="text-right col-mono">{formatMoney(item.allowedAmount)}</td>
+                          <td className="text-right col-mono col-bold-green">{formatMoney(item.insurancePayment)}</td>
+                          <td className="text-right col-mono text-muted">{formatMoney(item.adjustedAmount)}</td>
+                          <td className="text-right col-mono text-muted">{formatMoney(item.transferredToSecondary)}</td>
+                          <td className="text-right col-mono text-orange">{formatMoney(item.transferredToPatient)}</td>
+                          <td className="text-right col-mono col-bold-navy">{formatMoney(item.patientPaid)}</td>
+                          <td>
+                            <span className={`badge-pr-item ${item.prType?.toLowerCase().includes('deduct') ? 'pr-deduct' : 'pr-other'}`}>
+                              {item.prType || 'Deductible Applied'}
+                            </span>
+                          </td>
+                        </>
+                      )}
                     </tr>
                   ))
                 )}
               </tbody>
               <tfoot>
                 <tr className="table-footer-totals">
-                  <td colSpan={5 + (isCombined ? 1 : 0)} className="text-right"><strong>Line Item Totals ({filteredLineItems.length} claims):</strong></td>
-                  <td className="text-right col-mono">{formatMoney(lineItemTotals.charged)}</td>
-                  <td className="text-right col-mono">{formatMoney(lineItemTotals.allowed)}</td>
-                  <td className="text-right col-mono col-bold-green">{formatMoney(lineItemTotals.insurancePayment)}</td>
-                  <td className="text-right col-mono">{formatMoney(lineItemTotals.adjusted)}</td>
-                  <td className="text-right col-mono">{formatMoney(lineItemTotals.transferredSec)}</td>
-                  <td className="text-right col-mono text-orange">{formatMoney(lineItemTotals.transferredPt)}</td>
-                  <td className="text-right col-mono col-bold-navy">{formatMoney(lineItemTotals.patientPaid)}</td>
-                  <td></td>
+                  {isTherabill ? (
+                    <>
+                      <td colSpan={6 + (isCombined ? 1 : 0)} className="text-right">
+                        <strong>Line Item Totals ({filteredLineItems.length} claims):</strong>
+                      </td>
+                      <td className="text-right col-mono">{formatMoney(lineItemTotals.charged)}</td>
+                      <td></td>
+                      <td className="text-right col-mono col-bold-navy">
+                        {formatMoney(filteredLineItems.reduce((sum, r) => sum + (Number(r.pmtAmount != null ? r.pmtAmount : (r.insurancePayment || r.patientPaid)) || 0), 0))}
+                      </td>
+                      <td colSpan={2}></td>
+                    </>
+                  ) : (
+                    <>
+                      <td colSpan={5 + (isCombined ? 1 : 0)} className="text-right">
+                        <strong>Line Item Totals ({filteredLineItems.length} claims):</strong>
+                      </td>
+                      <td className="text-right col-mono">{formatMoney(lineItemTotals.charged)}</td>
+                      <td className="text-right col-mono">{formatMoney(lineItemTotals.allowed)}</td>
+                      <td className="text-right col-mono col-bold-green">{formatMoney(lineItemTotals.insurancePayment)}</td>
+                      <td className="text-right col-mono">{formatMoney(lineItemTotals.adjusted)}</td>
+                      <td className="text-right col-mono">{formatMoney(lineItemTotals.transferredSec)}</td>
+                      <td className="text-right col-mono text-orange">{formatMoney(lineItemTotals.transferredPt)}</td>
+                      <td className="text-right col-mono col-bold-navy">{formatMoney(lineItemTotals.patientPaid)}</td>
+                      <td></td>
+                    </>
+                  )}
                 </tr>
               </tfoot>
             </table>
@@ -1623,18 +1811,18 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                   <div className="pouch-modal-sub">
                     {pouchModalRow.sheetType === 'check' ? (
                       <>
-                        <span className="pouch-meta-chip">Ref #{pouchModalRow.row.paymentReference || '—'}</span>
-                        <span className="pouch-meta-chip">{pouchModalRow.row.paymentMethod || 'CHK'}</span>
-                        <span className="pouch-meta-chip">{formatMoney(pouchModalRow.row.paymentAmount)}</span>
-                        <span className="pouch-meta-chip">Bank Date: {pouchModalRow.row.bankDate || '—'}</span>
-                        <span className="pouch-meta-chip">Payment Date: {pouchModalRow.row.paymentDate || '—'}</span>
+                        <span className="pouch-meta-chip">Ref #{pouchModalRow.row.checkNo || pouchModalRow.row.paymentReference || '—'}</span>
+                        <span className="pouch-meta-chip">{pouchModalRow.row.method || pouchModalRow.row.paymentMethod || 'CHK'}</span>
+                        <span className="pouch-meta-chip">{formatMoney(pouchModalRow.row.checkAmount != null ? pouchModalRow.row.checkAmount : pouchModalRow.row.paymentAmount)}</span>
+                        <span className="pouch-meta-chip">Check Date: {formatDate(pouchModalRow.row.checkDate || pouchModalRow.row.bankDate)}</span>
+                        <span className="pouch-meta-chip">Posted Date: {formatDate(pouchModalRow.row.postedDate || pouchModalRow.row.paymentDate)}</span>
                       </>
                     ) : (
                       <>
-                        <span className="pouch-meta-chip">Ref #{pouchModalRow.row.referenceNumber || '—'}</span>
-                        <span className="pouch-meta-chip">DOS: {pouchModalRow.row.dateOfService || '—'}</span>
-                        <span className="pouch-meta-chip">Paid: {formatMoney(pouchModalRow.row.insurancePayment)}</span>
-                        <span className="pouch-meta-chip">{pouchModalRow.row.prType || 'Deductible'}</span>
+                        <span className="pouch-meta-chip">Ref #{pouchModalRow.row.checkNo || pouchModalRow.row.referenceNumber || '—'}</span>
+                        <span className="pouch-meta-chip">DOS: {formatDate(pouchModalRow.row.dos || pouchModalRow.row.dateOfService)}</span>
+                        <span className="pouch-meta-chip">Paid: {formatMoney(pouchModalRow.row.pmtAmount != null ? pouchModalRow.row.pmtAmount : (pouchModalRow.row.insurancePayment || pouchModalRow.row.patientPaid))}</span>
+                        <span className="pouch-meta-chip">{pouchModalRow.row.pmtType || pouchModalRow.row.prType || 'Copay'}</span>
                       </>
                     )}
                   </div>
