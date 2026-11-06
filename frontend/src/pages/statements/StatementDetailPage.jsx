@@ -754,7 +754,7 @@ export function StatementDetailPage() {
           statementId={s.id}
           remarks={remarks}
           role={user.role}
-          canAdd={s.status?.toLowerCase() !== 'withdrawn' && user.role !== 'admin'}
+          canAdd={s.status?.toLowerCase() !== 'withdrawn'}
           onAdded={(r) => {
             setData((d) => ({
               ...d,

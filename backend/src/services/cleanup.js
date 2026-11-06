@@ -24,6 +24,9 @@ export async function runCleanup({ force = false } = {}) {
         RETURNING id)
       DELETE FROM import_row WHERE batch_id IN (SELECT id FROM expired)`);
 
+    // Pieces of chunked uploads (ZIP imports, large attachments) that were never finished.
+    await pool.query(`DELETE FROM upload_chunk WHERE created_at < now() - interval '1 day'`);
+
     const { rows } = await pool.query('DELETE FROM upload_draft WHERE expires_at < now() RETURNING storage_key');
     await Promise.all(rows.map((r) => storage.remove(r.storage_key).catch(() => {})));
   } catch (err) {

@@ -154,6 +154,9 @@ export function NewRequestModal({ onClose, onCreated, clinicId }) {
         method: 'POST',
         body: {
           statementId: statementId || undefined,
+          // Staff file requests on behalf of the clinic being viewed; the server
+          // ignores this for clinic users and uses their own clinic.
+          clinicId: clinicId || undefined,
           patientName: patientName.trim(),
           dob: patientDob || undefined,
           patientDob: patientDob || undefined,
@@ -580,7 +583,7 @@ export function RequestsContent({ clinicId: propClinicId, embedded = false }) {
                 : 'Submit requests and billing inquiries directly to US24 specialists.'}
             </p>
           </div>
-          {user.role === 'clinic_user' && (
+          {(user.role === 'clinic_user' || (user.role === 'admin' && clinicId)) && (
             <button
               type="button"
               className="btn btn-primary btn-sm"

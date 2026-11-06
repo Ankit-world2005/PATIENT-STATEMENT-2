@@ -742,12 +742,15 @@ const remarkSchema = z
     path: ['insuranceName'],
   });
 
-statementsRouter.post('/:id/remarks', requireRole('clinic_user', 'specialist'), async (req, res) => {
+statementsRouter.post('/:id/remarks', requireRole('clinic_user', 'specialist', 'admin'), async (req, res) => {
   const input = parseOrThrow(remarkSchema, {
     ...req.body,
     type: req.user.role === 'clinic_user' ? 'clinic' : req.body?.type,
   });
-  if (req.user.role === 'specialist' && input.type === 'clinic') throw badRequest('Choose Specialist or Insurance.');
+  if (req.user.role !== 'clinic_user' && input.type === 'clinic') throw badRequest('Choose Specialist or Insurance.');
+  // The remark table only knows clinic-side and US24-side authors, so admins post as US24 staff
+  // (same as admin replies in routes/requests.js). author_id still records the admin.
+  const author = req.user.role === 'admin' ? { ...req.user, role: 'specialist' } : req.user;
 
   const remark = await withTransaction(async (db) => {
     const s = await getVisibleStatement(db, req, req.params.id, { forUpdate: true });
@@ -756,7 +759,7 @@ statementsRouter.post('/:id/remarks', requireRole('clinic_user', 'specialist'), 
     const remarkBody = input.body?.trim() || (input.attachments?.length ? `[Attached: ${input.attachments.map(a => a.name).join(', ')}]` : '');
     const r = await insertRemark(db, {
       statementId: s.id,
-      author: req.user,
+      author,
       type: input.type,
       body: remarkBody,
       insuranceName: isInsurance ? input.insuranceName : null,
@@ -767,7 +770,7 @@ statementsRouter.post('/:id/remarks', requireRole('clinic_user', 'specialist'), 
       action: 'remark.create', targetType: 'remark', targetId: r.id, clinicId: s.clinic_id, details: { remark_type: input.type, attachments_count: (input.attachments || []).length },
     });
     return {
-      id: r.id, type: input.type, body: remarkBody, author_name: req.user.full_name, author_role: req.user.role,
+      id: r.id, type: input.type, body: remarkBody, author_name: req.user.full_name, author_role: author.role,
       insurance_name: isInsurance ? input.insuranceName : null,
       insurance_reference: isInsurance ? input.insuranceReference || null : null,
       attachments: input.attachments || [],
