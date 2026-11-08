@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
-import { IconBuilding, IconChat, IconInbox, IconShield, IconTrash, IconUsers } from '../../components/Icons.jsx';
+import { IconBuilding, IconShield, IconTrash, IconUsers } from '../../components/Icons.jsx';
 import { Alert, BackBar, ConfirmDialog, EmptyState, Field, PageHeader, Spinner, StatusBadge } from '../../components/ui.jsx';
 import { api } from '../../lib/api.js';
 import { shortDate } from '../../lib/format.js';
@@ -11,8 +11,6 @@ import { NotFoundPage } from '../NotFoundPage.jsx';
 export function AdminHome() {
   const [summary, setSummary] = useState(null);
   const [userTab, setUserTab] = useState('clinics');
-  const [remarkTab, setRemarkTab] = useState('clinic');
-  const [requestTab, setRequestTab] = useState('clinic');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -35,22 +33,6 @@ export function AdminHome() {
       desc: 'Invite users, reset 2-step verification and deactivate accounts.',
       stat: summary ? `${summary.active_users} active · ${summary.invited_users} invited` : 'Loading…',
       badgeClass: 'badge-open',
-    },
-    {
-      to: '/requests',
-      icon: IconInbox,
-      title: 'Requests & inquiries',
-      desc: 'Review client statement inquiries, answers and communications.',
-      stat: summary ? `${summary.total_requests ?? 0} requests${summary.awaiting_requests ? ` · ${summary.awaiting_requests} awaiting` : ''}` : 'Loading…',
-      badgeClass: summary?.awaiting_requests > 0 ? 'badge-warning' : 'badge-open',
-    },
-    {
-      to: '/manage/remarks',
-      icon: IconChat,
-      title: 'Clinic remarks & updates',
-      desc: 'Track clinic remarks, patient status notes and ledger updates.',
-      stat: summary ? `${summary.total_remarks ?? 0} remarks${summary.awaiting_remarks ? ` · ${summary.awaiting_remarks} awaiting reply` : ''}` : 'Loading…',
-      badgeClass: summary?.awaiting_remarks > 0 ? 'badge-plum' : 'badge-open',
     },
     {
       to: '/manage/audit',
@@ -135,146 +117,6 @@ export function AdminHome() {
 
                   <Link to={targetUrl} className="hub-card-body-link">
                     <div className="hub-card-icon-wrap"><IconUsers size={30} /></div>
-                    <h2 className="hub-card-title">{cardTitle}</h2>
-                    <p className="hub-card-desc">{cardDesc}</p>
-                    <div className="hub-card-tag">
-                      <span className="badge badge-open">{statText}</span>
-                    </div>
-                  </Link>
-                </div>
-              );
-            }
-
-            if (c.to === '/requests') {
-              const isClinicRequests = requestTab === 'clinic';
-              const targetUrl = isClinicRequests ? '/requests?status=awaiting' : '/requests?status=answered';
-              const statText = isClinicRequests
-                ? (summary ? `${summary.awaiting_requests ?? 0} awaiting reply · ${summary.total_requests ?? 0} total` : 'Loading…')
-                : (summary ? `${summary.answered_requests ?? 0} answered` : 'Loading…');
-              const cardTitle = isClinicRequests ? 'Clinic Requests' : 'Specialist Inquiries';
-              const cardDesc = isClinicRequests
-                ? 'Review client inquiries and statement requests awaiting replies.'
-                : 'Monitor resolution history and communications handled by US24 specialists.';
-
-              return (
-                <div key={c.to} className="hub-card hub-card-active hub-card-with-tabs" style={{ textAlign: 'center' }}>
-                  <div className="hub-card-tabs" role="tablist" aria-label="Request user types">
-                    <button
-                      type="button"
-                      className={`hub-card-tab ${isClinicRequests ? 'active' : ''}`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (isClinicRequests) {
-                          navigate(targetUrl);
-                        } else {
-                          setRequestTab('clinic');
-                        }
-                      }}
-                      role="tab"
-                      aria-selected={isClinicRequests}
-                      title="View requests from Clinic Users"
-                    >
-                      <span>Clinic Users</span>
-                      {summary && (
-                        <span className="tab-pill-badge warning">{summary.awaiting_requests ?? 0}</span>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      className={`hub-card-tab ${!isClinicRequests ? 'active' : ''}`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (!isClinicRequests) {
-                          navigate(targetUrl);
-                        } else {
-                          setRequestTab('specialist');
-                        }
-                      }}
-                      role="tab"
-                      aria-selected={!isClinicRequests}
-                      title="View requests handled by US24 Specialists"
-                    >
-                      <span>Specialists</span>
-                      {summary && (
-                        <span className="tab-pill-badge">{summary.answered_requests ?? 0}</span>
-                      )}
-                    </button>
-                  </div>
-
-                  <Link to={targetUrl} className="hub-card-body-link">
-                    <div className="hub-card-icon-wrap"><IconInbox size={30} /></div>
-                    <h2 className="hub-card-title">{cardTitle}</h2>
-                    <p className="hub-card-desc">{cardDesc}</p>
-                    <div className="hub-card-tag">
-                      <span className="badge badge-open">{statText}</span>
-                    </div>
-                  </Link>
-                </div>
-              );
-            }
-
-            if (c.to === '/manage/remarks') {
-              const isClinicRemarks = remarkTab === 'clinic';
-              const targetUrl = isClinicRemarks ? '/manage/remarks?type=clinic' : '/manage/remarks?type=specialist';
-              const statText = isClinicRemarks
-                ? (summary ? `${summary.clinic_remarks ?? 0} remarks` : 'Loading…')
-                : (summary ? `${summary.specialist_remarks ?? 0} remarks` : 'Loading…');
-              const cardTitle = isClinicRemarks ? 'Clinic Remarks' : 'Specialist Remarks';
-              const cardDesc = isClinicRemarks
-                ? 'Review statement ledger remarks & balance notes submitted by clinics.'
-                : 'Track insurance adjustments and ledger notes posted by US24 specialists.';
-
-              return (
-                <div key={c.to} className="hub-card hub-card-active hub-card-with-tabs" style={{ textAlign: 'center' }}>
-                  <div className="hub-card-tabs" role="tablist" aria-label="Remark user types">
-                    <button
-                      type="button"
-                      className={`hub-card-tab ${isClinicRemarks ? 'active' : ''}`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (isClinicRemarks) {
-                          navigate(targetUrl);
-                        } else {
-                          setRemarkTab('clinic');
-                        }
-                      }}
-                      role="tab"
-                      aria-selected={isClinicRemarks}
-                      title="View remarks from Clinic Users"
-                    >
-                      <span>Clinic Users</span>
-                      {summary && (
-                        <span className="tab-pill-badge">{summary.clinic_remarks ?? 0}</span>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      className={`hub-card-tab ${!isClinicRemarks ? 'active' : ''}`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (!isClinicRemarks) {
-                          navigate(targetUrl);
-                        } else {
-                          setRemarkTab('specialist');
-                        }
-                      }}
-                      role="tab"
-                      aria-selected={!isClinicRemarks}
-                      title="View remarks from US24 Specialists"
-                    >
-                      <span>Specialists</span>
-                      {summary && (
-                        <span className="tab-pill-badge plum">{summary.specialist_remarks ?? 0}</span>
-                      )}
-                    </button>
-                  </div>
-
-                  <Link to={targetUrl} className="hub-card-body-link">
-                    <div className="hub-card-icon-wrap"><IconChat size={30} /></div>
                     <h2 className="hub-card-title">{cardTitle}</h2>
                     <p className="hub-card-desc">{cardDesc}</p>
                     <div className="hub-card-tag">

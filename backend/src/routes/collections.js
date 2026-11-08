@@ -321,3 +321,47 @@ collectionsRouter.post('/:id/rows/flags', async (req, res) => {
   res.json({ ok: true, flags: targetRow.flags, logs: targetRow.logs });
 });
 
+// POST /api/collections/:id/rows/remarks - Update isolated remark on a specific row
+collectionsRouter.post('/:id/rows/remarks', async (req, res) => {
+  const { id } = req.params;
+  const { rowIndex, remarkText, sheetType = 'check' } = req.body;
+
+  let sql = 'SELECT * FROM clinic_collection WHERE id = $1';
+  const params = [id];
+  if (req.user.role === 'clinic_user') {
+    sql += ' AND clinic_id = $2';
+    params.push(req.user.clinic_id);
+  }
+  const { rows } = await query(sql, params);
+  if (rows.length === 0) throw notFound('Collection report not found or access denied.');
+
+  const collection = rows[0];
+  const sheet = sheetType === 'lineitem' ? (collection.line_items || []) : (collection.check_sheet || []);
+  if (!Array.isArray(sheet) || rowIndex < 0 || rowIndex >= sheet.length) {
+    throw badRequest('Row not found in collection report.');
+  }
+
+  const targetRow = sheet[rowIndex];
+  const cleanRemark = String(remarkText || '').trim();
+  targetRow.remarks = cleanRemark;
+
+  if (!Array.isArray(targetRow.logs)) {
+    targetRow.logs = [];
+  }
+
+  const newLog = {
+    id: crypto.randomUUID(),
+    text: cleanRemark ? `Remark updated: "${cleanRemark}"` : 'Remark cleared',
+    author: req.user.full_name || req.user.email || 'User',
+    role: req.user.role,
+    isRemark: true,
+    createdAt: new Date().toISOString(),
+  };
+  targetRow.logs.push(newLog);
+
+  const updateCol = sheetType === 'lineitem' ? 'line_items' : 'check_sheet';
+  await query(`UPDATE clinic_collection SET ${updateCol} = $1 WHERE id = $2`, [JSON.stringify(sheet), id]);
+
+  res.json({ ok: true, remarks: cleanRemark, log: newLog, logs: targetRow.logs });
+});
+

@@ -49,11 +49,11 @@ export function NotificationBell() {
     if (!user) return;
     try {
       setLoading(true);
-      const res = await api('/notifications?limit=20', { skipActivity: true });
+      const res = await api('/notifications?limit=25', { skipActivity: true });
       setNotifications(res?.notifications || []);
     } catch (err) {
-      if (err?.status === 401 || err?.status === 403) return;
-      console.error('Failed to fetch notifications:', err);
+      if (err?.status === 401 || err?.status === 403 || err?.status === 0) return;
+      console.warn('Notifications temporarily unavailable:', err?.message || err);
     } finally {
       setLoading(false);
     }
@@ -200,6 +200,8 @@ export function NotificationBell() {
                         <div className={`notification-icon-wrap icon-type-${n.type}`}>
                           {n.type === 'reply' ? (
                             <IconCheck size={16} />
+                          ) : n.type?.startsWith('collection') ? (
+                            <IconDocument size={16} />
                           ) : n.isAwaiting ? (
                             <IconClock size={16} />
                           ) : (
@@ -213,9 +215,16 @@ export function NotificationBell() {
                             <span className="notif-time">{formatTimeAgo(n.createdAt)}</span>
                           </div>
 
+                          <div className="notif-title-row">
+                            <span className={`badge ${n.type?.startsWith('collection') ? 'badge-plum' : 'badge-subtle'}`} style={{ fontSize: '0.68rem', padding: '1px 6px', fontWeight: 600 }}>
+                              {n.title}
+                            </span>
+                          </div>
+
                           <div className="notif-clinic-meta">
                             {n.clinicName}
-                            {n.accountNumber ? ` · Acct: ${n.accountNumber}` : ''}
+                            {n.accountNumber ? ` · ${n.type?.startsWith('collection') ? 'Ref' : 'Acct'}: ${n.accountNumber}` : ''}
+                            {n.authorName ? ` · ${n.authorName}` : ''}
                           </div>
 
                           {n.body && (

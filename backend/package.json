@@ -6,7 +6,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "node --watch src/index.js",
+    "dev": "node --watch --watch-path=src src/index.js",
     "start": "node src/index.js",
     "db:migrate": "node ../database/migrate.js",
     "db:seed": "node src/db/seed.js",

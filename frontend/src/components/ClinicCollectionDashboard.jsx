@@ -365,6 +365,11 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
   const [pouchClosing, setPouchClosing] = useState(false);
   const [pouchAnchor, setPouchAnchor] = useState(null); // { x, y } screen coordinates of hovered pouch
 
+  // Row Remark editor state
+  const [editingRemarkRow, setEditingRemarkRow] = useState(null);
+  const [remarkInput, setRemarkInput] = useState('');
+  const [remarkSaving, setRemarkSaving] = useState(false);
+
   const pouchHoverTimerRef = useRef(null);
   const pouchCloseTimerRef = useRef(null);
 
@@ -575,6 +580,48 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
       toast(err.message || 'Failed to update flag.', 'error');
     } finally {
       setPouchBusy(false);
+    }
+  };
+
+  const handleOpenRemarkModal = (row, rowIndex, sheetType = 'check') => {
+    setEditingRemarkRow({ row, rowIndex, sheetType });
+    setRemarkInput(row.remarks || '');
+  };
+
+  const handleSaveRemark = async (textToSave) => {
+    if (!editingRemarkRow || !data?.id) return;
+    setRemarkSaving(true);
+    try {
+      const res = await api(`/collections/${data.id}/rows/remarks`, {
+        method: 'POST',
+        body: {
+          rowIndex: editingRemarkRow.rowIndex,
+          remarkText: textToSave,
+          sheetType: editingRemarkRow.sheetType,
+        },
+      });
+      if (res.ok) {
+        toast('Remark updated successfully.', 'success');
+        const updatedRow = { ...editingRemarkRow.row, remarks: res.remarks, logs: res.logs };
+        setData((prev) => {
+          if (!prev) return prev;
+          if (editingRemarkRow.sheetType === 'check') {
+            const nextCheckRows = [...(prev.checkRows || [])];
+            nextCheckRows[editingRemarkRow.rowIndex] = updatedRow;
+            return { ...prev, checkRows: nextCheckRows };
+          } else {
+            const nextLineItems = [...(prev.lineItems || [])];
+            nextLineItems[editingRemarkRow.rowIndex] = updatedRow;
+            return { ...prev, lineItems: nextLineItems };
+          }
+        });
+        setEditingRemarkRow(null);
+        setRemarkInput('');
+      }
+    } catch (err) {
+      toast(err.message || 'Failed to save remark.', 'error');
+    } finally {
+      setRemarkSaving(false);
     }
   };
 
@@ -1433,7 +1480,20 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                             </span>
                           </td>
                           <td>{formatDate(row.postedDate || row.paymentDate)}</td>
-                          <td className="col-remarks-text">{row.remarks || '—'}</td>
+                          <td className="col-remarks-cell">
+                            <button
+                              type="button"
+                              className={`btn-table-remark ${row.remarks ? 'has-remark' : 'empty-remark'}`}
+                              onClick={() => handleOpenRemarkModal(row, idx, 'check')}
+                              title={row.remarks ? `Remark: "${row.remarks}" (Click to edit)` : 'Click to add remark'}
+                            >
+                              {row.remarks ? (
+                                <span className="remark-pill-text">{row.remarks}</span>
+                              ) : (
+                                <span className="remark-placeholder">— <span className="remark-add-hint">+ Add</span></span>
+                              )}
+                            </button>
+                          </td>
                           <td>{row.location || clinic?.name || '—'}</td>
                         </>
                       ) : (
@@ -1489,7 +1549,20 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                             {formatMoney(row.unposted)}
                           </td>
                           <td className="text-right col-mono text-muted">{formatMoney(row.recoupment)}</td>
-                          <td className="col-remarks-text">{row.remarks || '—'}</td>
+                          <td className="col-remarks-cell">
+                            <button
+                              type="button"
+                              className={`btn-table-remark ${row.remarks ? 'has-remark' : 'empty-remark'}`}
+                              onClick={() => handleOpenRemarkModal(row, idx, 'check')}
+                              title={row.remarks ? `Remark: "${row.remarks}" (Click to edit)` : 'Click to add remark'}
+                            >
+                              {row.remarks ? (
+                                <span className="remark-pill-text">{row.remarks}</span>
+                              ) : (
+                                <span className="remark-placeholder">— <span className="remark-add-hint">+ Add</span></span>
+                              )}
+                            </button>
+                          </td>
                         </>
                       )}
                     </tr>
@@ -1829,7 +1902,126 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
           </div>
         </div>
       )}
-      {/* Row Pouch Modal: Isolated Activity Logs & Flags */}
+{/* Row Remarks Modal */}
+      {editingRemarkRow && (
+        <div className="collection-pouch-modal-backdrop" onClick={() => setEditingRemarkRow(null)}>
+          <div
+            className="pouch-floating-card remark-floating-card"
+            style={{
+              position: 'fixed',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: '460px',
+              maxWidth: '92vw',
+              zIndex: 1050,
+              boxShadow: '0 20px 40px -10px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(15, 23, 42, 0.1)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-labelledby="remark-modal-title"
+          >
+            <div className="pouch-card-header">
+              <div className="pouch-title-wrap">
+                <div className="pouch-title-row">
+                  <span className="pouch-icon-navy">💬</span>
+                  <h4 id="remark-modal-title">Row Remark</h4>
+                </div>
+                <span className="pouch-ref-meta">
+                  {editingRemarkRow.row.payer || editingRemarkRow.row.payee || 'Remittance Record'}
+                  {(editingRemarkRow.row.paymentReference || editingRemarkRow.row.checkNo) ? ` · Ref: ${editingRemarkRow.row.paymentReference || editingRemarkRow.row.checkNo}` : ''}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="btn-pouch-close"
+                onClick={() => setEditingRemarkRow(null)}
+                title="Close remark dialog"
+              >
+                <IconClose size={16} />
+              </button>
+            </div>
+
+            <div className="pouch-tab-content" style={{ padding: '16px' }}>
+              <div style={{ marginBottom: '12px' }}>
+                <label className="pouch-label" style={{ marginBottom: '6px', display: 'block' }}>
+                  Quick Presets
+                </label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {['Deductible Applied', 'Copay Collected', 'Coinsurance', 'Pending Review', 'Verified & Reconciled', 'Payment Discrepancy'].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      className={`btn-system-pill ${remarkInput === preset ? 'active' : ''}`}
+                      style={{ fontSize: '11px', padding: '3px 8px' }}
+                      onClick={() => setRemarkInput(preset)}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pouch-add-log-box" style={{ marginTop: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label htmlFor="row-remark-input" className="pouch-label">
+                    Remark Note
+                  </label>
+                  <span style={{ fontSize: '11px', color: '#64748B' }}>
+                    {remarkInput.length}/200
+                  </span>
+                </div>
+                <textarea
+                  id="row-remark-input"
+                  className="pouch-textarea"
+                  rows={2}
+                  maxLength={200}
+                  placeholder="Enter compact remarks (e.g. Deductible Applied)..."
+                  value={remarkInput}
+                  onChange={(e) => setRemarkInput(e.target.value)}
+                  disabled={remarkSaving}
+                  style={{ minHeight: '64px', maxHeight: '100px' }}
+                />
+
+                <div className="pouch-action-row" style={{ marginTop: '12px' }}>
+                  {editingRemarkRow.row.remarks ? (
+                    <button
+                      type="button"
+                      className="btn-pouch-cancel"
+                      onClick={() => handleSaveRemark('')}
+                      disabled={remarkSaving}
+                      style={{ color: '#DC2626' }}
+                    >
+                      Clear Remark
+                    </button>
+                  ) : <span />}
+
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      className="btn-pouch-cancel"
+                      onClick={() => setEditingRemarkRow(null)}
+                      disabled={remarkSaving}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-pouch-submit"
+                      onClick={() => handleSaveRemark(remarkInput)}
+                      disabled={remarkSaving}
+                    >
+                      {remarkSaving ? 'Saving…' : 'Save Remark'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Remittance Corner Pouch Detail Dialog (Emerging seamlessly from hovered pouch) */}
       {pouchModalRow && (
         <div
           className={`pouch-flyout-backdrop ${pouchClosing ? 'is-closing' : ''}`}
