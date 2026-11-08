@@ -628,7 +628,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
         (r.patientName && r.patientName.toLowerCase().includes(lineItemSearch.toLowerCase().trim())) ||
         (r.referenceNumber && r.referenceNumber.toLowerCase().includes(lineItemSearch.toLowerCase().trim()));
       
-      const matchesPr = prTypeFilter === 'ALL' ||
+      const matchesPr = prTypeFilter === 'ALL' ? true : prTypeFilter === 'NONE' ? (!r.prType || String(r.prType).trim() === '') :
         (r.prType && r.prType.toLowerCase().includes(prTypeFilter.toLowerCase()));
       const matchesSystem = sourceSystemFilter === 'ALL' || (r.sourceSystem || 'Prompt') === sourceSystemFilter;
 
@@ -644,9 +644,9 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
     if (!data?.lineItems) return [];
     const set = new Set();
     data.lineItems.forEach(r => {
-      if (r.prType) set.add(r.prType);
+      if (r.prType && String(r.prType).trim()) set.add(String(r.prType).trim());
     });
-    return Array.from(set);
+    return Array.from(set).sort();
   }, [data?.lineItems]);
 
   // Unique locations for checks
@@ -656,7 +656,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
     data.checkRows.forEach(r => {
       if (r.location) set.add(r.location);
     });
-    return Array.from(set);
+    return Array.from(set).sort();
   }, [data?.checkRows]);
 
   // Unique locations for line items
@@ -666,7 +666,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
     data.lineItems.forEach(r => {
       if (r.location) set.add(r.location);
     });
-    return Array.from(set);
+    return Array.from(set).sort();
   }, [data?.lineItems]);
 
   // Check sheet totals
@@ -1277,10 +1277,15 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                     value={prTypeFilter}
                     onChange={(e) => setPrTypeFilter(e.target.value)}
                   >
-                    <option value="ALL">All PR Types ({data?.lineItems?.length || 0})</option>
+                    <option value="ALL">All Claims ({data?.lineItems?.length || 0})</option>
                     {availablePrTypes.map((t) => (
-                      <option key={t} value={t}>{t}</option>
+                      <option key={t} value={t}>{t} ({(data?.lineItems || []).filter((r) => r.prType === t).length})</option>
                     ))}
+                    {(data?.lineItems || []).some((r) => !r.prType || String(r.prType).trim() === '') && (
+                      <option value="NONE">
+                        No PR Type ({(data?.lineItems || []).filter((r) => !r.prType || String(r.prType).trim() === '').length})
+                      </option>
+                    )}
                   </select>
                 )}
               </div>
@@ -1603,9 +1608,23 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                           <td className="col-mono">{item.serviceCode || '—'}</td>
                           <td className="text-right col-mono">{formatMoney(item.chargeForService != null ? item.chargeForService : item.chargedAmount)}</td>
                           <td>
-                            <span className={`badge-pr-item ${(item.pmtType || item.prType)?.toLowerCase().includes('insurance') ? 'pr-insurance' : (item.pmtType || item.prType)?.toLowerCase().includes('deduct') ? 'pr-deduct' : 'pr-other'}`}>
-                              {item.pmtType || item.prType || '—'}
-                            </span>
+                            {(item.pmtType || item.prType) && String(item.pmtType || item.prType).trim() !== '' ? (
+                              <span className={`badge-pr-item ${
+                                (item.pmtType || item.prType).toLowerCase().includes('insurance')
+                                  ? 'pr-insurance'
+                                  : (item.pmtType || item.prType).toLowerCase().includes('deduct')
+                                  ? 'pr-deduct'
+                                  : (item.pmtType || item.prType).toLowerCase().includes('coins')
+                                  ? 'pr-coins'
+                                  : (item.pmtType || item.prType).toLowerCase().includes('copay')
+                                  ? 'pr-copay'
+                                  : 'pr-other'
+                              }`}>
+                                {item.pmtType || item.prType}
+                              </span>
+                            ) : (
+                              <span className="text-muted">—</span>
+                            )}
                           </td>
                           <td className="text-right col-mono col-bold-navy">
                             {formatMoney(item.pmtAmount != null ? item.pmtAmount : (item.insurancePayment || item.patientPaid))}
@@ -1662,9 +1681,21 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                           <td className="text-right col-mono text-orange">{formatMoney(item.transferredToPatient)}</td>
                           <td className="text-right col-mono col-bold-navy">{formatMoney(item.patientPaid)}</td>
                           <td>
-                            <span className={`badge-pr-item ${item.prType?.toLowerCase().includes('deduct') ? 'pr-deduct' : 'pr-other'}`}>
-                              {item.prType || 'Deductible Applied'}
-                            </span>
+                            {item.prType && String(item.prType).trim() !== '' ? (
+                              <span className={`badge-pr-item ${
+                                item.prType.toLowerCase().includes('deduct')
+                                  ? 'pr-deduct'
+                                  : item.prType.toLowerCase().includes('coins')
+                                  ? 'pr-coins'
+                                  : item.prType.toLowerCase().includes('copay')
+                                  ? 'pr-copay'
+                                  : 'pr-other'
+                              }`}>
+                                {item.prType}
+                              </span>
+                            ) : (
+                              <span className="text-muted">—</span>
+                            )}
                           </td>
                         </>
                       )}

@@ -7352,6 +7352,21 @@ button.stat-kpi-card:hover,
   border-radius: 999px;
 }
 
+.badge-pr-item.pr-copay {
+  background: #ECFDF5;
+  color: #047857;
+  border: 1px solid #A7F3D0;
+}
+.badge-pr-item.pr-coins {
+  background: #FFFBEB;
+  color: #B45309;
+  border: 1px solid #FDE68A;
+}
+.badge-pr-item.pr-insurance {
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border: 1px solid #BFDBFE;
+}
 .badge-pr-item.pr-deduct {
   background: #FEF3C7;
   color: #92400E;

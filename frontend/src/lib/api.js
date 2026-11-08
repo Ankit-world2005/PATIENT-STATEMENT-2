@@ -71,7 +71,8 @@ export async function api(path, { method = 'GET', body, form, skipActivity = fal
 
 /** Downloads a file from the API (the server records the download before sending it). */
 export async function downloadFile(path, fallbackName = 'download') {
-  const res = await fetch(`/api${path}`, { credentials: 'same-origin', headers: { 'X-Requested-With': 'MyPatient' } });
+  const normalizedPath = path.startsWith('/api') ? path.slice(4) : path;
+  const res = await fetch(`/api${normalizedPath}`, { credentials: 'same-origin', headers: { 'X-Requested-With': 'MyPatient' } });
   activity.touch();
   if (!res.ok) {
     const data = (res.headers.get('content-type') || '').includes('json') ? await res.json() : null;
@@ -89,4 +90,30 @@ export async function downloadFile(path, fallbackName = 'download') {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Opens a file in a new browser tab using an authenticated Blob URL (immune to CSP/SameSite issues). */
+export async function viewFileInTab(path, fallbackName = 'document') {
+  const normalizedPath = path.startsWith('/api') ? path.slice(4) : path;
+  const res = await fetch(`/api${normalizedPath}`, { credentials: 'same-origin', headers: { 'X-Requested-With': 'MyPatient' } });
+  activity.touch();
+  if (!res.ok) {
+    const data = (res.headers.get('content-type') || '').includes('json') ? await res.json() : null;
+    if (res.status === 401) unauthorizedHandler?.(data);
+    throw new ApiError(res.status, data);
+  }
+  const contentType = res.headers.get('content-type') || 'application/octet-stream';
+  const blob = await res.blob();
+  const typedBlob = new Blob([blob], { type: contentType });
+  const url = URL.createObjectURL(typedBlob);
+  const win = window.open(url, '_blank');
+  if (!win) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fallbackName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }

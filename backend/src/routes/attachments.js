@@ -123,12 +123,16 @@ attachmentsRouter.get('/:id', async (req, res) => {
   // Worked out from the file itself; older rows may hold whatever type the uploader's browser claimed.
   const type = describeFile(rows[0].filename, buffer);
   const download = !type.inline || req.query.download === '1' || req.query.download === 'true';
+  const csp = type.mime === 'application/pdf'
+    ? "default-src 'self'; object-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-ancestors 'self'"
+    : "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; frame-ancestors 'self'";
+
   res.set({
     'Content-Type': type.mime,
     'Content-Disposition': contentDisposition(download ? 'attachment' : 'inline', rows[0].filename),
     // Patient documents must not stay in the browser cache (TRD 5.3).
     'Cache-Control': 'private, no-store',
-    'Content-Security-Policy': "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'self'",
+    'Content-Security-Policy': csp,
     'X-Frame-Options': 'SAMEORIGIN',
   });
   res.send(buffer);

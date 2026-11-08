@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { api } from '../lib/api.js';
+import { api, downloadFile, viewFileInTab } from '../lib/api.js';
+import { useToast } from '../lib/toast.jsx';
 import { CHUNK_THRESHOLD, uploadAttachmentInChunks } from '../lib/chunkUpload.js';
 import {
   IconClose,
@@ -376,7 +377,18 @@ export function RemarkAttachmentBar({
  */
 function ImageAttachmentCard({ att, onSelectPhoto }) {
   const [loadError, setLoadError] = useState(false);
+  const toast = useToast();
   const url = attachmentUrl(att);
+
+  const handleDownload = async (e) => {
+    e.preventDefault();
+    if (!url) return;
+    try {
+      await downloadFile(`${url}?download=1`, att.name);
+    } catch (err) {
+      toast(err.message || 'Unable to download image.', 'error');
+    }
+  };
 
   // Formats the browser can't preview (HEIC, TIFF, damaged files) are offered as a download.
   if (loadError || !url) {
@@ -384,6 +396,7 @@ function ImageAttachmentCard({ att, onSelectPhoto }) {
       <a
         href={downloadUrl(att) ?? undefined}
         download={att.name}
+        onClick={handleDownload}
         className="attachment-file-pill type-image"
         title={`Download ${att.name} (${formatFileSize(att.size)})`}
       >
@@ -428,6 +441,7 @@ function ImageAttachmentCard({ att, onSelectPhoto }) {
         <a
           href={downloadUrl(att)}
           download={att.name}
+          onClick={handleDownload}
           className="caption-download-btn"
           title="Download image"
         >
@@ -440,8 +454,31 @@ function ImageAttachmentCard({ att, onSelectPhoto }) {
 
 export function RemarkAttachmentViewer({ attachments = [] }) {
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const toast = useToast();
 
   if (!attachments || attachments.length === 0) return null;
+
+  const handleOpen = async (e, att) => {
+    e.preventDefault();
+    const url = attachmentUrl(att);
+    if (!url) return;
+    try {
+      await viewFileInTab(url, att.name);
+    } catch (err) {
+      toast(err.message || 'Unable to open attachment.', 'error');
+    }
+  };
+
+  const handleDownload = async (e, att) => {
+    e.preventDefault();
+    const url = attachmentUrl(att);
+    if (!url) return;
+    try {
+      await downloadFile(`${url}?download=1`, att.name);
+    } catch (err) {
+      toast(err.message || 'Unable to download attachment.', 'error');
+    }
+  };
 
   return (
     <div className="remark-attachments-viewer">
@@ -463,8 +500,7 @@ export function RemarkAttachmentViewer({ attachments = [] }) {
             );
           }
 
-          // PDFs and text open in a new tab; spreadsheets and documents download directly
-          // (opening them in a tab would only leave a blank page behind).
+          // PDFs and text open in a new tab; spreadsheets and documents download directly.
           const opensInTab = isViewableAttachment(att);
           return (
             <div key={att.id || idx} className={`attachment-file-pill ${tagClass}`}>
@@ -473,6 +509,7 @@ export function RemarkAttachmentViewer({ attachments = [] }) {
                 {...(opensInTab
                   ? { target: '_blank', rel: 'noopener noreferrer', title: `Open ${att.name} in a new tab` }
                   : { download: att.name, title: `Download ${att.name}` })}
+                onClick={opensInTab ? (e) => handleOpen(e, att) : (e) => handleDownload(e, att)}
                 className="pill-main-link"
               >
                 <span className="pill-icon">
@@ -484,6 +521,7 @@ export function RemarkAttachmentViewer({ attachments = [] }) {
               <a
                 href={downloadUrl(att) ?? undefined}
                 download={att.name}
+                onClick={(e) => handleDownload(e, att)}
                 className="pill-action"
                 title={`Download ${att.name}`}
               >
@@ -507,23 +545,38 @@ export function RemarkAttachmentViewer({ attachments = [] }) {
             <div className="lightbox-header">
               <span className="lightbox-filename">{selectedPhoto.name}</span>
               <div className="lightbox-actions">
-                <a
-                  href={downloadUrl(selectedPhoto)}
-                  download={selectedPhoto.name}
+                <button
+                  type="button"
                   className="btn btn-secondary btn-sm"
                   title="Download photo"
+                  onClick={async () => {
+                    const url = attachmentUrl(selectedPhoto);
+                    if (!url) return;
+                    try {
+                      await downloadFile(`${url}?download=1`, selectedPhoto.name);
+                    } catch (err) {
+                      toast(err.message || 'Unable to download photo.', 'error');
+                    }
+                  }}
                 >
                   <IconDownload size={14} /> Download
-                </a>
-                <a
-                  href={attachmentUrl(selectedPhoto)}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                </button>
+                <button
+                  type="button"
                   className="btn btn-secondary btn-sm"
                   title="Open full in new tab"
+                  onClick={async () => {
+                    const url = attachmentUrl(selectedPhoto);
+                    if (!url) return;
+                    try {
+                      await viewFileInTab(url, selectedPhoto.name);
+                    } catch (err) {
+                      toast(err.message || 'Unable to open photo.', 'error');
+                    }
+                  }}
                 >
                   Open in tab
-                </a>
+                </button>
                 <button
                   type="button"
                   className="btn-lightbox-close"

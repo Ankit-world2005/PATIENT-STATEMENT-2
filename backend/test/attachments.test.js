@@ -52,15 +52,9 @@ test('Remark and Request attachments end-to-end', async (t) => {
   await t.test('POST /api/attachments uploads an image, a PDF, and an Excel sheet', async () => {
     const sessionToken = await createVerifiedSession(clinicUser.id);
 
-    // 1. Upload Photo via multipart/form-data using FormData
-    const fakePng = new Blob([
-      new Uint8Array([
-        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
-        0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
-        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-        0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89,
-      ]),
-    ], { type: 'image/png' });
+    // 1. Upload Photo via multipart/form-data using FormData (valid 1x1 PNG)
+    const validPngBytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+    const fakePng = new Blob([validPngBytes], { type: 'image/png' });
 
     const formPhoto = new FormData();
     formPhoto.append('file', fakePng, 'treatment-receipt.png');
@@ -80,8 +74,11 @@ test('Remark and Request attachments end-to-end', async (t) => {
     assert.match(photoData.attachment.contentType, /image\/png/);
     uploadedPhotoId = photoData.attachment.id;
 
-    // 2. Upload PDF
-    const fakePdf = new Blob(['%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF'], { type: 'application/pdf' });
+    // 2. Upload PDF (valid standard 1-page PDF structure)
+    const validPdfBytes = Buffer.from(
+      '%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\nxref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \ntrailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n190\n%%EOF'
+    );
+    const fakePdf = new Blob([validPdfBytes], { type: 'application/pdf' });
     const formPdf = new FormData();
     formPdf.append('file', fakePdf, 'patient-eob.pdf');
 
@@ -128,7 +125,7 @@ test('Remark and Request attachments end-to-end', async (t) => {
     assert.equal(getRes.status, 200);
     assert.match(getRes.headers.get('content-type'), /image\/png/);
     const buf = await getRes.arrayBuffer();
-    assert.equal(buf.byteLength, 33);
+    assert.equal(buf.byteLength, validPngBytes.length);
   });
 
   await t.test('POST /api/statements/:id/remarks saves and returns remark with attachments', async () => {

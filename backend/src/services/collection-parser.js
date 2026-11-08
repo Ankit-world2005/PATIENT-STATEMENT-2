@@ -498,7 +498,7 @@ export function parseCombinedGrid(grid) {
         const patientName = getVal(/client name|patient name/) || row[0];
         if (!patientName || /^total/i.test(patientName)) continue;
 
-        const pmtType = getVal(/pmt type|pr type/) || 'Copay';
+        const pmtType = getVal(/pmt type|pr type/) || '';
         const pmtAmt = parseNum(getVal(/pmt amount|paid amount|payment amount/) || row[8]);
         const isInsurance = /insurance/i.test(pmtType);
 
@@ -557,7 +557,7 @@ export function parseCombinedGrid(grid) {
           transferredToSecondary: parseNum(getVal(/transferred to secondary/) || row[9]),
           transferredToPatient: parseNum(getVal(/transferred to patient/) || row[10]),
           patientPaid: parseNum(getVal(/patient paid|patient payment/) || row[11]),
-          prType: getVal(/pr type/) || 'Copay',
+          prType: (getVal(/pr type/) != null && String(getVal(/pr type/)).trim() !== '') ? String(getVal(/pr type/)).trim() : '',
           location: getVal(/visit facility|facility|location/) || row[2] || '',
         });
       }
@@ -746,7 +746,7 @@ export function parseTherabillGrid(grid) {
         const dateOfService = formatDateVal(getVal(/dos|service date|date of service/) || row[4]);
         const serviceCode = getVal(/service code/) || row[5] || '';
         const chargedAmount = parseNum(getVal(/charge for service|charged amount|submitted amount/) || row[6]);
-        const pmtType = getVal(/pmt type|pr type/) || 'Copay';
+        const pmtType = getVal(/pmt type|pr type/) || '';
         const pmtAmt = parseNum(getVal(/pmt amount|paid amount|payment amount/) || row[8]);
         const isInsurance = /insurance/i.test(pmtType);
         const depositDate = formatDateVal(getVal(/deposit date|bank date/) || row[9]);
@@ -1072,7 +1072,7 @@ export function parsePromptGrid(grid) {
         transferredToSecondary: lineItemHeaderIdxs?.transferredSec !== -1 && lineItemHeaderIdxs?.transferredSec != null ? parseNum(row[lineItemHeaderIdxs.transferredSec]) : 0,
         transferredToPatient: lineItemHeaderIdxs?.transferredPt !== -1 && lineItemHeaderIdxs?.transferredPt != null ? parseNum(row[lineItemHeaderIdxs.transferredPt]) : 0,
         patientPaid: parseNum(row[lineItemHeaderIdxs?.patientPayment ?? 8]),
-        prType: row[lineItemHeaderIdxs?.prType ?? 9] || 'Copay',
+        prType: (lineItemHeaderIdxs?.prType !== -1 && row[lineItemHeaderIdxs?.prType ?? 9] != null && String(row[lineItemHeaderIdxs?.prType ?? 9]).trim() !== '') ? String(row[lineItemHeaderIdxs?.prType ?? 9]).trim() : '',
         location: row[lineItemHeaderIdxs?.location ?? 10] || '',
       });
     }
@@ -1272,7 +1272,7 @@ function parseMultiSheetPrompt(wb) {
         transferredToSecondary: getNumCol(/secondary/i, 10),
         transferredToPatient: getNumCol(/transferred\s*to\s*patient/i, 11),
         patientPaid: getNumCol(/patient\s*paid|patient\s*pay/i, 12),
-        prType: String(getCol(/pr\s*type|pmt\s*type/i, 13) || 'Copay').trim(),
+        prType: (getCol(/pr\s*type|pmt\s*type/i, 13) != null && String(getCol(/pr\s*type|pmt\s*type/i, 13)).trim() !== '') ? String(getCol(/pr\s*type|pmt\s*type/i, 13)).trim() : '',
         location: String(getCol(/location|facility/i, null) || '').trim(),
       });
     });

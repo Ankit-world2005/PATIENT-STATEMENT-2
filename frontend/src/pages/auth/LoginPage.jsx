@@ -4,9 +4,7 @@ import hallmarkImg from '../../assets/my-patient-hallmark.png';
 import {
   IconAlert,
   IconArrowRight,
-  IconClose,
   IconDocument,
-  IconHelpCircle,
   IconInfo,
   IconLock,
   IconMail,
@@ -26,7 +24,6 @@ export function LoginPage() {
   const [errors, setErrors] = useState({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [showHelp, setShowHelp] = useState(false);
 
   if (user) return <Navigate to={landingPath(user)} replace />;
   if (pending) return <Navigate to="/login/verify" replace />;
@@ -71,19 +68,7 @@ export function LoginPage() {
               />
               <span className="login-geo-tagline">Innovative Technology Driven</span>
             </div>
-
-            
           </div>
-
-          <button
-            type="button"
-            className="login-geo-help-btn"
-            onClick={() => setShowHelp(true)}
-            aria-label="Need Help?"
-          >
-            <IconHelpCircle size={18} />
-            <span>Need Help?</span>
-          </button>
         </div>
       </header>
 
@@ -219,92 +204,6 @@ export function LoginPage() {
           </span>
         </div>
       </footer>
-
-      {/* Need Help? Modal Dialog */}
-      {showHelp && (
-        <div className="login-help-overlay" onClick={() => setShowHelp(false)}>
-          <div
-            className="login-help-modal-card"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="help-modal-heading"
-          >
-            <div className="help-modal-header">
-              <div className="help-modal-title-group">
-                <IconHelpCircle size={22} className="help-header-icon" />
-                <h3 id="help-modal-heading" className="help-modal-title">
-                  Need Help Signing In?
-                </h3>
-              </div>
-              <button
-                type="button"
-                className="help-modal-close-btn"
-                onClick={() => setShowHelp(false)}
-                aria-label="Close help modal"
-              >
-                <IconClose size={20} />
-              </button>
-            </div>
-
-            <div className="help-modal-body">
-              <p className="help-intro-text">
-                Welcome to the <strong>My Patient Statement Portal</strong>. If you are experiencing
-                issues signing in or require credential assistance, please contact our support team.
-              </p>
-
-              <div className="help-contact-card">
-                <div className="help-contact-row">
-                  <span className="contact-label">Email Support:</span>
-                  <a href="mailto:us24drive@gmail.com" className="contact-val-link">
-                    us24drive@gmail.com
-                  </a>
-                </div>
-                <div className="help-contact-row">
-                  <span className="contact-label">Specialist Desk:</span>
-                  <span className="contact-val">Monday – Friday, 8:00 AM – 6:00 PM MST</span>
-                </div>
-                <div className="help-contact-row">
-                  <span className="contact-label">Portal Service:</span>
-                  <span className="contact-val">Available 24/7/365</span>
-                </div>
-              </div>
-
-              <div className="help-tips-block">
-                <h4 className="help-tips-heading">Quick Tips:</h4>
-                <ul className="help-tips-list">
-                  <li>Check that your Caps Lock key is off.</li>
-                  <li>Ensure your email address is typed correctly.</li>
-                  <li>
-                    If you haven't received your 2-step verification code, verify your junk/spam email folder.
-                  </li>
-                  <li>
-                    To reset your password, visit the{' '}
-                    <Link
-                      to="/password/forgot"
-                      className="help-inline-link"
-                      onClick={() => setShowHelp(false)}
-                    >
-                      Password Reset
-                    </Link>{' '}
-                    screen.
-                  </li>
-                </ul>
-              </div>
-            </div>
-
-            <div className="help-modal-footer">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => setShowHelp(false)}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

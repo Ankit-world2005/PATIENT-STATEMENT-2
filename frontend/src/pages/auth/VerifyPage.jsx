@@ -4,9 +4,7 @@ import hallmarkImg from '../../assets/my-patient-hallmark.png';
 import {
   IconAlert,
   IconArrowRight,
-  IconClose,
   IconDocument,
-  IconHelpCircle,
   IconInfo,
   IconLock,
   IconMail,
@@ -27,7 +25,6 @@ export function VerifyPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [cooldown, setCooldown] = useState(60);
-  const [showHelp, setShowHelp] = useState(false);
 
   // Holds this page while the result of a successful verify is being applied.
   const verified = useRef(false);
@@ -110,19 +107,7 @@ export function VerifyPage() {
               />
               <span className="login-geo-tagline">Innovative Technology Driven</span>
             </div>
-
-            
           </div>
-
-          <button
-            type="button"
-            className="login-geo-help-btn"
-            onClick={() => setShowHelp(true)}
-            aria-label="Need Help?"
-          >
-            <IconHelpCircle size={18} />
-            <span>Need Help?</span>
-          </button>
         </div>
       </header>
 
@@ -285,76 +270,6 @@ export function VerifyPage() {
           </span>
         </div>
       </footer>
-
-      {/* Need Help? Modal Dialog */}
-      {showHelp && (
-        <div className="login-help-overlay" onClick={() => setShowHelp(false)}>
-          <div
-            className="login-help-modal-card"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="otp-help-heading"
-          >
-            <div className="help-modal-header">
-              <div className="help-modal-title-group">
-                <IconHelpCircle size={22} className="help-header-icon" />
-                <h3 id="otp-help-heading" className="help-modal-title">
-                  Two-Step Verification Help
-                </h3>
-              </div>
-              <button
-                type="button"
-                className="help-modal-close-btn"
-                onClick={() => setShowHelp(false)}
-                aria-label="Close help modal"
-              >
-                <IconClose size={20} />
-              </button>
-            </div>
-
-            <div className="help-modal-body">
-              <p className="help-intro-text">
-                Two-step verification is required to safeguard protected health information (PHI) and
-                ensure HIPAA compliance across all US24 Solutions portals.
-              </p>
-
-              <div className="help-contact-card">
-                <div className="help-contact-row">
-                  <span className="contact-label">Email Support:</span>
-                  <a href="mailto:us24drive@gmail.com" className="contact-val-link">
-                    us24drive@gmail.com
-                  </a>
-                </div>
-                <div className="help-contact-row">
-                  <span className="contact-label">Specialist Desk:</span>
-                  <span className="contact-val">Monday – Friday, 8:00 AM – 6:00 PM MST</span>
-                </div>
-              </div>
-
-              <div className="help-tips-block">
-                <h4 className="help-tips-heading">Troubleshooting Tips:</h4>
-                <ul className="help-tips-list">
-                  <li>Verification codes are valid for 10 minutes from receipt.</li>
-                  <li>Check your spam, junk, or quarantine email folders.</li>
-                  <li>If you requested multiple codes, only the most recent code will work.</li>
-                  <li>Wait for the countdown to expire before requesting another code.</li>
-                </ul>
-              </div>
-            </div>
-
-            <div className="help-modal-footer">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => setShowHelp(false)}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
