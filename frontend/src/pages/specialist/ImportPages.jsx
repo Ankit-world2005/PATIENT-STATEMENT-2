@@ -156,7 +156,7 @@ export function ImportNewPage() {
           {(p) => (
             <select {...p} className="form-select" value={clinicId} onChange={(e) => setClinicId(e.target.value)} disabled={busy}>
               <option value="">Choose a clinic…</option>
-              {clinics?.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}
+              {clinics?.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })).map((c) => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}
             </select>
           )}
         </Field>

@@ -335,7 +335,7 @@ export function UploadPage() {
               {(p) => (
                 <select {...p} className="form-select" value={clinicId} onChange={handleClinicChange}>
                   <option value="">Choose a clinic…</option>
-                  {clinics?.map((c) => (
+                  {clinics?.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })).map((c) => (
                     <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
                   ))}
                 </select>

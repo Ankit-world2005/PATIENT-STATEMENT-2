@@ -230,7 +230,7 @@ requestsRouter.get('/', async (req, res) => {
   // Available clinics for filter dropdown
   let clinics = [];
   if (req.user.role === 'admin') {
-    const { rows } = await query('SELECT id, name, clinic_code FROM clinic WHERE is_active = true ORDER BY name ASC');
+    const { rows } = await query('SELECT id, name, clinic_code FROM clinic WHERE is_active = true ORDER BY lower(name) ASC');
     clinics = rows;
   } else if (req.user.role === 'specialist') {
     const { rows } = await query(
@@ -238,7 +238,7 @@ requestsRouter.get('/', async (req, res) => {
          FROM specialist_assignment a
          JOIN clinic c ON c.id = a.clinic_id
         WHERE a.specialist_id = $1 AND c.is_active = true
-        ORDER BY c.name ASC`,
+        ORDER BY lower(c.name) ASC`,
       [req.user.id],
     );
     clinics = rows;

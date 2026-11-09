@@ -10,7 +10,14 @@ import { NotFoundPage } from '../NotFoundPage.jsx';
 function useClinicOptions(status = 'active') {
   const [clinics, setClinics] = useState([]);
   useEffect(() => {
-    api(`/admin/clinics?status=${status}`).then((d) => setClinics(d.clinics)).catch(() => {});
+    api(`/admin/clinics?status=${status}`)
+      .then((d) => {
+        const sorted = (d.clinics || []).slice().sort((a, b) =>
+          a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+        );
+        setClinics(sorted);
+      })
+      .catch(() => {});
   }, [status]);
   return clinics;
 }
@@ -616,6 +623,7 @@ export function EditUserModal({ user, clinics = [], onClose, onSaved }) {
   if (user.clinic && !allClinics.some((c) => c.id === user.clinic.id)) {
     allClinics.push({ id: user.clinic.id, name: user.clinic.name, isActive: false });
   }
+  allClinics.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();

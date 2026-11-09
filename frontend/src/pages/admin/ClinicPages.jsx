@@ -156,7 +156,12 @@ export function ClinicsPage() {
 
   const loadClinics = useCallback(() => {
     api(`/admin/clinics?${new URLSearchParams({ q, status })}`)
-      .then((d) => setClinics(d.clinics))
+      .then((d) => {
+        const sorted = (d.clinics || []).slice().sort((a, b) =>
+          a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+        );
+        setClinics(sorted);
+      })
       .catch((e) => setError(e.message));
   }, [q, status]);
 

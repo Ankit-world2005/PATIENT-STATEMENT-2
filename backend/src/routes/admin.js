@@ -109,7 +109,7 @@ adminRouter.get('/clinics', async (req, res) => {
             (SELECT string_agg(u.full_name, ', ' ORDER BY u.full_name) FROM specialist_assignment a
                JOIN app_user u ON u.id = a.specialist_id WHERE a.clinic_id = c.id) AS specialists
        FROM clinic c WHERE ${where.join(' AND ')}
-      ORDER BY c.is_active DESC, lower(c.name) LIMIT 500`,
+      ORDER BY lower(c.name) ASC, c.is_active DESC LIMIT 500`,
     params,
   );
   res.json({ clinics: rows.map((c) => ({ ...clinicView(c), userCount: c.user_count, specialists: c.specialists })) });
@@ -831,7 +831,7 @@ adminRouter.get('/remarks', async (req, res) => {
   const { rows: items } = await query(dataQuery, params);
 
   // Clinic list for filter dropdown
-  const { rows: clinics } = await query(`SELECT id, name, clinic_code FROM clinic WHERE is_active = true ORDER BY name ASC`);
+  const { rows: clinics } = await query(`SELECT id, name, clinic_code FROM clinic WHERE is_active = true ORDER BY lower(name) ASC`);
 
   // Overall stats
   const { rows: statsRows } = await query(`

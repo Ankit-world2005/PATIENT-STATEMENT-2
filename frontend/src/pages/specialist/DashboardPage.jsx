@@ -69,7 +69,7 @@ export function DashboardPage() {
               <p className="panel-empty">No clinics assigned.</p>
             ) : (
               <ul className="clinic-tiles">
-                {data.clinics.map((c) => (
+                {[...data.clinics].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })).map((c) => (
                   <li key={c.id}>
                     <Link to={`/clinics/${c.id}/statements`} className={`clinic-tile ${c.isActive ? '' : 'inactive'}`}>
                       <div className="clinic-tile-head">

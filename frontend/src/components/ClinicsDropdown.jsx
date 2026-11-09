@@ -54,6 +54,10 @@ export function ClinicsDropdown({ clinics = [], currentClinicId = null, classNam
       )
     : clinics;
 
+  const sortedClinics = [...filteredClinics].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  );
+
   const totalCount = clinics.length;
 
   return (
@@ -130,7 +134,7 @@ export function ClinicsDropdown({ clinics = [], currentClinicId = null, classNam
                 </button>
               </div>
             ) : (
-              filteredClinics.map((c) => {
+              sortedClinics.map((c) => {
                 const isCurrent = currentClinicId && currentClinicId === c.id;
                 return (
                   <Link

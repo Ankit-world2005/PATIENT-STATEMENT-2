@@ -86,7 +86,7 @@ dashboardRouter.get('/dashboard', requireRole('specialist'), async (req, res) =>
          LEFT JOIN statement s ON s.clinic_id = c.id
         WHERE a.specialist_id = $1
         GROUP BY c.id
-        ORDER BY c.is_active DESC, lower(c.name)`,
+        ORDER BY lower(c.name) ASC, c.is_active DESC`,
       [me],
     ),
     query(

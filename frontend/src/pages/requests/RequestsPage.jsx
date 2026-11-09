@@ -767,7 +767,7 @@ export function RequestsContent({ clinicId: propClinicId, embedded = false }) {
                 style={{ width: 'auto', minWidth: 180 }}
               >
                 <option value="">All Clinics</option>
-                {data.clinics.map((c) => (
+                {data.clinics.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })).map((c) => (
                   <option key={c.id} value={c.id}>{c.name} ({c.clinic_code})</option>
                 ))}
               </select>
