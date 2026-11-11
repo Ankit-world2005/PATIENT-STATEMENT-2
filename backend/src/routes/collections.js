@@ -102,14 +102,17 @@ collectionsRouter.post('/upload', upload.single('file'), async (req, res) => {
   const cRes = await query('SELECT name FROM clinic WHERE id = $1', [clinicId]);
   const clinicName = cRes.rows[0]?.name || 'Clinic';
 
-  const parsed = await parseCollectionExcel(req.file.buffer);
+  const isNaperville = /naperville/i.test(clinicName);
+  const parsed = await parseCollectionExcel(req.file.buffer, { clinicName, isNaperville });
 
   const summary = {
     detectedFormat: parsed.detectedFormat || 'prompt',
     formatLabel: parsed.formatLabel || 'Prompt Format',
+    isNaperville: Boolean(parsed.isNaperville) || isNaperville,
     particulars: parsed.particulars,
     promptPosting: parsed.promptPosting,
     postingSummary: parsed.postingSummary || parsed.promptPosting,
+    postingPeriods: parsed.postingPeriods || null,
     locationSummary: parsed.locationSummary,
     hybridSummaries: parsed.hybridSummaries || null,
   };
@@ -152,9 +155,11 @@ collectionsRouter.post('/upload', upload.single('file'), async (req, res) => {
 collectionsRouter.get('/template', async (req, res) => {
   const clinicName = req.query.clinicName || 'Clinic';
   const monthYear = req.query.month || 'Current';
+  const isNaperville = /naperville/i.test(clinicName);
 
   const buffer = await generateCollectionExcel({
-    reportTitle: `${clinicName} Collection Report - ${monthYear}`,
+    reportTitle: isNaperville ? 'Collection Report - October 2026' : `${clinicName} Collection Report - ${monthYear}`,
+    isNaperville,
     particulars: { checkAmount: 0, patientPayment: 0, total: 0 },
     promptPosting: { insurancePayment: 0, recoupmentOffset: 0, deductible: 0, coinsurance: 0, copay: 0, grandTotal: 0 },
     checkRows: [],
@@ -202,6 +207,8 @@ collectionsRouter.get('/export', async (req, res) => {
     reportTitle: colData.report_title,
     particulars: colData.summary?.particulars || {},
     promptPosting: colData.summary?.promptPosting || {},
+    postingPeriods: colData.summary?.postingPeriods || null,
+    isNaperville: Boolean(colData.summary?.isNaperville) || /naperville/i.test(clinicName),
     checkRows: colData.check_sheet || [],
     lineItems: colData.line_items || [],
     monthYear: colData.month_year,
@@ -211,6 +218,8 @@ collectionsRouter.get('/export', async (req, res) => {
     reportTitle: payload.reportTitle || `${clinicName} Collection Report`,
     particulars: payload.particulars,
     promptPosting: payload.promptPosting,
+    postingPeriods: payload.postingPeriods,
+    isNaperville: payload.isNaperville,
     checkRows: payload.checkRows,
     lineItems: payload.lineItems,
   });

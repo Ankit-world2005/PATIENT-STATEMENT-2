@@ -312,3 +312,134 @@ Icure,Aetna,Availity,ERA,EFT,CHK-9812,10/12/2026,12500.00,12500.00,0.00,150.00,P
   assert.equal(result.lineItems[1].prType, 'Copay');
   assert.equal(result.lineItems[1].patientPaid, 25);
 });
+
+test('parseCollectionExcel parses Naperville multi-period Therabill report and Coinsurance properly', async () => {
+  const wb = new ExcelJS.Workbook();
+  const wsSummary = wb.addWorksheet('Summary');
+  wsSummary.addRow(['NAPERVILLE']);
+  wsSummary.addRow(['Collection Report - October 2026']);
+  wsSummary.addRow(['Payment Type', 'Pmt Amount']);
+  wsSummary.addRow(['Insurance Payment', 4066.89]);
+  wsSummary.addRow(['Patient Payment(Deductible)', 779.62]);
+  wsSummary.addRow(['Grand Total', 4846.51]);
+  wsSummary.addRow([]);
+  wsSummary.addRow(['Collection Report - Till 14th May', '', '', 'Collection After 14th May']);
+  wsSummary.addRow(['Particular', 'Amount', '', 'Particular', 'Amount']);
+  wsSummary.addRow(['Insurance', 146.52, '', 'Insurance', 3952.17]);
+  wsSummary.addRow(['Recoupment offset', '($31.80)', '', 'Recoupment offset', 0]);
+  wsSummary.addRow(['Deductible', 779.62, '', 'Deductible', 0]);
+  wsSummary.addRow(['Coinsurance', 174.74, '', 'Coinsurance', 80.68]);
+  wsSummary.addRow(['Copay', 0, '', 'Copay', 25]);
+  wsSummary.addRow(['Self Pay', 110, '', 'Self Pay', 0]);
+  wsSummary.addRow(['Grand Total', 1179.08, '', 'Grand Total', { formula: 'SUM(E10:E15)', result: 4057.85 }]);
+
+  const wsCheck = wb.addWorksheet('Check Sheet');
+  wsCheck.addRow(['Payee', 'Payer', 'EOB Source', 'ERA/EOB', 'Method', 'Check no', 'Check Date', 'Check Amount', 'Posted Amount', 'Remaining Amount', 'Recoupment', 'Status', 'Posted date', 'Remarks']);
+  wsCheck.addRow(['NAPERVILLE', 'BCBS IL', 'Availity', 'EOB', 'EFT', 'C1', '09/16/2026', 114.72, 114.72, 0, 0, 'POSTED', '10/07/2026', '']);
+  wsCheck.addRow(['NAPERVILLE', 'BCBS IL', 'Availity', 'EOB', 'EFT', 'C2', '10/07/2026', 3952.17, 3952.17, 0, 0, 'POSTED', '10/08/2026', '']);
+
+  const wsLine = wb.addWorksheet('Lineitem');
+  wsLine.addRow(['Client Name (Last, First)', 'Payer name', 'Check #', 'Check date', 'DOS', 'Service code', 'Charge for Service', 'Pmt Type', 'Pmt Amount', 'Deposit date', 'Facility Name']);
+  wsLine.addRow(['BRETT CLARK', 'Patient Payment', '', '10/14/2026', '04/29/2026', '97530.GP', 181.2, 'Coinsurance', 39, '10/14/2026', 'Third Eye Bliss']);
+  wsLine.addRow(['ALPA PATEL', 'Patient Payment', '', '10/14/2026', '11/24/2025', '97110', 150, 'Self Pay', 110, '10/14/2026', 'Third Eye Bliss']);
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const result = await parseCollectionExcel(buffer);
+
+  assert.equal(result.detectedFormat, 'therabill');
+  assert.equal(result.reportTitle, 'Collection Report - October 2026');
+  assert.equal(result.monthYear, 'October 2026');
+  assert.equal(result.particulars.checkAmount, 4066.89);
+  assert.equal(result.particulars.patientPayment, 779.62);
+  assert.equal(result.particulars.total, 4846.51);
+
+  assert.equal(result.promptPosting.insurancePayment, 146.52);
+  assert.equal(result.promptPosting.recoupmentOffset, -31.8);
+  assert.equal(result.promptPosting.deductible, 779.62);
+  assert.equal(result.promptPosting.coinsurance, 174.74);
+  assert.equal(result.promptPosting.copay, 0);
+  assert.equal(result.promptPosting.selfPay, 110);
+  assert.equal(result.promptPosting.grandTotal, 1179.08);
+
+  assert.equal(result.postingPeriods.length, 2);
+  assert.equal(result.postingPeriods[0].label, 'Till 14th May');
+  assert.equal(result.postingPeriods[0].grandTotal, 1179.08);
+  assert.equal(result.postingPeriods[1].label, 'After 14th May');
+  assert.equal(result.postingPeriods[1].grandTotal, 4057.85);
+
+  const coinsLine = result.lineItems.find(l => l.prType === 'Coinsurance');
+  assert.equal(coinsLine.insurancePayment, 0);
+  assert.equal(coinsLine.patientPaid, 39);
+});
+
+test('parseCollectionExcel parses exact Naperville offset-column layout and Client Confirmation & Clearance Date', async () => {
+  const NAPERVILLE_CSV = `NAPERVILLE,,,,Collection Report - Till 14th May,
+ Collection Report - October 2026,,,,Particular,Amount
+Payment Type,Pmt Amount,,,Insurance,146.52
+Insurance Payment,4066.89,,,Recoupment offset,-31.80
+Patient Payment(Deductible),779.62,,,Deductible,779.62
+Grand Total,4846.51,,,Coinsurance,174.74
+,,,,Copay,0
+,,,,Self Pay,110
+,,,,Grand Total,1179.08
+,,,,,
+,,,,,
+,,Collection After 14th May,,,
+,,Particular,Amount,,
+,,Insurance,3952.17,,
+,,Recoupment offset,0,,
+,,Deductible,0,,
+,,Coinsurance,80.68,,
+,,Copay,25,,
+,,Self Pay,0,,
+,,Grand Total,4057.85,,
+Payee,Payer,EOB Source,ERA/EOB,Method,Check no,Check Date,Check Amount,Posted Amount,Remaining Amt,Recoupment,Status,Posted date,Client Confirmation & Clearance Date,Remarks
+NAPERVILLE,BCBS IL,Availity,EOB,EFT,C26257,09/16/2026,114.72,114.72,12.50,0,POSTED,10/07/2026,10/10/2026,Ded Posted
+Client name,Payer name,Check #,Check date,DOS,Service code,Charge for Service,Pmt Type,Pmt Amount,Deposit date,Facility Name
+"CLARK, BRETT",Patient Payment,,10/14/2026,04/29/2026,97530.GP,181.20,Coinsurance,39.00,10/14/2026,Third Eye Bliss`;
+
+  const res = await parseCollectionExcel(Buffer.from(NAPERVILLE_CSV), { clinicName: 'NAPERVILLE SOUTH', isNaperville: true });
+  assert.equal(res.isNaperville, true);
+  assert.equal(res.detectedFormat, 'therabill');
+  assert.equal(res.particulars.checkAmount, 4066.89);
+  assert.equal(res.particulars.patientPayment, 779.62);
+  assert.equal(res.particulars.total, 4846.51);
+  assert.equal(res.postingPeriods.length, 2);
+  assert.equal(res.postingPeriods[0].label, 'Till 14th May');
+  assert.equal(res.postingPeriods[0].insurancePayment, 146.52);
+  assert.equal(res.postingPeriods[0].recoupmentOffset, -31.8);
+  assert.equal(res.postingPeriods[0].selfPay, 110);
+  assert.equal(res.postingPeriods[0].grandTotal, 1179.08);
+  assert.equal(res.postingPeriods[1].label, 'After 14th May');
+  assert.equal(res.postingPeriods[1].insurancePayment, 3952.17);
+  assert.equal(res.postingPeriods[1].grandTotal, 4057.85);
+  assert.equal(res.promptPosting.grandTotal, 1179.08);
+
+  assert.equal(res.checkRows.length, 1);
+  assert.equal(res.checkRows[0].remainingAmount, 12.5);
+  assert.equal(res.checkRows[0].clientConfirmationDate, '10/10/2026');
+  assert.equal(res.checkRows[0].remarks, 'Ded Posted');
+  assert.equal(res.checkRows[0].location, '');
+  assert.equal(res.lineItems.length, 1);
+  assert.equal(res.lineItems[0].patientName, 'CLARK, BRETT');
+  assert.equal(res.lineItems[0].patientPaid, 39);
+
+  // Round-trip through Naperville Excel exporter
+  const { generateCollectionExcel } = await import('../src/services/collection-exporter.js');
+  const buf = await generateCollectionExcel({
+    reportTitle: res.reportTitle,
+    particulars: res.particulars,
+    promptPosting: res.promptPosting,
+    postingPeriods: res.postingPeriods,
+    isNaperville: true,
+    checkRows: res.checkRows,
+    lineItems: res.lineItems,
+  });
+  const roundTrip = await parseCollectionExcel(buf, { clinicName: 'NAPERVILLE SOUTH', isNaperville: true });
+  assert.equal(roundTrip.isNaperville, true);
+  assert.equal(roundTrip.particulars.total, 4846.51);
+  assert.equal(roundTrip.postingPeriods[0].grandTotal, 1179.08);
+  assert.equal(roundTrip.postingPeriods[1].grandTotal, 4057.85);
+  assert.equal(roundTrip.checkRows[0].clientConfirmationDate, '10/10/2026');
+  assert.equal(roundTrip.checkRows[0].remarks, 'Ded Posted');
+});

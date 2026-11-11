@@ -135,7 +135,7 @@ export function parseCsvRows(text) {
  * - 'therabill' (Therabill standalone format)
  * - 'prompt'    (Prompt standalone format)
  */
-export function detectCollectionFormat(grid) {
+export function detectCollectionFormat(grid, options = {}) {
   if (!grid || !Array.isArray(grid) || grid.length === 0) return 'prompt';
 
   const fullText = grid.map(r => r.join(' ').toLowerCase()).join('\n');
@@ -148,13 +148,15 @@ export function detectCollectionFormat(grid) {
     return 'combined';
   }
 
-  // 2. Check for Therabill signatures
+  // 2. Check for Therabill signatures (including Naperville format)
+  const isNapervilleOpt = Boolean(options?.isNaperville) || /naperville/i.test(options?.clinicName || '');
   const hasTherabillKeyword = /therabill/i.test(fullText);
-  const hasClientNameHeader = /client name\s*\(\s*last\s*,\s*first\s*\)/i.test(fullText);
+  const hasClientNameHeader = /client name/i.test(fullText);
   const hasEobSource = /eob source/i.test(fullText) && /era\/eob/i.test(fullText);
   const hasChargeForService = /charge for service/i.test(fullText) && /pmt type/i.test(fullText);
+  const hasNapervilleSig = /naperville/i.test(fullText) && (/till\s+14|after\s+14|client confirmation/i.test(fullText));
 
-  if (hasTherabillKeyword || (hasClientNameHeader && (hasEobSource || hasChargeForService))) {
+  if (isNapervilleOpt || hasNapervilleSig || hasTherabillKeyword || (hasClientNameHeader && (hasEobSource || hasChargeForService)) || (hasEobSource && hasChargeForService)) {
     return 'therabill';
   }
 
@@ -165,7 +167,8 @@ export function detectCollectionFormat(grid) {
 /**
  * Universal Clinic Collection Parser with automatic format detection.
  */
-export async function parseCollectionExcel(buffer) {
+export async function parseCollectionExcel(buffer, options = {}) {
+  const isNaperville = Boolean(options?.isNaperville) || /naperville/i.test(options?.clinicName || '');
   let isXlsx = false;
   const wb = new ExcelJS.Workbook();
   try {
@@ -181,7 +184,7 @@ export async function parseCollectionExcel(buffer) {
   if (!isXlsx) {
     const text = buffer.toString('utf8');
     const rows = parseCsvRows(text);
-    return parseAutoGrid(rows);
+    return parseAutoGrid(rows, { isNaperville });
   }
 
   // 1. Check multi-sheet names
@@ -199,12 +202,12 @@ export async function parseCollectionExcel(buffer) {
   const genericCheckSheet = findSheet(/check|remit|era|payment/i);
   const genericLineSheet = findSheet(/line\s*item|lineitem|claim|patient/i);
 
-  // Check if any sheet contains explicit Therabill columns
+  // Check if any sheet contains explicit Therabill columns (including rows past top summary)
   const hasTherabillContent = wb.worksheets.some(ws => {
     let matched = false;
-    for (let r = 1; r <= Math.min(10, ws.rowCount); r++) {
+    for (let r = 1; r <= Math.min(30, ws.rowCount); r++) {
       const rowText = ws.getRow(r).values.slice(1).map(extractCellValue).join(' ').toLowerCase();
-      if (rowText.includes('eob source') || rowText.includes('charge for service') || /therabill/i.test(rowText)) {
+      if (rowText.includes('eob source') || rowText.includes('charge for service') || /therabill|client confirmation\s*&\s*clearance date/i.test(rowText)) {
         matched = true;
         break;
       }
@@ -245,7 +248,7 @@ export async function parseCollectionExcel(buffer) {
           return val != null ? String(val).trim() : '';
         }));
       });
-      return parseAutoGrid(grid);
+      return parseAutoGrid(grid, { isNaperville });
     }
   }
 
@@ -254,9 +257,9 @@ export async function parseCollectionExcel(buffer) {
     return parseMultiSheetHybrid(wb);
   }
 
-  // If multi-sheet Therabill
-  if (hasTherabillCheck || hasTherabillLine || (hasTherabillContent && !hasPromptContent)) {
-    return parseMultiSheetTherabill(wb);
+  // If Naperville or multi-sheet Therabill
+  if (isNaperville || hasTherabillCheck || hasTherabillLine || (hasTherabillContent && !hasPromptContent)) {
+    return parseMultiSheetTherabill(wb, { isNaperville });
   }
 
   // Otherwise standard multi-sheet Prompt (including Summary + Check Sheet + Lineitem)
@@ -266,13 +269,13 @@ export async function parseCollectionExcel(buffer) {
 /**
  * Auto-detects format from a 2D grid and delegates to the appropriate parser.
  */
-export function parseAutoGrid(grid) {
-  const format = detectCollectionFormat(grid);
+export function parseAutoGrid(grid, options = {}) {
+  const format = detectCollectionFormat(grid, options);
   if (format === 'combined') {
     return parseCombinedGrid(grid);
   }
   if (format === 'therabill') {
-    return parseTherabillGrid(grid);
+    return parseTherabillGrid(grid, options);
   }
   return parsePromptGrid(grid);
 }
@@ -500,7 +503,7 @@ export function parseCombinedGrid(grid) {
 
         const pmtType = getVal(/pmt type|pr type/) || '';
         const pmtAmt = parseNum(getVal(/pmt amount|paid amount|payment amount/) || row[8]);
-        const isInsurance = /insurance/i.test(pmtType);
+        const isInsurance = /insurance/i.test(pmtType) && !/coinsurance/i.test(pmtType);
 
         lineItems.push({
           sourceSystem: 'Therabill',
@@ -605,8 +608,11 @@ export function parseCombinedGrid(grid) {
  * 2. STANDALONE THERABILL FORMAT PARSER
  * ============================================================================
  */
-export function parseTherabillGrid(grid) {
-  let reportTitle = 'Therabill Collection Report';
+export function parseTherabillGrid(grid, options = {}) {
+  const isNaperville = Boolean(options?.isNaperville) || grid.some(r => r.some(c =>
+    /client confirmation\s*&\s*clearance date/i.test(String(c || '')) || /^naperville$/i.test(String(c || '').trim())
+  ));
+  let reportTitle = isNaperville ? 'Collection Report - October 2026' : 'Therabill Collection Report';
   let monthYear = '';
 
   const particulars = { checkAmount: 0, patientPayment: 0, total: 0 };
@@ -624,6 +630,12 @@ export function parseTherabillGrid(grid) {
     grandTotal: 0,
   };
 
+  const blankPosting = () => ({ ...promptPosting });
+  const periodByCol = new Map();
+  let leftPostingMode = false;
+  let leftPeriod = null;
+  let rightPeriod = null;
+
   const checkRows = [];
   const lineItems = [];
   let state = 'SCAN';
@@ -635,11 +647,13 @@ export function parseTherabillGrid(grid) {
     if (row.length === 0 || row.every(c => c === '')) continue;
     const rowStr = row.join(' ').toLowerCase();
 
-    // 1. Report Title & Month
+    // 1. Report Title & Month (preserve main report title with month/year over sub-period labels)
     if (rowStr.includes('therabill') || rowStr.includes('collection report')) {
       const found = row.find(c => /collection report/i.test(c) || /therabill/i.test(c));
       if (found) {
-        if (/collection report/i.test(found)) reportTitle = found;
+        if (/collection report/i.test(found) && (!isNaperville && reportTitle === 'Therabill Collection Report' || /[A-Za-z]+\s+\d{4}/.test(found))) {
+          reportTitle = found;
+        }
         const match = found.match(/-\s*([A-Za-z]+\s*\d{4})/i) || found.match(/([A-Za-z]+\s+\d{4})/i);
         if (match) monthYear = match[1];
       }
@@ -666,21 +680,72 @@ export function parseTherabillGrid(grid) {
     // 2. Summary Breakdown (before tables)
     // Left: Particulars | Right: Payment Type, Pmt Amount
     if (state === 'SCAN' && !activeTableType) {
-      for (let c = 0; c < row.length; c++) {
-        const cell = row[c];
-        if (!cell) continue;
+      if (isNaperville) {
+        for (let c = 0; c < row.length; c++) {
+          const cell = row[c];
+          if (!cell) continue;
 
-        const rest = row.slice(c + 1).filter(v => v !== '');
-        const val = rest.length > 0 ? parseNum(rest[0]) : 0;
+          const isSubPeriodHeader = /collection/i.test(cell) && (
+            c > 0 || /till|after/i.test(cell) || particulars.checkAmount > 0 || particulars.patientPayment > 0 || particulars.total > 0
+          );
+          if (isSubPeriodHeader) {
+            const label = cell.replace(/^collection(\s+report)?\s*[-:]?\s*/i, '').trim() || cell;
+            periodByCol.set(c, { ...blankPosting(), label, title: cell });
+            continue;
+          }
+          if (/^(recoupment(\s+offset)?|deductible|coinsurance|copay|self\s*pay)$/i.test(cell) && !periodByCol.has(c)) {
+            const label = c <= 1 ? 'Till 14th May' : 'After 14th May';
+            periodByCol.set(c, { ...blankPosting(), label, title: label });
+          }
 
-        if (/insurance payment|check amount/i.test(cell) && c < 4) {
-          particulars.checkAmount = val;
-        } else if (/patient payment/i.test(cell) && c < 4) {
-          particulars.patientPayment = val;
-        } else if (/^total$/i.test(cell) && c < 4) {
-          particulars.total = val;
-        } else if (c >= 3) {
-          applyCategoryToPosting(cell, val, promptPosting);
+          const val = parseNum(row[c + 1]);
+          if (periodByCol.has(c)) {
+            applyCategoryToPosting(cell, val, periodByCol.get(c));
+          } else if (c < 2) {
+            if (/insurance payment|check amount/i.test(cell)) particulars.checkAmount = val;
+            else if (/patient payment/i.test(cell)) particulars.patientPayment = val;
+            else if (/^(grand\s+)?total$/i.test(cell)) particulars.total = val;
+          }
+        }
+      } else {
+        for (let c = 0; c < row.length; c++) {
+          const cell = row[c];
+          if (!cell) continue;
+
+          if (c < 3) {
+            if (/collection/i.test(cell) && (particulars.checkAmount > 0 || particulars.patientPayment > 0 || particulars.total > 0)) {
+              leftPostingMode = true;
+              const label = cell.replace(/^collection(\s+report)?\s*[-:]?\s*/i, '').trim() || cell;
+              leftPeriod = { ...blankPosting(), label, title: cell };
+              continue;
+            }
+            if (/^(recoupment(\s+offset)?|deductible|coinsurance|copay|self\s*pay)$/i.test(cell)) {
+              leftPostingMode = true;
+              if (!leftPeriod) leftPeriod = { ...blankPosting(), label: 'Period 1', title: 'Period 1' };
+            }
+          } else if (/collection/i.test(cell)) {
+            const label = cell.replace(/^collection(\s+report)?\s*[-:]?\s*/i, '').trim() || cell;
+            rightPeriod = { ...blankPosting(), label, title: cell };
+            continue;
+          }
+
+          const rest = row.slice(c + 1).filter(v => v !== '');
+          const val = rest.length > 0 ? parseNum(rest[0]) : 0;
+
+          if (c < 3 && leftPostingMode) {
+            applyCategoryToPosting(cell, val, leftPeriod);
+          } else if (c < 4 && !leftPostingMode && !rightPeriod) {
+            if (/insurance payment|check amount/i.test(cell)) particulars.checkAmount = val;
+            else if (/patient payment/i.test(cell)) particulars.patientPayment = val;
+            else if (/^(grand\s+)?total$/i.test(cell)) particulars.total = val;
+            else if (c >= 3) applyCategoryToPosting(cell, val, promptPosting);
+          } else if (c < 3 && !leftPostingMode) {
+            if (/insurance payment|check amount/i.test(cell)) particulars.checkAmount = val;
+            else if (/patient payment/i.test(cell)) particulars.patientPayment = val;
+            else if (/^(grand\s+)?total$/i.test(cell)) particulars.total = val;
+          } else if (c >= 3) {
+            applyCategoryToPosting(cell, val, rightPeriod || promptPosting);
+          }
         }
       }
     }
@@ -704,12 +769,14 @@ export function parseTherabillGrid(grid) {
         const checkDate = formatDateVal(getVal(/check date/) || row[6]);
         const checkAmount = parseNum(getVal(/check amount|payment amount/) || row[7]);
         const postedAmount = parseNum(getVal(/posted amount|total posted/) || row[8]);
-        const remainingAmount = parseNum(getVal(/remaining amount|unposted/) || row[9]);
+        const remainingAmount = parseNum(getVal(/remaining(\s*am(oun)?t)?|unposted/) || row[9]);
         const recoupment = parseNum(getVal(/recoupment/) || row[10]);
         const status = getVal(/^status$/) || 'Posted';
         const postedDate = formatDateVal(getVal(/posted date/) || row[12] || row[6]);
+        const clientConfirmationDate = formatDateVal(getVal(/client confirmation|clearance date/));
         const remarks = getVal(/remark/) || '';
-        const location = getVal(/location|locations|clinic|facility/) || (row.length >= 15 ? row[14] : '');
+        const hasClientConfirmCol = activeHeaderMap.some(h => /client confirmation|clearance/i.test(h));
+        const location = getVal(/location|locations|clinic|facility/) || (!isNaperville && !hasClientConfirmCol && row.length >= 15 && !/remark/i.test(activeHeaderMap[14] || '') ? row[14] : '');
 
         checkRows.push({
           sourceSystem: 'Therabill',
@@ -733,6 +800,7 @@ export function parseTherabillGrid(grid) {
           recoupment,
           status,
           postedDate,
+          clientConfirmationDate,
           remarks,
           location,
         });
@@ -748,7 +816,7 @@ export function parseTherabillGrid(grid) {
         const chargedAmount = parseNum(getVal(/charge for service|charged amount|submitted amount/) || row[6]);
         const pmtType = getVal(/pmt type|pr type/) || '';
         const pmtAmt = parseNum(getVal(/pmt amount|paid amount|payment amount/) || row[8]);
-        const isInsurance = /insurance/i.test(pmtType);
+        const isInsurance = /insurance/i.test(pmtType) && !/coinsurance/i.test(pmtType);
         const depositDate = formatDateVal(getVal(/deposit date|bank date/) || row[9]);
         const facilityName = getVal(/facility name|locations|location/) || row[10] || '';
 
@@ -784,8 +852,33 @@ export function parseTherabillGrid(grid) {
     }
   }
 
+  const periodList = periodByCol.size > 0
+    ? Array.from(periodByCol.values())
+    : [leftPeriod, rightPeriod].filter(Boolean);
+  let postingPeriods = null;
+  if (periodList.length > 0) {
+    periodList.forEach((p) => {
+      if (!p.grandTotal || p.grandTotal === 0) {
+        p.grandTotal = Math.round(((p.insurancePayment || 0) + (p.recoupmentOffset || 0) + (p.deductible || 0)
+          + (p.coinsurance || 0) + (p.copay || 0) + (p.selfPay || 0)
+          + (p.noShow || 0) + (p.cancellationFee || 0) + (p.dryNeedling || 0) + (p.scottStamp || 0)) * 100) / 100;
+      }
+    });
+    if (isNaperville) {
+      const primary = periodList[0];
+      Object.keys(promptPosting).forEach((k) => {
+        promptPosting[k] = primary[k] || 0;
+      });
+    } else {
+      Object.keys(promptPosting).forEach((k) => {
+        promptPosting[k] = Math.round(periodList.reduce((acc, p) => acc + (p[k] || 0), 0) * 100) / 100;
+      });
+    }
+    if (periodList.length > 1) postingPeriods = periodList;
+  }
+
   // Fallbacks
-  if (particulars.total === 0 && (checkRows.length > 0 || lineItems.length > 0)) {
+  if (particulars.total === 0 && particulars.checkAmount === 0 && particulars.patientPayment === 0 && (checkRows.length > 0 || lineItems.length > 0)) {
     const totalInsurance = checkRows.reduce((sum, r) => sum + (r.paymentAmount || 0), 0) ||
       lineItems.reduce((sum, r) => sum + (r.insurancePayment || 0), 0);
     const totalPatient = lineItems.reduce((sum, r) => sum + (r.patientPaid || 0), 0);
@@ -813,12 +906,14 @@ export function parseTherabillGrid(grid) {
 
   return {
     detectedFormat: 'therabill',
-    formatLabel: 'Therabill Format',
+    formatLabel: isNaperville ? 'Therabill (Naperville Format)' : 'Therabill Format',
+    isNaperville,
     reportTitle,
     monthYear: monthYear || 'September 2026',
     particulars,
     promptPosting,
     postingSummary: promptPosting,
+    postingPeriods,
     locationSummary,
     checkRows,
     lineItems,
@@ -1320,7 +1415,7 @@ function parseMultiSheetPrompt(wb) {
 /**
  * Parses Multi-sheet Excel workbook for Therabill format.
  */
-function parseMultiSheetTherabill(wb) {
+function parseMultiSheetTherabill(wb, options = {}) {
   // Convert all sheets into a stacked grid and run parseTherabillGrid
   const combinedGrid = [];
   wb.worksheets.forEach(ws => {
@@ -1331,7 +1426,7 @@ function parseMultiSheetTherabill(wb) {
       }));
     });
   });
-  return parseTherabillGrid(combinedGrid);
+  return parseTherabillGrid(combinedGrid, options);
 }
 
 /**

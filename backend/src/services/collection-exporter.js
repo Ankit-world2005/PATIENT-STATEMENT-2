@@ -4,12 +4,118 @@ export async function generateCollectionExcel({
   reportTitle = 'West AZ Collection Report - September 2026',
   particulars = {},
   promptPosting = {},
+  postingPeriods = null,
+  isNaperville = false,
   checkRows = [],
   lineItems = [],
 }) {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'US24 Solutions - My Patient';
   wb.created = new Date();
+  const numFmt = '$#,##0.00;($#,##0.00);"-"';
+
+  if (isNaperville) {
+    const p1 = (postingPeriods && postingPeriods[0]) || { title: 'Collection Report - Till 14th May' };
+    const p2 = (postingPeriods && postingPeriods[1]) || { title: 'Collection After 14th May' };
+
+    const wsSummary = wb.addWorksheet('Summary', { views: [{ showGridLines: true }] });
+    wsSummary.columns = [
+      { width: 30 }, // A
+      { width: 16 }, // B
+      { width: 24 }, // C
+      { width: 16 }, // D
+      { width: 28 }, // E
+      { width: 16 }, // F
+    ];
+
+    wsSummary.addRow(['NAPERVILLE', '', '', '', p1.title || 'Collection Report - Till 14th May', '']);
+    wsSummary.addRow([` ${reportTitle || 'Collection Report - October 2026'}`, '', '', '', 'Particular', 'Amount']);
+    wsSummary.addRow(['Payment Type', 'Pmt Amount', '', '', 'Insurance', p1.insurancePayment || 0]);
+    wsSummary.addRow(['Insurance Payment', particulars.checkAmount || 0, '', '', 'Recoupment offset', p1.recoupmentOffset || 0]);
+    wsSummary.addRow(['Patient Payment(Deductible)', particulars.patientPayment || 0, '', '', 'Deductible', p1.deductible || 0]);
+    wsSummary.addRow(['Grand Total', particulars.total || 0, '', '', 'Coinsurance', p1.coinsurance || 0]);
+    wsSummary.addRow(['', '', '', '', 'Copay', p1.copay || 0]);
+    wsSummary.addRow(['', '', '', '', 'Self Pay', p1.selfPay || 0]);
+    wsSummary.addRow(['', '', '', '', 'Grand Total', p1.grandTotal || 0]);
+    wsSummary.addRow([]);
+    wsSummary.addRow([]);
+    wsSummary.addRow(['', '', p2.title || 'Collection After 14th May', '', '', '']);
+    wsSummary.addRow(['', '', 'Particular', 'Amount', '', '']);
+    wsSummary.addRow(['', '', 'Insurance', p2.insurancePayment || 0, '', '']);
+    wsSummary.addRow(['', '', 'Recoupment offset', p2.recoupmentOffset || 0, '', '']);
+    wsSummary.addRow(['', '', 'Deductible', p2.deductible || 0, '', '']);
+    wsSummary.addRow(['', '', 'Coinsurance', p2.coinsurance || 0, '', '']);
+    wsSummary.addRow(['', '', 'Copay', p2.copay || 0, '', '']);
+    wsSummary.addRow(['', '', 'Self Pay', p2.selfPay || 0, '', '']);
+    wsSummary.addRow(['', '', 'Grand Total', p2.grandTotal || 0, '', '']);
+
+    [4, 5, 6].forEach((r) => { wsSummary.getRow(r).getCell(2).numFmt = numFmt; });
+    [3, 4, 5, 6, 7, 8, 9].forEach((r) => { wsSummary.getRow(r).getCell(6).numFmt = numFmt; });
+    [14, 15, 16, 17, 18, 19, 20].forEach((r) => { wsSummary.getRow(r).getCell(4).numFmt = numFmt; });
+
+    const wsChecks = wb.addWorksheet('Check Sheet', { views: [{ showGridLines: true }] });
+    wsChecks.columns = [
+      { header: 'Payee', key: 'payee', width: 16 },
+      { header: 'Payer', key: 'payer', width: 28 },
+      { header: 'EOB Source', key: 'eobSource', width: 14 },
+      { header: 'ERA/EOB', key: 'eraEob', width: 12 },
+      { header: 'Method', key: 'method', width: 12 },
+      { header: 'Check no', key: 'checkNo', width: 20 },
+      { header: 'Check Date', key: 'checkDate', width: 14 },
+      { header: 'Check Amount', key: 'checkAmount', width: 16 },
+      { header: 'Posted Amount', key: 'postedAmount', width: 16 },
+      { header: 'Remaining Amt', key: 'remainingAmount', width: 16 },
+      { header: 'Recoupment', key: 'recoupment', width: 14 },
+      { header: 'Status', key: 'status', width: 14 },
+      { header: 'Posted date', key: 'postedDate', width: 14 },
+      { header: 'Client Confirmation & Clearance Date', key: 'clientConfirmationDate', width: 34 },
+      { header: 'Remarks', key: 'remarks', width: 28 },
+    ];
+    for (const row of checkRows) {
+      const r = wsChecks.addRow({
+        ...row,
+        method: row.method || row.paymentMethod || '',
+        checkNo: row.checkNo || row.paymentReference || '',
+        checkAmount: row.checkAmount != null ? row.checkAmount : (row.paymentAmount || 0),
+        postedAmount: row.postedAmount != null ? row.postedAmount : (row.totalPosted || 0),
+        remainingAmount: row.remainingAmount != null ? row.remainingAmount : (row.unposted || 0),
+        clientConfirmationDate: row.clientConfirmationDate || '',
+      });
+      ['checkAmount', 'postedAmount', 'remainingAmount', 'recoupment'].forEach((k) => { r.getCell(k).numFmt = numFmt; });
+    }
+
+    const wsLine = wb.addWorksheet('Lineitem', { views: [{ showGridLines: true }] });
+    wsLine.columns = [
+      { header: 'Client name', key: 'clientName', width: 26 },
+      { header: 'Payer name', key: 'payerName', width: 26 },
+      { header: 'Check #', key: 'checkNo', width: 20 },
+      { header: 'Check date', key: 'checkDate', width: 14 },
+      { header: 'DOS', key: 'dos', width: 14 },
+      { header: 'Service code', key: 'serviceCode', width: 14 },
+      { header: 'Charge for Service', key: 'chargeForService', width: 18 },
+      { header: 'Pmt Type', key: 'pmtType', width: 16 },
+      { header: 'Pmt Amount', key: 'pmtAmount', width: 16 },
+      { header: 'Deposit date', key: 'depositDate', width: 14 },
+      { header: 'Facility Name', key: 'facilityName', width: 28 },
+    ];
+    for (const item of lineItems) {
+      const r = wsLine.addRow({
+        ...item,
+        clientName: item.clientName || item.patientName || '',
+        checkNo: item.checkNo || item.referenceNumber || '',
+        checkDate: item.checkDate || item.paymentDate || '',
+        dos: item.dos || item.dateOfService || '',
+        chargeForService: item.chargeForService != null ? item.chargeForService : (item.chargedAmount || 0),
+        pmtType: item.pmtType || item.prType || '',
+        pmtAmount: item.pmtAmount != null ? item.pmtAmount : (item.insurancePayment || item.patientPaid || 0),
+        depositDate: item.depositDate || item.bankDate || '',
+        facilityName: item.facilityName || item.location || '',
+      });
+      ['chargeForService', 'pmtAmount'].forEach((k) => { r.getCell(k).numFmt = numFmt; });
+    }
+
+    return await wb.xlsx.writeBuffer();
+  }
 
   // 1. Summary Sheet
   const wsSummary = wb.addWorksheet('Summary', {
@@ -65,7 +171,6 @@ export async function generateCollectionExcel({
   });
 
   // Rows 4-9
-  const numFmt = '$#,##0.00;($#,##0.00);"-"';
 
   const r4 = wsSummary.addRow([
     'CHECK AMOUNT(INSURANCE PAYMENT)',

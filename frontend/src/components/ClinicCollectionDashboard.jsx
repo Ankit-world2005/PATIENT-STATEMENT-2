@@ -327,14 +327,18 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
   const [checkLocationFilter, setCheckLocationFilter] = useState('ALL');
   const [lineItemLocationFilter, setLineItemLocationFilter] = useState('ALL');
   const [sourceSystemFilter, setSourceSystemFilter] = useState('ALL'); // 'ALL' | 'Prompt' | 'Therabill'
+  const [postingPeriodIdx, setPostingPeriodIdx] = useState(-1); // -1 = Combined summary
 
   const detectedFormat = data?.summary?.detectedFormat || data?.detectedFormat || 'prompt';
+  const isNaperville = Boolean(data?.summary?.isNaperville) || Boolean(clinic?.name?.toLowerCase().includes('naperville'));
   const formatLabel = data?.summary?.formatLabel || data?.formatLabel || (
+    isNaperville ? 'Therabill (Naperville Format)' :
     detectedFormat === 'combined' ? 'Therabill + Prompt (Hybrid)' :
     detectedFormat === 'therabill' ? 'Therabill Format' : 'Prompt Format'
   );
   const isCombined = detectedFormat === 'combined' || (data?.checkRows || []).some(r => r.sourceSystem && r.sourceSystem !== (data?.checkRows[0]?.sourceSystem || 'Prompt'));
   const isTherabill = detectedFormat === 'therabill'
+    || isNaperville
     || clinic?.name?.toLowerCase().includes('icure')
     || (data?.checkRows || []).some(r => r.sourceSystem?.toLowerCase() === 'therabill' || r.payee !== undefined || r.eobSource !== undefined);
 
@@ -650,6 +654,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
   };
 
   useEffect(() => {
+    setPostingPeriodIdx(-1);
     fetchCollection(selectedMonth);
   }, [clinic?.id, selectedMonth]);
 
@@ -794,7 +799,9 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
 
   const handleDownloadTemplate = async () => {
     try {
-      await downloadFile('/collections/template', 'Prompt_Collection_Template.xlsx');
+      const qs = clinic?.name ? `?clinicName=${encodeURIComponent(clinic.name)}` : '';
+      const filename = isNaperville ? 'Naperville_Collection_Template.xlsx' : 'Prompt_Collection_Template.xlsx';
+      await downloadFile(`/collections/template${qs}`, filename);
       toast('Template downloaded successfully.', 'success');
     } catch (err) {
       toast(err.message || 'Failed to download collection template.', 'error');
@@ -1019,15 +1026,68 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
     );
   }
 
-  const particulars = data?.summary?.particulars || { checkAmount: 0, patientPayment: 0, total: 0 };
-  const promptPosting = data?.summary?.promptPosting || {
+  const emptyPosting = {
     insurancePayment: 0,
     recoupmentOffset: 0,
     deductible: 0,
     coinsurance: 0,
     copay: 0,
+    selfPay: 0,
     grandTotal: 0,
   };
+  const particulars = data?.summary?.particulars || { checkAmount: 0, patientPayment: 0, total: 0 };
+  const promptPosting = data?.summary?.promptPosting || emptyPosting;
+  const postingPeriods = data?.summary?.postingPeriods || [];
+  const activePosting = (postingPeriodIdx >= 0 && postingPeriods[postingPeriodIdx])
+    ? postingPeriods[postingPeriodIdx]
+    : promptPosting;
+  const napervillePeriod1 = postingPeriods[0] || promptPosting || emptyPosting;
+  const napervillePeriod2 = postingPeriods[1] || emptyPosting;
+
+  const renderPostingTable = (posting, napervilleMode) => (
+    <div className="kpi-summary-table-wrap">
+      <table className="kpi-summary-table">
+        <thead>
+          <tr>
+            <th>{napervilleMode ? 'Particular' : 'Payment Type'}</th>
+            <th className="text-right">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>{napervilleMode ? 'Insurance' : 'Insurance Payment'}</td>
+            <td className="text-right col-mono">{formatMoney(posting.insurancePayment)}</td>
+          </tr>
+          <tr>
+            <td>{napervilleMode ? 'Recoupment offset' : 'Recoupment Offset'}</td>
+            <td className="text-right col-mono text-muted">{formatMoney(posting.recoupmentOffset)}</td>
+          </tr>
+          <tr>
+            <td>Deductible</td>
+            <td className="text-right col-mono text-orange">{formatMoney(posting.deductible)}</td>
+          </tr>
+          <tr>
+            <td>Coinsurance</td>
+            <td className="text-right col-mono">{formatMoney(posting.coinsurance)}</td>
+          </tr>
+          <tr>
+            <td>Copay</td>
+            <td className="text-right col-mono">{formatMoney(posting.copay)}</td>
+          </tr>
+          {((posting.selfPay || 0) !== 0 || napervilleMode || postingPeriods.length > 0) && (
+            <tr>
+              <td>Self Pay</td>
+              <td className="text-right col-mono">{formatMoney(posting.selfPay)}</td>
+            </tr>
+          )}
+          <tr className="row-highlight-total">
+            <td><strong>Grand Total</strong></td>
+            <td className="text-right col-mono col-bold-navy">{formatMoney(posting.grandTotal)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
 
   return (
     <div className="clinic-collection-workspace" aria-label="Clinic Collection Dashboard">
@@ -1140,13 +1200,14 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
           </div>
         </div>
 
-        {/* Card B: Prompt Posting Summary */}
+        {/* Card B: Prompt Posting Summary (or Till 14th May for Naperville) */}
         <div className="collection-kpi-card">
           <div className="kpi-card-head">
             <div className="kpi-card-title-group">
               <span className="kpi-card-badge-orange">POSTING</span>
               <h3 className="kpi-card-h3">
-                {detectedFormat === 'therabill' ? 'Therabill Posting Summary' :
+                {isNaperville ? (napervillePeriod1.title || 'Collection Report - Till 14th May') :
+                 detectedFormat === 'therabill' ? 'Therabill Posting Summary' :
                  detectedFormat === 'combined' ? 'Combined Posting Summary' :
                  'Prompt Posting Summary'}
               </h3>
@@ -1156,64 +1217,71 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
             </div>
           </div>
 
-          <div className="kpi-summary-table-wrap">
-            <table className="kpi-summary-table">
-              <thead>
-                <tr>
-                  <th>Payment Type</th>
-                  <th className="text-right">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>Insurance Payment</td>
-                  <td className="text-right col-mono">{formatMoney(promptPosting.insurancePayment)}</td>
-                </tr>
-                <tr>
-                  <td>Recoupment Offset</td>
-                  <td className="text-right col-mono text-muted">{formatMoney(promptPosting.recoupmentOffset)}</td>
-                </tr>
-                <tr>
-                  <td>Deductible</td>
-                  <td className="text-right col-mono text-orange">{formatMoney(promptPosting.deductible)}</td>
-                </tr>
-                <tr>
-                  <td>Coinsurance</td>
-                  <td className="text-right col-mono">{formatMoney(promptPosting.coinsurance)}</td>
-                </tr>
-                <tr>
-                  <td>Copay</td>
-                  <td className="text-right col-mono">{formatMoney(promptPosting.copay)}</td>
-                </tr>
-                <tr className="row-highlight-total">
-                  <td><strong>Grand Total</strong></td>
-                  <td className="text-right col-mono col-bold-navy">{formatMoney(promptPosting.grandTotal)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          {!isNaperville && postingPeriods.length > 1 && (
+            <div className="collection-system-selector" style={{ margin: '0 0 10px 0', width: 'fit-content' }} role="tablist" aria-label="Posting report periods">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={postingPeriodIdx === -1}
+                className={`btn-system-pill ${postingPeriodIdx === -1 ? 'active' : ''}`}
+                onClick={() => setPostingPeriodIdx(-1)}
+              >
+                Combined
+              </button>
+              {postingPeriods.map((period, idx) => (
+                <button
+                  key={period.label || idx}
+                  type="button"
+                  role="tab"
+                  aria-selected={postingPeriodIdx === idx}
+                  className={`btn-system-pill ${postingPeriodIdx === idx ? 'active' : ''}`}
+                  onClick={() => setPostingPeriodIdx(idx)}
+                >
+                  {period.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {renderPostingTable(isNaperville ? napervillePeriod1 : activePosting, isNaperville)}
         </div>
 
-        {/* Card C: Payer Remittance Distribution (Pie Chart) */}
-        <div className="collection-kpi-card kpi-card-pie">
-          <div className="kpi-card-head">
-            <div className="kpi-card-title-group">
-              <span className="kpi-card-badge-blue">REMITTANCE SHARE</span>
-              <h3 className="kpi-card-h3">Payer Distribution</h3>
+        {/* Card C: Collection After 14th May (Naperville only) or Payer Distribution Pie Chart */}
+        {isNaperville ? (
+          <div className="collection-kpi-card">
+            <div className="kpi-card-head">
+              <div className="kpi-card-title-group">
+                <span className="kpi-card-badge-blue">POSTING</span>
+                <h3 className="kpi-card-h3">{napervillePeriod2.title || 'Collection After 14th May'}</h3>
+              </div>
+              <div className="kpi-card-icon-bubble bubble-navy">
+                <IconChart size={18} />
+              </div>
             </div>
-            <div className="kpi-card-icon-bubble bubble-navy">
-              <IconPieChart size={18} />
-            </div>
-          </div>
 
-          <PayerPieChart
-            checkRows={data?.checkRows || []}
-            onSelectPayer={(payer) => {
-              setActiveSheetTab('checks');
-              setCheckSearch(payer);
-            }}
-          />
-        </div>
+            {renderPostingTable(napervillePeriod2, true)}
+          </div>
+        ) : (
+          <div className="collection-kpi-card kpi-card-pie">
+            <div className="kpi-card-head">
+              <div className="kpi-card-title-group">
+                <span className="kpi-card-badge-blue">REMITTANCE SHARE</span>
+                <h3 className="kpi-card-h3">Payer Distribution</h3>
+              </div>
+              <div className="kpi-card-icon-bubble bubble-navy">
+                <IconPieChart size={18} />
+              </div>
+            </div>
+
+            <PayerPieChart
+              checkRows={data?.checkRows || []}
+              onSelectPayer={(payer) => {
+                setActiveSheetTab('checks');
+                setCheckSearch(payer);
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* 3. Detailed Data Tables with Sub-Tabs */}
@@ -1379,12 +1447,13 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                       <th scope="col">Check Date</th>
                       <th scope="col" className="text-right">Check Amount</th>
                       <th scope="col" className="text-right">Posted Amount</th>
-                      <th scope="col" className="text-right">Remaining Amount</th>
+                      <th scope="col" className="text-right">{isNaperville ? 'Remaining Amt' : 'Remaining Amount'}</th>
                       <th scope="col" className="text-right">Recoupment</th>
                       <th scope="col">Status</th>
                       <th scope="col">Posted date</th>
+                      {isNaperville && <th scope="col">Client Confirmation &amp; Clearance Date</th>}
                       <th scope="col">Remarks</th>
-                      <th scope="col">Location</th>
+                      {!isNaperville && <th scope="col">Location</th>}
                     </>
                   ) : (
                     <>
@@ -1480,6 +1549,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                             </span>
                           </td>
                           <td>{formatDate(row.postedDate || row.paymentDate)}</td>
+                          {isNaperville && <td>{formatDate(row.clientConfirmationDate) || '—'}</td>}
                           <td className="col-remarks-cell">
                             <button
                               type="button"
@@ -1494,7 +1564,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                               )}
                             </button>
                           </td>
-                          <td>{row.location || clinic?.name || '—'}</td>
+                          {!isNaperville && <td>{row.location || clinic?.name || '—'}</td>}
                         </>
                       ) : (
                         <>
@@ -1589,7 +1659,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                   {isCombined && <th scope="col">System</th>}
                   {isTherabill ? (
                     <>
-                      <th scope="col">Client Name (Last, First)</th>
+                      <th scope="col">{isNaperville ? 'Client name' : 'Client Name (Last, First)'}</th>
                       <th scope="col">Payer name</th>
                       <th scope="col">Check #</th>
                       <th scope="col">Check date</th>
