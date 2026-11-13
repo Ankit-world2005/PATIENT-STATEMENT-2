@@ -150,13 +150,14 @@ export function detectCollectionFormat(grid, options = {}) {
 
   // 2. Check for Therabill signatures (including Naperville format)
   const isNapervilleOpt = Boolean(options?.isNaperville) || /naperville/i.test(options?.clinicName || '');
-  const hasTherabillKeyword = /therabill/i.test(fullText);
+  const hasTherabillKeyword = /therabill/i.test(fullText);
+  const hasTherabillCheck = /payee/i.test(fullText) && /era\/eob/i.test(fullText);
   const hasClientNameHeader = /client name/i.test(fullText);
-  const hasEobSource = /eob source/i.test(fullText) && /era\/eob/i.test(fullText);
+  const hasEobSource = (/eob source/i.test(fullText) || /source/i.test(fullText)) && /era\/eob/i.test(fullText);
   const hasChargeForService = /charge for service/i.test(fullText) && /pmt type/i.test(fullText);
   const hasNapervilleSig = /naperville/i.test(fullText) && (/till\s+14|after\s+14|client confirmation/i.test(fullText));
 
-  if (isNapervilleOpt || hasNapervilleSig || hasTherabillKeyword || (hasClientNameHeader && (hasEobSource || hasChargeForService)) || (hasEobSource && hasChargeForService)) {
+  if (isNapervilleOpt || hasNapervilleSig || hasTherabillKeyword || hasTherabillCheck || (hasClientNameHeader && (hasEobSource || hasChargeForService)) || (hasEobSource && hasChargeForService)) {
     return 'therabill';
   }
 
@@ -435,7 +436,7 @@ export function parseCombinedGrid(grid) {
 
     // Detect Therabill Check Table Header:
     // Clinic,Payer,EOB Source,Method,ERA/EOB,Check no,Check Date,Check Amount,Posted Amount,Remaining Amount,Recoupment,Status,Posted date,Locations,Remarks
-    if (rowStr.includes('eob source') && rowStr.includes('era/eob')) {
+    if ((rowStr.includes('eob source') || rowStr.includes('source')) && rowStr.includes('era/eob')) {
       activeTableType = 'TB_CHECK';
       activeHeaderMap = row.map(h => h.trim().toLowerCase());
       state = 'TABLE';
@@ -492,7 +493,8 @@ export function parseCombinedGrid(grid) {
           unposted: parseNum(getVal(/remaining amount|unposted/) || row[9]),
           recoupment: parseNum(getVal(/recoupment/) || row[10]),
           status: getVal(/status/) || 'Posted',
-          eobSource: getVal(/eob source/) || '',
+          source: getVal(/eob\s*source|^source$/i) || '',
+          eobSource: getVal(/eob\s*source|^source$/i) || '',
           eraEob: getVal(/era\/eob/) || '',
           location: getVal(/location|clinic/) || row[13] || '',
           remarks: getVal(/remark/) || row[14] || '',
@@ -574,10 +576,13 @@ export function parseCombinedGrid(grid) {
   if (particulars.total === 0 && (checkRows.length > 0 || lineItems.length > 0)) {
     const totalInsurance = checkRows.reduce((sum, r) => sum + (r.paymentAmount || 0), 0) ||
       lineItems.reduce((sum, r) => sum + (r.insurancePayment || 0), 0);
-    const totalPatient = lineItems.reduce((sum, r) => sum + (r.patientPaid || 0), 0);
-    particulars.checkAmount = totalInsurance;
-    particulars.patientPayment = totalPatient;
-    particulars.total = totalInsurance + totalPatient;
+    const deductibleRows = lineItems.filter(r => /deductible/i.test(r.pmtType || r.prType || ''));
+    const totalPatient = deductibleRows.length > 0
+      ? deductibleRows.reduce((sum, r) => sum + (Number(r.patientPaid || r.pmtAmount) || 0), 0)
+      : lineItems.reduce((sum, r) => sum + (r.patientPaid || 0), 0);
+    particulars.checkAmount = Math.round(totalInsurance * 100) / 100;
+    particulars.patientPayment = Math.round(totalPatient * 100) / 100;
+    particulars.total = Math.round((particulars.checkAmount + particulars.patientPayment) * 100) / 100;
   }
 
   // Build combined Location Summary
@@ -661,7 +666,7 @@ export function parseTherabillGrid(grid, options = {}) {
 
     // Detect Therabill Check Table Header:
     // Payee,Payer,EOB Source,ERA/EOB,Method,Check no,Check Date,Check Amount,Posted Amount,Remaining Amount,Recoupment,Status,Posted date,Remarks
-    if (rowStr.includes('eob source') || (rowStr.includes('check no') && rowStr.includes('posted amount'))) {
+    if (rowStr.includes('eob source') || (rowStr.includes('source') && rowStr.includes('era/eob')) || (rowStr.includes('check no') && rowStr.includes('posted amount'))) {
       activeTableType = 'TB_CHECK';
       activeHeaderMap = row.map(h => h.trim().toLowerCase());
       state = 'TABLE';
@@ -685,9 +690,11 @@ export function parseTherabillGrid(grid, options = {}) {
           const cell = row[c];
           if (!cell) continue;
 
-          const isSubPeriodHeader = /collection/i.test(cell) && (
-            c > 0 || /till|after/i.test(cell) || particulars.checkAmount > 0 || particulars.patientPayment > 0 || particulars.total > 0
-          );
+          const isSubPeriodHeader = /collection/i.test(cell) && (
+            /till|after/i.test(cell) ||
+            ((particulars.checkAmount > 0 || particulars.patientPayment > 0 || particulars.total > 0) &&
+             !/\b(january|february|march|april|may\s+\d{4}|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\b/i.test(cell))
+          );
           if (isSubPeriodHeader) {
             const label = cell.replace(/^collection(\s+report)?\s*[-:]?\s*/i, '').trim() || cell;
             periodByCol.set(c, { ...blankPosting(), label, title: cell });
@@ -701,7 +708,7 @@ export function parseTherabillGrid(grid, options = {}) {
           const val = parseNum(row[c + 1]);
           if (periodByCol.has(c)) {
             applyCategoryToPosting(cell, val, periodByCol.get(c));
-          } else if (c < 2) {
+          } else if (c < 3) {
             if (/insurance payment|check amount/i.test(cell)) particulars.checkAmount = val;
             else if (/patient payment/i.test(cell)) particulars.patientPayment = val;
             else if (/^(grand\s+)?total$/i.test(cell)) particulars.total = val;
@@ -762,7 +769,7 @@ export function parseTherabillGrid(grid, options = {}) {
         if (!payer || /^total/i.test(payer)) continue;
 
         const payee = getVal(/^payee/) || (activeHeaderMap.includes('payee') ? row[activeHeaderMap.indexOf('payee')] : (row.length >= 15 ? row[0] : ''));
-        const eobSource = getVal(/eob source/) || '';
+        const eobSource = getVal(/eob\s*source|^source$/i) || (activeHeaderMap.includes('source') ? row[activeHeaderMap.indexOf('source')] : '') || '';
         const eraEob = getVal(/era\/eob/) || '';
         const method = getVal(/^method$/) || 'EFT';
         const checkNo = getVal(/check no|check\s*#|reference/) || row[5] || '';
@@ -782,6 +789,7 @@ export function parseTherabillGrid(grid, options = {}) {
           sourceSystem: 'Therabill',
           payee,
           payer,
+          source: eobSource,
           eobSource,
           eraEob,
           method,
@@ -852,7 +860,7 @@ export function parseTherabillGrid(grid, options = {}) {
     }
   }
 
-  const periodList = periodByCol.size > 0
+  let periodList = periodByCol.size > 0
     ? Array.from(periodByCol.values())
     : [leftPeriod, rightPeriod].filter(Boolean);
   let postingPeriods = null;
@@ -864,6 +872,16 @@ export function parseTherabillGrid(grid, options = {}) {
           + (p.noShow || 0) + (p.cancellationFee || 0) + (p.dryNeedling || 0) + (p.scottStamp || 0)) * 100) / 100;
       }
     });
+    if (periodByCol.size > 0) {
+      const byLabel = new Map();
+      periodList.forEach((p) => {
+        const key = (p.label || p.title || '').trim().toLowerCase();
+        if (!byLabel.has(key) || ((byLabel.get(key).grandTotal || 0) === 0 && (p.grandTotal || 0) > 0)) {
+          byLabel.set(key, p);
+        }
+      });
+      periodList = Array.from(byLabel.values());
+    }
     if (isNaperville) {
       const primary = periodList[0];
       Object.keys(promptPosting).forEach((k) => {
@@ -881,10 +899,13 @@ export function parseTherabillGrid(grid, options = {}) {
   if (particulars.total === 0 && particulars.checkAmount === 0 && particulars.patientPayment === 0 && (checkRows.length > 0 || lineItems.length > 0)) {
     const totalInsurance = checkRows.reduce((sum, r) => sum + (r.paymentAmount || 0), 0) ||
       lineItems.reduce((sum, r) => sum + (r.insurancePayment || 0), 0);
-    const totalPatient = lineItems.reduce((sum, r) => sum + (r.patientPaid || 0), 0);
-    particulars.checkAmount = totalInsurance;
-    particulars.patientPayment = totalPatient;
-    particulars.total = totalInsurance + totalPatient;
+    const deductibleRows = lineItems.filter(r => /deductible/i.test(r.pmtType || r.prType || ''));
+    const totalPatient = deductibleRows.length > 0
+      ? deductibleRows.reduce((sum, r) => sum + (Number(r.patientPaid || r.pmtAmount) || 0), 0)
+      : lineItems.reduce((sum, r) => sum + (r.patientPaid || 0), 0);
+    particulars.checkAmount = Math.round(totalInsurance * 100) / 100;
+    particulars.patientPayment = Math.round(totalPatient * 100) / 100;
+    particulars.total = Math.round((particulars.checkAmount + particulars.patientPayment) * 100) / 100;
   }
   if (!particulars.total || particulars.total === 0) {
     particulars.total = (particulars.checkAmount || 0) + (particulars.patientPayment || 0);
@@ -1177,12 +1198,15 @@ export function parsePromptGrid(grid) {
   if (particulars.total === 0 && (checkRows.length > 0 || lineItems.length > 0)) {
     const totalInsurance = checkRows.reduce((sum, r) => sum + (r.paymentAmount || 0), 0) ||
       lineItems.reduce((sum, r) => sum + (r.insurancePayment || 0), 0);
-    const totalPatient = lineItems.reduce((sum, r) => sum + (r.patientPaid || 0), 0);
-
-    particulars.checkAmount = totalInsurance;
-    particulars.patientPayment = totalPatient;
-    particulars.total = totalInsurance + totalPatient;
-  }
+    const deductibleRows = lineItems.filter(r => /deductible/i.test(r.pmtType || r.prType || ''));
+    const totalPatient = deductibleRows.length > 0
+      ? deductibleRows.reduce((sum, r) => sum + (Number(r.patientPaid || r.pmtAmount) || 0), 0)
+      : lineItems.reduce((sum, r) => sum + (r.patientPaid || 0), 0);
+
+    particulars.checkAmount = Math.round(totalInsurance * 100) / 100;
+    particulars.patientPayment = Math.round(totalPatient * 100) / 100;
+    particulars.total = Math.round((particulars.checkAmount + particulars.patientPayment) * 100) / 100;
+  }
   if (!particulars.total || particulars.total === 0) {
     particulars.total = (particulars.checkAmount || 0) + (particulars.patientPayment || 0);
   }

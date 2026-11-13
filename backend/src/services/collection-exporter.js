@@ -57,7 +57,7 @@ export async function generateCollectionExcel({
     wsChecks.columns = [
       { header: 'Payee', key: 'payee', width: 16 },
       { header: 'Payer', key: 'payer', width: 28 },
-      { header: 'EOB Source', key: 'eobSource', width: 14 },
+      { header: 'Source', key: 'eobSource', width: 14 },
       { header: 'ERA/EOB', key: 'eraEob', width: 12 },
       { header: 'Method', key: 'method', width: 12 },
       { header: 'Check no', key: 'checkNo', width: 20 },
@@ -74,6 +74,7 @@ export async function generateCollectionExcel({
     for (const row of checkRows) {
       const r = wsChecks.addRow({
         ...row,
+        eobSource: row.source || row.eobSource || '',
         method: row.method || row.paymentMethod || '',
         checkNo: row.checkNo || row.paymentReference || '',
         checkAmount: row.checkAmount != null ? row.checkAmount : (row.paymentAmount || 0),

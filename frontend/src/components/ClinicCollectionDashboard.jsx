@@ -340,7 +340,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
   const isTherabill = detectedFormat === 'therabill'
     || isNaperville
     || clinic?.name?.toLowerCase().includes('icure')
-    || (data?.checkRows || []).some(r => r.sourceSystem?.toLowerCase() === 'therabill' || r.payee !== undefined || r.eobSource !== undefined);
+    || (data?.checkRows || []).some(r => r.sourceSystem?.toLowerCase() === 'therabill' || r.payee !== undefined || r.eobSource !== undefined || r.source !== undefined);
 
   const therabillCheckCount = useMemo(() => (data?.checkRows || []).filter(r => r.sourceSystem === 'Therabill').length, [data?.checkRows]);
   const promptCheckCount = useMemo(() => (data?.checkRows || []).filter(r => r.sourceSystem !== 'Therabill').length, [data?.checkRows]);
@@ -1041,8 +1041,14 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
   const activePosting = (postingPeriodIdx >= 0 && postingPeriods[postingPeriodIdx])
     ? postingPeriods[postingPeriodIdx]
     : promptPosting;
-  const napervillePeriod1 = postingPeriods[0] || promptPosting || emptyPosting;
-  const napervillePeriod2 = postingPeriods[1] || emptyPosting;
+  const napervillePeriod1 = postingPeriods.find(p => /till/i.test(p.title || p.label) && (p.grandTotal > 0 || p.insurancePayment > 0))
+    || postingPeriods.find(p => /till/i.test(p.title || p.label))
+    || postingPeriods[0]
+    || promptPosting
+    || emptyPosting;
+  const napervillePeriod2 = postingPeriods.find(p => /after/i.test(p.title || p.label) && (p.grandTotal > 0 || p.insurancePayment > 0))
+    || postingPeriods.find(p => /after/i.test(p.title || p.label))
+    || (postingPeriods.length > 1 ? postingPeriods[postingPeriods.length - 1] : emptyPosting);
 
   const renderPostingTable = (posting, napervilleMode) => (
     <div className="kpi-summary-table-wrap">
@@ -1440,7 +1446,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                     <>
                       <th scope="col">Payee</th>
                       <th scope="col">Payer</th>
-                      <th scope="col">EOB Source</th>
+                      <th scope="col">Source</th>
                       <th scope="col">ERA/EOB</th>
                       <th scope="col">Method</th>
                       <th scope="col">Check no</th>
@@ -1528,7 +1534,7 @@ export function ClinicCollectionDashboard({ clinic, isStaff }) {
                               )}
                             </div>
                           </td>
-                          <td>{row.eobSource || '—'}</td>
+                          <td>{row.source || row.eobSource || '—'}</td>
                           <td>{row.eraEob || '—'}</td>
                           <td>
                             <span className={`badge-method ${(row.method || row.paymentMethod)?.toLowerCase() === 'eft' ? 'method-eft' : 'method-check'}`}>

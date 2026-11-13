@@ -59,6 +59,32 @@ collectionsRouter.get('/', async (req, res) => {
       );
       const availableMonths = monthsRes.rows.map(r => r.month_year).filter(Boolean);
 
+      if (Array.isArray(rec.summary?.postingPeriods) && rec.summary.postingPeriods.length > 2) {
+        const byLabel = new Map();
+        for (const p of rec.summary.postingPeriods) {
+          const key = (p.label || p.title || '').trim().toLowerCase();
+          if (!byLabel.has(key) || ((byLabel.get(key).grandTotal || 0) === 0 && (p.grandTotal || 0) > 0)) {
+            byLabel.set(key, p);
+          }
+        }
+        rec.summary.postingPeriods = Array.from(byLabel.values());
+      }
+      if (rec.summary?.particulars) {
+        const lineItems = Array.isArray(rec.line_items) ? rec.line_items : [];
+        const deductibleRows = lineItems.filter(r => /deductible/i.test(r.pmtType || r.prType || ''));
+        if (deductibleRows.length > 0) {
+          const dedSum = Math.round(deductibleRows.reduce((sum, r) => sum + (Number(r.patientPaid || r.pmtAmount) || 0), 0) * 100) / 100;
+          if (dedSum > 0 && rec.summary.particulars.patientPayment !== dedSum) {
+            rec.summary.particulars.patientPayment = dedSum;
+            rec.summary.particulars.total = Math.round(((Number(rec.summary.particulars.checkAmount) || 0) + dedSum) * 100) / 100;
+          }
+        }
+      }
+      const checkRows = (rec.check_sheet || []).map(r => ({
+        ...r,
+        source: r.source || r.eobSource || '',
+        eobSource: r.source || r.eobSource || '',
+      }));
       return res.json({
         ok: true,
         collection: {
@@ -68,7 +94,7 @@ collectionsRouter.get('/', async (req, res) => {
           reportTitle: rec.report_title,
           monthYear: rec.month_year,
           summary: rec.summary,
-          checkRows: rec.check_sheet || [],
+          checkRows,
           lineItems: rec.line_items || [],
           availableMonths: availableMonths.length > 0 ? availableMonths : [rec.month_year],
           createdAt: rec.created_at,

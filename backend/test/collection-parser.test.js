@@ -443,3 +443,39 @@ Client name,Payer name,Check #,Check date,DOS,Service code,Charge for Service,Pm
   assert.equal(roundTrip.checkRows[0].clientConfirmationDate, '10/10/2026');
   assert.equal(roundTrip.checkRows[0].remarks, 'Ded Posted');
 });
+
+
+test('Patient Payment (Deductible) calculates only Deductible sum from line items pmt type', async () => {
+  const CSV_DATA = [
+    'Collection Report - October 2026',
+    'Payee,Payer,Method,Check no,Check Date,Check Amount,Posted Amount,Remaining Amt,Recoupment,Status',
+    'Bolingbrook,BCBS IL,EFT,C123,10/01/2026,1000.00,1000.00,0,0,Posted',
+    'Client name,Payer name,Check #,Check date,DOS,Service code,Charge for Service,Pmt Type,Pmt Amount,Deposit date,Facility Name',
+    'Patient A,Patient Payment,,10/12/2026,06/27/2026,97140.GP,66.88,Copay,525.00,10/12/2026,Facility',
+    'Patient B,Patient Payment,,10/13/2026,03/04/2025,97110.GP,145.1,Coinsurance,109.06,10/13/2026,Facility',
+    'Patient C,Patient Payment,,10/16/2026,07/17/2026,97140.GP,66.88,Deductible,8.52,10/16/2026,Facility',
+    'Patient C,Patient Payment,,10/16/2026,07/17/2026,97110.GP,217.65,Deductible,84.03,10/16/2026,Facility'
+  ].join('\n');
+
+  const res = await parseCollectionExcel(Buffer.from(CSV_DATA), { clinicName: 'BOLINGBROOK' });
+  assert.equal(res.particulars.checkAmount, 1000);
+  // Deductible sum is 8.52 + 84.03 = 92.55, NOT copay (525) + coinsurance (109.06) + deductible (92.55) = 726.61
+  assert.equal(res.particulars.patientPayment, 92.55);
+  assert.equal(res.particulars.total, 1092.55);
+});
+
+test('Check sheet parses Source column named "Source" as well as "EOB Source"', async () => {
+  const CSV_DATA = [
+    'Collection Report - October 2026',
+    'Payee,Payer,Source,Method,ERA/EOB,Check no,Check Date,Check Amount,Posted Amount,Remaining Amt,Recoupment,Status,Posted date',
+    'Bolingbrook,BCBS IL,Availity,EFT,EOB,C123,10/01/2026,1000.00,1000.00,0,0,Posted,10/02/2026',
+    'Bolingbrook,Medicare,NSG,EFT,ERA,C124,10/02/2026,500.00,500.00,0,0,Posted,10/03/2026'
+  ].join('\n');
+
+  const res = await parseCollectionExcel(Buffer.from(CSV_DATA), { clinicName: 'BOLINGBROOK' });
+  assert.equal(res.checkRows.length, 2);
+  assert.equal(res.checkRows[0].source, 'Availity');
+  assert.equal(res.checkRows[0].eobSource, 'Availity');
+  assert.equal(res.checkRows[1].source, 'NSG');
+  assert.equal(res.checkRows[1].eobSource, 'NSG');
+});
